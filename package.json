@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@clerk/nextjs": "^7.7.6",
+    "@netlify/plugin-nextjs": "^5.15.13",
     "lucide-react": "^0.468.0",
     "next": "^15.2.8",
     "react": "^18.3.1",
