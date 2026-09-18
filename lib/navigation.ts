@@ -3,7 +3,6 @@ import {
   BarChart3,
   ClipboardCheck,
   LayoutDashboard,
-  MessageSquare,
   NotebookPen,
 } from "lucide-react";
 
@@ -33,10 +32,5 @@ export const navItems: NavItem[] = [
     label: "Analytics",
     href: "/analytics",
     icon: BarChart3,
-  },
-  {
-    label: "Community Feed",
-    href: "/community-feed",
-    icon: MessageSquare,
   },
 ];
