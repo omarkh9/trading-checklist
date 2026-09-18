@@ -2,15 +2,14 @@
 
 import { TradeForm } from "@/components/trade-journal/TradeForm";
 import { TradeTable } from "@/components/trade-journal/TradeTable";
+import { TRADES_STORAGE_KEY } from "@/lib/storage/keys";
 import type { Trade, TradeFormData } from "@/lib/types/trade";
 import { useEffect, useState } from "react";
-
-const STORAGE_KEY = "edge-log-trades";
 
 function loadTrades(): Trade[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(TRADES_STORAGE_KEY);
     return raw ? (JSON.parse(raw) as Trade[]) : [];
   } catch {
     return [];
@@ -28,7 +27,7 @@ export function TradeJournal() {
 
   useEffect(() => {
     if (!isLoaded) return;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(trades));
+    localStorage.setItem(TRADES_STORAGE_KEY, JSON.stringify(trades));
   }, [trades, isLoaded]);
 
   const handleSubmit = (data: TradeFormData) => {
