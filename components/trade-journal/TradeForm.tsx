@@ -42,69 +42,34 @@ export function TradeForm({ onSubmit }: TradeFormProps) {
     >
       <h3 className="text-lg font-semibold text-zinc-100">Log New Trade</h3>
       <p className="mt-1 text-sm text-zinc-500">
-        Capture setup, execution, and outcome in one place.
+        Attach chart screenshots for each timeframe, then capture execution and
+        outcome details below.
       </p>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div>
-          <label htmlFor="higherTimeFrame" className={labelClass}>
-            Higher Time Frame
-          </label>
-          <input
-            id="higherTimeFrame"
-            type="text"
-            placeholder="e.g. Daily, 4H"
-            value={form.higherTimeFrame}
-            onChange={(e) => update("higherTimeFrame", e.target.value)}
-            className={inputClass}
-          />
-        </div>
-
-        <div>
-          <label htmlFor="middleTimeFrame" className={labelClass}>
-            Middle Time Frame
-          </label>
-          <input
-            id="middleTimeFrame"
-            type="text"
-            placeholder="e.g. 1H, 15m"
-            value={form.middleTimeFrame}
-            onChange={(e) => update("middleTimeFrame", e.target.value)}
-            className={inputClass}
-          />
-        </div>
-
-        <div>
-          <label htmlFor="lowerTimeFrame" className={labelClass}>
-            Lower Time Frame
-          </label>
-          <input
-            id="lowerTimeFrame"
-            type="text"
-            placeholder="e.g. 5m, 1m"
-            value={form.lowerTimeFrame}
-            onChange={(e) => update("lowerTimeFrame", e.target.value)}
-            className={inputClass}
-          />
-        </div>
-
-        <div>
-          <label htmlFor="entryPrice" className={labelClass}>
-            Entry
-          </label>
-          <input
-            id="entryPrice"
-            type="text"
-            inputMode="decimal"
-            placeholder="Entry price or level"
-            value={form.entryPrice}
-            onChange={(e) => update("entryPrice", e.target.value)}
-            className={inputClass}
-          />
-        </div>
+        <ImageDropzone
+          label="Higher Time Frame"
+          value={form.higherTimeFrame}
+          onChange={(v) => update("higherTimeFrame", v)}
+        />
+        <ImageDropzone
+          label="Middle Time Frame"
+          value={form.middleTimeFrame}
+          onChange={(v) => update("middleTimeFrame", v)}
+        />
+        <ImageDropzone
+          label="Lower Time Frame"
+          value={form.lowerTimeFrame}
+          onChange={(v) => update("lowerTimeFrame", v)}
+        />
+        <ImageDropzone
+          label="Entry"
+          value={form.entry}
+          onChange={(v) => update("entry", v)}
+        />
       </div>
 
-      <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <div>
           <label htmlFor="pair" className={labelClass}>
             Pair / Ticker
@@ -149,6 +114,21 @@ export function TradeForm({ onSubmit }: TradeFormProps) {
             <option value="Loss">Loss</option>
             <option value="Breakeven">Breakeven</option>
           </select>
+        </div>
+
+        <div>
+          <label htmlFor="entryPrice" className={labelClass}>
+            Entry Price
+          </label>
+          <input
+            id="entryPrice"
+            type="text"
+            inputMode="decimal"
+            placeholder="0.00"
+            value={form.entryPrice}
+            onChange={(e) => update("entryPrice", e.target.value)}
+            className={inputClass}
+          />
         </div>
 
         <div>

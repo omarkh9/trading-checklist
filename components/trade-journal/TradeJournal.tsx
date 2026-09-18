@@ -6,12 +6,18 @@ import { TRADES_STORAGE_KEY } from "@/lib/storage/keys";
 import type { Trade, TradeFormData } from "@/lib/types/trade";
 import { useEffect, useState } from "react";
 
+function toChartImage(value: unknown): string | null {
+  if (typeof value !== "string" || !value) return null;
+  return value.startsWith("data:image") ? value : null;
+}
+
 function normalizeTrade(trade: Trade): Trade {
   return {
     ...trade,
-    higherTimeFrame: trade.higherTimeFrame ?? "",
-    middleTimeFrame: trade.middleTimeFrame ?? "",
-    lowerTimeFrame: trade.lowerTimeFrame ?? "",
+    higherTimeFrame: toChartImage(trade.higherTimeFrame),
+    middleTimeFrame: toChartImage(trade.middleTimeFrame),
+    lowerTimeFrame: toChartImage(trade.lowerTimeFrame),
+    entry: toChartImage(trade.entry),
   };
 }
 
