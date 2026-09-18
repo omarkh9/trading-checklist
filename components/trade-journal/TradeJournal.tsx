@@ -6,11 +6,21 @@ import { TRADES_STORAGE_KEY } from "@/lib/storage/keys";
 import type { Trade, TradeFormData } from "@/lib/types/trade";
 import { useEffect, useState } from "react";
 
+function normalizeTrade(trade: Trade): Trade {
+  return {
+    ...trade,
+    higherTimeFrame: trade.higherTimeFrame ?? "",
+    middleTimeFrame: trade.middleTimeFrame ?? "",
+    lowerTimeFrame: trade.lowerTimeFrame ?? "",
+  };
+}
+
 function loadTrades(): Trade[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(TRADES_STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as Trade[]) : [];
+    const parsed = raw ? (JSON.parse(raw) as Trade[]) : [];
+    return parsed.map(normalizeTrade);
   } catch {
     return [];
   }

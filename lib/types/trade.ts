@@ -4,6 +4,9 @@ export type Outcome = "Win" | "Loss" | "Breakeven";
 export type Trade = {
   id: string;
   pair: string;
+  higherTimeFrame: string;
+  middleTimeFrame: string;
+  lowerTimeFrame: string;
   direction: Direction;
   entryPrice: string;
   stopLoss: string;
@@ -19,6 +22,9 @@ export type TradeFormData = Omit<Trade, "id" | "createdAt">;
 
 export const emptyTradeForm = (): TradeFormData => ({
   pair: "",
+  higherTimeFrame: "",
+  middleTimeFrame: "",
+  lowerTimeFrame: "",
   direction: "Long",
   entryPrice: "",
   stopLoss: "",

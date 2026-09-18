@@ -99,6 +99,11 @@ export function TradeTable({ trades, onDelete }: TradeTableProps) {
               const isExpanded = expandedId === trade.id;
               const hasCharts = trade.beforeChart || trade.afterChart;
               const hasNotes = trade.notes.trim().length > 0;
+              const hasTimeFrames =
+                Boolean(trade.higherTimeFrame?.trim()) ||
+                Boolean(trade.middleTimeFrame?.trim()) ||
+                Boolean(trade.lowerTimeFrame?.trim());
+              const canExpand = hasCharts || hasNotes || hasTimeFrames;
 
               return (
                 <tr key={trade.id} className="group border-b border-border-subtle">
@@ -137,7 +142,7 @@ export function TradeTable({ trades, onDelete }: TradeTableProps) {
                           {formatDate(trade.createdAt)}
                         </div>
                         <div className="flex items-center gap-1 px-4 py-3">
-                          {(hasCharts || hasNotes) && (
+                          {canExpand && (
                             <button
                               type="button"
                               onClick={() =>
@@ -166,6 +171,32 @@ export function TradeTable({ trades, onDelete }: TradeTableProps) {
 
                       {isExpanded && (
                         <div className="border-t border-border-subtle px-4 py-5">
+                          {hasTimeFrames && (
+                            <div className="mb-5 grid gap-3 sm:grid-cols-3">
+                              {(
+                                [
+                                  ["Higher Time Frame", trade.higherTimeFrame],
+                                  ["Middle Time Frame", trade.middleTimeFrame],
+                                  ["Lower Time Frame", trade.lowerTimeFrame],
+                                ] as const
+                              ).map(
+                                ([label, value]) =>
+                                  value?.trim() && (
+                                    <div
+                                      key={label}
+                                      className="rounded-lg bg-surface-overlay/50 px-3 py-2"
+                                    >
+                                      <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">
+                                        {label}
+                                      </p>
+                                      <p className="mt-1 text-sm text-zinc-200">
+                                        {value}
+                                      </p>
+                                    </div>
+                                  )
+                              )}
+                            </div>
+                          )}
                           {hasNotes && (
                             <div className="mb-5">
                               <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">
