@@ -3,6 +3,7 @@ import {
   BarChart3,
   CalendarDays,
   ClipboardCheck,
+  History,
   LayoutDashboard,
   NotebookPen,
 } from "lucide-react";
@@ -28,6 +29,11 @@ export const navItems: NavItem[] = [
     label: "Calendar",
     href: "/calendar",
     icon: CalendarDays,
+  },
+  {
+    label: "Trade History",
+    href: "/trade-history",
+    icon: History,
   },
   {
     label: "Pre-Trade Checklist",
