@@ -5,23 +5,34 @@ import {
   loadTrades,
   tradeDateKey,
 } from "@/lib/trades/load-trades";
-import type { Outcome, Trade } from "@/lib/types/trade";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import type { Direction, Outcome, Trade } from "@/lib/types/trade";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 
-const outcomeDotClass: Record<Outcome, string> = {
+const outcomeFillClass: Record<Outcome, string> = {
   Win: "bg-emerald-500",
   Loss: "bg-red-500",
   Breakeven: "bg-blue-500",
+};
+
+const outcomeCellClass: Record<Outcome, string> = {
+  Win: "border-emerald-400/60 bg-emerald-500/85 text-emerald-950",
+  Loss: "border-red-400/60 bg-red-500/85 text-red-950",
+  Breakeven: "border-blue-400/60 bg-blue-500/85 text-blue-950",
 };
 
 const outcomeBadgeClass: Record<Outcome, string> = {
   Win: "bg-emerald-500/15 text-emerald-400 ring-emerald-500/30",
   Loss: "bg-red-500/15 text-red-400 ring-red-500/30",
   Breakeven: "bg-blue-500/15 text-blue-400 ring-blue-500/30",
+};
+
+const directionStyles: Record<Direction, string> = {
+  Long: "text-emerald-400",
+  Short: "text-red-400",
 };
 
 function buildCalendarDays(year: number, month: number): (Date | null)[] {
@@ -57,13 +68,199 @@ function formatTradeTime(iso: string) {
   });
 }
 
+function ChartPreview({
+  label,
+  src,
+}: {
+  label: string;
+  src: string | null;
+}) {
+  if (!src) return null;
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">
+        {label}
+      </p>
+      <div className="overflow-hidden rounded-lg border border-border">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={src}
+          alt={label}
+          className="max-h-56 w-full object-cover"
+        />
+      </div>
+    </div>
+  );
+}
+
+type DayDetailModalProps = {
+  dateKey: string;
+  trades: Trade[];
+  onClose: () => void;
+};
+
+function DayDetailModal({ dateKey, trades, onClose }: DayDetailModalProps) {
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [onClose]);
+
+  return (
+    <>
+      <button
+        type="button"
+        aria-label="Close day details"
+        className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="day-detail-title"
+        className="fixed inset-x-4 top-[max(1rem,env(safe-area-inset-top))] z-50 mx-auto flex max-h-[min(90vh,900px)] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-border bg-surface-raised shadow-2xl sm:inset-x-auto"
+      >
+        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-border px-5 py-4">
+          <div>
+            <h3 id="day-detail-title" className="text-lg font-semibold text-zinc-100">
+              {formatSelectedLabel(dateKey)}
+            </h3>
+            <p className="mt-1 text-sm text-zinc-500">
+              {trades.length === 0
+                ? "No trades logged on this day."
+                : `${trades.length} ${
+                    trades.length === 1 ? "trade" : "trades"
+                  } logged`}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border text-zinc-400 transition-colors hover:bg-surface-overlay hover:text-zinc-100"
+            aria-label="Close"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-4">
+          {trades.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-border bg-surface-overlay/30 px-6 py-12 text-center">
+              <p className="text-sm text-zinc-400">
+                Log a trade in the journal to see it on your calendar.
+              </p>
+              <Link
+                href="/trade-journal"
+                onClick={onClose}
+                className="mt-4 inline-flex text-sm font-medium text-accent-hover hover:text-white"
+              >
+                Go to Trade Journal →
+              </Link>
+            </div>
+          ) : (
+            <ul className="space-y-6">
+              {trades.map((trade) => {
+                const chartFields = [
+                  ["Higher Time Frame", trade.higherTimeFrame],
+                  ["Middle Time Frame", trade.middleTimeFrame],
+                  ["Lower Time Frame", trade.lowerTimeFrame],
+                  ["Entry", trade.entry],
+                  ["Before Chart (Setup)", trade.beforeChart],
+                  ["After Chart (Result)", trade.afterChart],
+                ] as const;
+                const charts = chartFields.filter(([, src]) => src);
+
+                return (
+                  <li
+                    key={trade.id}
+                    className="rounded-xl border border-border bg-surface-overlay/40 p-4 sm:p-5"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xl font-semibold text-zinc-100">
+                          {trade.pair}
+                        </p>
+                        <p className="mt-1 text-sm text-zinc-500">
+                          {formatTradeTime(trade.createdAt)}
+                        </p>
+                      </div>
+                      <span
+                        className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${outcomeBadgeClass[trade.outcome]}`}
+                      >
+                        {trade.outcome}
+                      </span>
+                    </div>
+
+                    <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-lg bg-surface-overlay/60 px-3 py-2">
+                        <dt className="text-xs text-zinc-500">Direction</dt>
+                        <dd
+                          className={`text-sm font-medium ${directionStyles[trade.direction]}`}
+                        >
+                          {trade.direction}
+                        </dd>
+                      </div>
+                      <div className="rounded-lg bg-surface-overlay/60 px-3 py-2">
+                        <dt className="text-xs text-zinc-500">Entry Price</dt>
+                        <dd className="font-mono text-sm text-zinc-200">
+                          {trade.entryPrice || "—"}
+                        </dd>
+                      </div>
+                      <div className="rounded-lg bg-surface-overlay/60 px-3 py-2">
+                        <dt className="text-xs text-zinc-500">Stop Loss</dt>
+                        <dd className="font-mono text-sm text-zinc-200">
+                          {trade.stopLoss || "—"}
+                        </dd>
+                      </div>
+                      <div className="rounded-lg bg-surface-overlay/60 px-3 py-2">
+                        <dt className="text-xs text-zinc-500">Take Profit</dt>
+                        <dd className="font-mono text-sm text-zinc-200">
+                          {trade.takeProfit || "—"}
+                        </dd>
+                      </div>
+                    </dl>
+
+                    {trade.notes.trim() && (
+                      <div className="mt-4">
+                        <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">
+                          Notes
+                        </p>
+                        <p className="mt-2 text-sm leading-relaxed text-zinc-300">
+                          {trade.notes}
+                        </p>
+                      </div>
+                    )}
+
+                    {charts.length > 0 && (
+                      <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                        {charts.map(([label, src]) => (
+                          <ChartPreview key={label} label={label} src={src} />
+                        ))}
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
 export function TradeCalendar() {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
   const [viewDate, setViewDate] = useState(() => new Date());
-  const [selectedDateKey, setSelectedDateKey] = useState<string | null>(() =>
-    dateKeyFromDate(new Date())
-  );
+  const [modalDateKey, setModalDateKey] = useState<string | null>(null);
 
   const refreshTrades = () => setTrades(loadTrades());
 
@@ -104,8 +301,8 @@ export function TradeCalendar() {
   );
 
   const todayKey = dateKeyFromDate(new Date());
-  const selectedTrades = selectedDateKey
-    ? (tradesByDay.get(selectedDateKey) ?? [])
+  const modalTrades = modalDateKey
+    ? (tradesByDay.get(modalDateKey) ?? [])
     : [];
 
   const goToPreviousMonth = () => {
@@ -123,7 +320,7 @@ export function TradeCalendar() {
   const goToToday = () => {
     const today = new Date();
     setViewDate(new Date(today.getFullYear(), today.getMonth(), 1));
-    setSelectedDateKey(dateKeyFromDate(today));
+    setModalDateKey(dateKeyFromDate(today));
   };
 
   if (!isLoaded) {
@@ -136,179 +333,166 @@ export function TradeCalendar() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
-      <div className="rounded-xl border border-border bg-surface-raised p-4 sm:p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h3 className="text-lg font-semibold text-zinc-100">
-              {formatMonthLabel(viewDate)}
-            </h3>
-            <p className="mt-1 text-sm text-zinc-500">
-              Click a date to review trades logged that day.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={goToPreviousMonth}
-              className="flex h-10 w-10 items-center justify-center rounded-lg border border-border text-zinc-400 transition-colors hover:bg-surface-overlay hover:text-zinc-100"
-              aria-label="Previous month"
-            >
-              <ChevronLeft className="h-5 w-5" />
-            </button>
-            <button
-              type="button"
-              onClick={goToToday}
-              className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-zinc-300 transition-colors hover:bg-surface-overlay"
-            >
-              Today
-            </button>
-            <button
-              type="button"
-              onClick={goToNextMonth}
-              className="flex h-10 w-10 items-center justify-center rounded-lg border border-border text-zinc-400 transition-colors hover:bg-surface-overlay hover:text-zinc-100"
-              aria-label="Next month"
-            >
-              <ChevronRight className="h-5 w-5" />
-            </button>
-          </div>
-        </div>
-
-        <div className="mt-6 grid grid-cols-7 gap-1 sm:gap-2">
-          {WEEKDAYS.map((day) => (
-            <div
-              key={day}
-              className="py-2 text-center text-xs font-medium uppercase tracking-wider text-zinc-500"
-            >
-              {day}
+    <>
+      <div className="mx-auto max-w-5xl">
+        <div className="rounded-xl border border-border bg-surface-raised p-4 sm:p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-zinc-100">
+                {formatMonthLabel(viewDate)}
+              </h3>
+              <p className="mt-1 text-sm text-zinc-500">
+                Days are colored by trade outcome. Click a date for full
+                details.
+              </p>
             </div>
-          ))}
-
-          {calendarDays.map((date, index) => {
-            if (!date) {
-              return (
-                <div
-                  key={`empty-${index}`}
-                  className="min-h-[4.5rem] rounded-lg bg-transparent sm:min-h-[5.5rem]"
-                  aria-hidden
-                />
-              );
-            }
-
-            const key = dateKeyFromDate(date);
-            const dayTrades = tradesByDay.get(key) ?? [];
-            const isSelected = selectedDateKey === key;
-            const isToday = key === todayKey;
-
-            return (
+            <div className="flex items-center gap-2">
               <button
-                key={key}
                 type="button"
-                onClick={() => setSelectedDateKey(key)}
-                className={`flex min-h-[4.5rem] flex-col rounded-lg border p-2 text-left transition-all sm:min-h-[5.5rem] sm:p-3 ${
-                  isSelected
-                    ? "border-accent/50 bg-accent/10 ring-1 ring-accent/30"
-                    : "border-border bg-surface-overlay/40 hover:border-border/80 hover:bg-surface-overlay"
-                } ${isToday && !isSelected ? "ring-1 ring-zinc-600" : ""}`}
+                onClick={goToPreviousMonth}
+                className="flex h-10 w-10 items-center justify-center rounded-lg border border-border text-zinc-400 transition-colors hover:bg-surface-overlay hover:text-zinc-100"
+                aria-label="Previous month"
               >
-                <span
-                  className={`text-sm font-semibold ${
-                    isToday ? "text-accent-hover" : "text-zinc-200"
-                  }`}
-                >
-                  {date.getDate()}
-                </span>
-                {dayTrades.length > 0 && (
-                  <div className="mt-auto flex flex-wrap gap-1 pt-2">
-                    {dayTrades.map((trade) => (
-                      <span
-                        key={trade.id}
-                        className={`h-2 w-2 rounded-full ${outcomeDotClass[trade.outcome]}`}
-                        title={`${trade.pair} — ${trade.outcome}`}
-                      />
-                    ))}
-                  </div>
-                )}
+                <ChevronLeft className="h-5 w-5" />
               </button>
-            );
-          })}
-        </div>
+              <button
+                type="button"
+                onClick={goToToday}
+                className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-zinc-300 transition-colors hover:bg-surface-overlay"
+              >
+                Today
+              </button>
+              <button
+                type="button"
+                onClick={goToNextMonth}
+                className="flex h-10 w-10 items-center justify-center rounded-lg border border-border text-zinc-400 transition-colors hover:bg-surface-overlay hover:text-zinc-100"
+                aria-label="Next month"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
 
-        <div className="mt-6 flex flex-wrap gap-4 border-t border-border pt-4 text-xs text-zinc-500">
-          <span className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" />
-            Win
-          </span>
-          <span className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-red-500" />
-            Loss
-          </span>
-          <span className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-blue-500" />
-            Breakeven
-          </span>
+          <div className="mt-6 grid grid-cols-7 gap-1 sm:gap-2">
+            {WEEKDAYS.map((day) => (
+              <div
+                key={day}
+                className="py-2 text-center text-xs font-medium uppercase tracking-wider text-zinc-500"
+              >
+                {day}
+              </div>
+            ))}
+
+            {calendarDays.map((date, index) => {
+              if (!date) {
+                return (
+                  <div
+                    key={`empty-${index}`}
+                    className="min-h-[4.5rem] rounded-lg bg-transparent sm:min-h-[5.5rem]"
+                    aria-hidden
+                  />
+                );
+              }
+
+              const key = dateKeyFromDate(date);
+              const dayTrades = tradesByDay.get(key) ?? [];
+              const isToday = key === todayKey;
+              const hasTrades = dayTrades.length > 0;
+              const singleOutcome =
+                dayTrades.length === 1 ? dayTrades[0].outcome : null;
+
+              let cellClass =
+                "relative flex min-h-[4.5rem] flex-col overflow-hidden rounded-lg border p-2 text-left transition-all sm:min-h-[5.5rem] sm:p-3 ";
+
+              if (!hasTrades) {
+                cellClass +=
+                  "border-border bg-surface-overlay/40 hover:border-border/80 hover:bg-surface-overlay text-zinc-200";
+              } else if (singleOutcome) {
+                cellClass += `${outcomeCellClass[singleOutcome]} hover:brightness-110`;
+              } else {
+                cellClass +=
+                  "border-zinc-600/80 bg-surface-overlay p-0 hover:brightness-105";
+              }
+
+              if (isToday) {
+                cellClass += " ring-2 ring-white/90 ring-offset-2 ring-offset-surface-raised";
+              }
+
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setModalDateKey(key)}
+                  className={cellClass}
+                  aria-label={`${date.getDate()}, ${dayTrades.length} trades`}
+                >
+                  {hasTrades && dayTrades.length > 1 && (
+                    <div className="absolute inset-0 flex flex-col">
+                      {dayTrades.map((trade) => (
+                        <div
+                          key={trade.id}
+                          className={`min-h-0 flex-1 ${outcomeFillClass[trade.outcome]}`}
+                          title={`${trade.pair} — ${trade.outcome}`}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  <span
+                    className={`relative z-10 text-sm font-bold ${
+                      hasTrades
+                        ? singleOutcome
+                          ? ""
+                          : "rounded-md bg-black/45 px-1.5 py-0.5 text-white shadow-sm"
+                        : isToday
+                          ? "text-accent-hover"
+                          : ""
+                    }`}
+                  >
+                    {date.getDate()}
+                  </span>
+
+                  {hasTrades && dayTrades.length > 1 && (
+                    <span className="relative z-10 mt-auto self-end rounded bg-black/50 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                      {dayTrades.length} trades
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mt-6 flex flex-wrap gap-4 border-t border-border pt-4 text-xs text-zinc-500">
+            <span className="flex items-center gap-2">
+              <span className="h-5 w-5 rounded border border-emerald-400/60 bg-emerald-500/85" />
+              Win day
+            </span>
+            <span className="flex items-center gap-2">
+              <span className="h-5 w-5 rounded border border-red-400/60 bg-red-500/85" />
+              Loss day
+            </span>
+            <span className="flex items-center gap-2">
+              <span className="h-5 w-5 rounded border border-blue-400/60 bg-blue-500/85" />
+              Breakeven day
+            </span>
+            <span className="flex items-center gap-2">
+              <span className="flex h-5 w-5 overflow-hidden rounded border border-zinc-600">
+                <span className="flex-1 bg-emerald-500" />
+                <span className="flex-1 bg-red-500" />
+              </span>
+              Multiple trades (split by outcome)
+            </span>
+          </div>
         </div>
       </div>
 
-      <section className="rounded-xl border border-border bg-surface-raised p-4 sm:p-6">
-        <h3 className="text-lg font-semibold text-zinc-100">
-          {selectedDateKey
-            ? formatSelectedLabel(selectedDateKey)
-            : "Select a date"}
-        </h3>
-        <p className="mt-1 text-sm text-zinc-500">
-          {selectedTrades.length === 0
-            ? "No trades logged on this day."
-            : `${selectedTrades.length} ${
-                selectedTrades.length === 1 ? "trade" : "trades"
-              } logged`}
-        </p>
-
-        {selectedTrades.length === 0 ? (
-          <div className="mt-6 rounded-lg border border-dashed border-border bg-surface-overlay/30 px-6 py-10 text-center">
-            <p className="text-sm text-zinc-400">
-              Log a trade in the journal to see it on your calendar.
-            </p>
-            <Link
-              href="/trade-journal"
-              className="mt-4 inline-flex text-sm font-medium text-accent-hover hover:text-white"
-            >
-              Go to Trade Journal →
-            </Link>
-          </div>
-        ) : (
-          <ul className="mt-6 space-y-3">
-            {selectedTrades.map((trade) => (
-              <li
-                key={trade.id}
-                className="rounded-lg border border-border bg-surface-overlay/50 p-4"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="font-semibold text-zinc-100">{trade.pair}</p>
-                    <p className="mt-1 text-sm text-zinc-500">
-                      {trade.direction} · {formatTradeTime(trade.createdAt)}
-                      {trade.entryPrice
-                        ? ` · Entry ${trade.entryPrice}`
-                        : ""}
-                    </p>
-                  </div>
-                  <span
-                    className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${outcomeBadgeClass[trade.outcome]}`}
-                  >
-                    {trade.outcome}
-                  </span>
-                </div>
-                {trade.notes.trim() && (
-                  <p className="mt-3 text-sm leading-relaxed text-zinc-400">
-                    {trade.notes}
-                  </p>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-    </div>
+      {modalDateKey && (
+        <DayDetailModal
+          dateKey={modalDateKey}
+          trades={modalTrades}
+          onClose={() => setModalDateKey(null)}
+        />
+      )}
+    </>
   );
 }
