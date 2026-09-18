@@ -13,16 +13,16 @@ import { useEffect, useMemo, useState } from "react";
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 
 const outcomeFillClass: Record<Outcome, string> = {
-  Win: "bg-emerald-500/20",
-  Loss: "bg-red-500/20",
-  Breakeven: "bg-blue-500/20",
+  Win: "bg-emerald-500/35",
+  Loss: "bg-rose-500/35",
+  Breakeven: "bg-blue-500/35",
 };
 
 const outcomeCellClass: Record<Outcome, string> = {
-  Win: "border-emerald-500/25 bg-emerald-500/12 text-zinc-100 hover:border-emerald-500/40 hover:bg-emerald-500/18",
-  Loss: "border-red-500/25 bg-red-500/12 text-zinc-100 hover:border-red-500/40 hover:bg-red-500/18",
+  Win: "border-emerald-500/45 bg-emerald-500/35 text-zinc-100 hover:border-emerald-500/55 hover:bg-emerald-500/40",
+  Loss: "border-rose-500/45 bg-rose-500/35 text-zinc-100 hover:border-rose-500/55 hover:bg-rose-500/40",
   Breakeven:
-    "border-blue-500/25 bg-blue-500/12 text-zinc-100 hover:border-blue-500/40 hover:bg-blue-500/18",
+    "border-blue-500/45 bg-blue-500/35 text-zinc-100 hover:border-blue-500/55 hover:bg-blue-500/40",
 };
 
 const outcomeBadgeClass: Record<Outcome, string> = {
@@ -412,7 +412,7 @@ export function TradeCalendar() {
                 cellClass += outcomeCellClass[singleOutcome];
               } else {
                 cellClass +=
-                  "border-border bg-surface-overlay/80 p-0 hover:bg-surface-overlay";
+                  "border-border bg-surface-overlay/80 p-0 hover:border-zinc-500/40";
               }
 
               if (isToday) {
@@ -465,21 +465,21 @@ export function TradeCalendar() {
 
           <div className="mt-6 flex flex-wrap gap-4 border-t border-border pt-4 text-xs text-zinc-500">
             <span className="flex items-center gap-2">
-              <span className="h-5 w-5 rounded border border-emerald-500/25 bg-emerald-500/12" />
+              <span className="h-5 w-5 rounded border border-emerald-500/45 bg-emerald-500/35" />
               Win day
             </span>
             <span className="flex items-center gap-2">
-              <span className="h-5 w-5 rounded border border-red-500/25 bg-red-500/12" />
+              <span className="h-5 w-5 rounded border border-rose-500/45 bg-rose-500/35" />
               Loss day
             </span>
             <span className="flex items-center gap-2">
-              <span className="h-5 w-5 rounded border border-blue-500/25 bg-blue-500/12" />
+              <span className="h-5 w-5 rounded border border-blue-500/45 bg-blue-500/35" />
               Breakeven day
             </span>
             <span className="flex items-center gap-2">
               <span className="flex h-5 w-5 overflow-hidden rounded border border-border">
-                <span className="flex-1 bg-emerald-500/20" />
-                <span className="flex-1 bg-red-500/20" />
+                <span className="flex-1 bg-emerald-500/35" />
+                <span className="flex-1 bg-rose-500/35" />
               </span>
               Multiple trades (split by outcome)
             </span>
