@@ -5,6 +5,7 @@ import {
   loadTrades,
   tradeDateKey,
 } from "@/lib/trades/load-trades";
+import { formatPnlDollars } from "@/lib/trades/pnl";
 import type { Direction, Outcome, Trade } from "@/lib/types/trade";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import Link from "next/link";
@@ -224,6 +225,26 @@ function DayDetailModal({ dateKey, trades, onClose }: DayDetailModalProps) {
                         <dt className="text-xs text-zinc-500">Take Profit</dt>
                         <dd className="font-mono text-sm text-zinc-200">
                           {trade.takeProfit || "—"}
+                        </dd>
+                      </div>
+                      <div className="rounded-lg bg-surface-overlay/60 px-3 py-2">
+                        <dt className="text-xs text-zinc-500">P/L</dt>
+                        <dd
+                          className={`font-mono text-sm ${
+                            trade.pnlDollars > 0
+                              ? "text-emerald-400"
+                              : trade.pnlDollars < 0
+                                ? "text-rose-400"
+                                : "text-zinc-400"
+                          }`}
+                        >
+                          {formatPnlDollars(trade.pnlDollars ?? 0)}
+                        </dd>
+                      </div>
+                      <div className="rounded-lg bg-surface-overlay/60 px-3 py-2">
+                        <dt className="text-xs text-zinc-500">Lot Size</dt>
+                        <dd className="font-mono text-sm text-zinc-200">
+                          {trade.lotSize || "—"}
                         </dd>
                       </div>
                     </dl>

@@ -1,5 +1,6 @@
 "use client";
 
+import { formatPnlDollars } from "@/lib/trades/pnl";
 import type { Direction, Outcome, Trade } from "@/lib/types/trade";
 import { ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import { useState } from "react";
@@ -79,7 +80,7 @@ export function TradeTable({ trades, onDelete }: TradeTableProps) {
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-surface-raised">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[720px] text-left text-sm">
+        <table className="w-full min-w-[860px] text-left text-sm">
           <thead>
             <tr className="border-b border-border bg-surface-overlay/50">
               <th className="px-4 py-3 font-medium text-zinc-400">Pair</th>
@@ -87,6 +88,7 @@ export function TradeTable({ trades, onDelete }: TradeTableProps) {
               <th className="px-4 py-3 font-medium text-zinc-400">Entry</th>
               <th className="px-4 py-3 font-medium text-zinc-400">SL</th>
               <th className="px-4 py-3 font-medium text-zinc-400">TP</th>
+              <th className="px-4 py-3 font-medium text-zinc-400">P/L</th>
               <th className="px-4 py-3 font-medium text-zinc-400">Outcome</th>
               <th className="px-4 py-3 font-medium text-zinc-400">Date</th>
               <th className="px-4 py-3 font-medium text-zinc-400">
@@ -109,13 +111,13 @@ export function TradeTable({ trades, onDelete }: TradeTableProps) {
 
               return (
                 <tr key={trade.id} className="group border-b border-border-subtle">
-                  <td colSpan={8} className="p-0">
+                  <td colSpan={9} className="p-0">
                     <div
                       className={`grid transition-colors ${
                         isExpanded ? "bg-surface-overlay/30" : "hover:bg-surface-overlay/20"
                       }`}
                     >
-                      <div className="grid grid-cols-[repeat(7,minmax(0,1fr))_auto] items-center">
+                      <div className="grid grid-cols-[repeat(8,minmax(0,1fr))_auto] items-center">
                         <div className="px-4 py-3 font-semibold text-zinc-100">
                           {trade.pair}
                         </div>
@@ -132,6 +134,17 @@ export function TradeTable({ trades, onDelete }: TradeTableProps) {
                         </div>
                         <div className="px-4 py-3 font-mono text-zinc-400">
                           {trade.takeProfit || "—"}
+                        </div>
+                        <div
+                          className={`px-4 py-3 font-mono text-sm ${
+                            trade.pnlDollars > 0
+                              ? "text-emerald-400"
+                              : trade.pnlDollars < 0
+                                ? "text-rose-400"
+                                : "text-zinc-500"
+                          }`}
+                        >
+                          {formatPnlDollars(trade.pnlDollars ?? 0)}
                         </div>
                         <div className="px-4 py-3">
                           <span
@@ -173,6 +186,24 @@ export function TradeTable({ trades, onDelete }: TradeTableProps) {
 
                       {isExpanded && (
                         <div className="border-t border-border-subtle px-4 py-5">
+                          {(trade.lotSize || trade.pnlInput) && (
+                            <div className="mb-5 flex flex-wrap gap-4 text-sm text-zinc-400">
+                              {trade.lotSize && (
+                                <span>
+                                  Lot:{" "}
+                                  <span className="font-mono text-zinc-200">
+                                    {trade.lotSize}
+                                  </span>
+                                </span>
+                              )}
+                              {trade.pnlInput && (
+                                <span>
+                                  P/L input: {trade.pnlInput}
+                                  {trade.pnlMode === "percent" ? "%" : " USD"}
+                                </span>
+                              )}
+                            </div>
+                          )}
                           {hasTimeframeCharts && (
                             <div className="mb-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                               <ChartPreview

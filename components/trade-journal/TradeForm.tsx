@@ -1,16 +1,22 @@
 "use client";
 
 import { ImageDropzone } from "@/components/trade-journal/ImageDropzone";
+import { formatBalance } from "@/lib/trades/account-balance";
+import { calculateLotSize, formatLotSize } from "@/lib/trades/lot-size";
+import { formatPnlDollars, resolvePnlDollars } from "@/lib/trades/pnl";
 import {
   emptyTradeForm,
   type Direction,
   type Outcome,
+  type PnlMode,
+  type RiskSizeMode,
   type TradeFormData,
 } from "@/lib/types/trade";
 import { Save } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 type TradeFormProps = {
+  currentBalance: number;
   onSubmit: (data: TradeFormData) => void;
 };
 
@@ -19,7 +25,36 @@ const inputClass =
 
 const labelClass = "mb-1.5 block text-sm font-medium text-zinc-400";
 
-export function TradeForm({ onSubmit }: TradeFormProps) {
+function ToggleGroup<T extends string>({
+  value,
+  options,
+  onChange,
+}: {
+  value: T;
+  options: { id: T; label: string }[];
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div className="flex rounded-lg border border-border bg-surface-overlay p-1">
+      {options.map((option) => (
+        <button
+          key={option.id}
+          type="button"
+          onClick={() => onChange(option.id)}
+          className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+            value === option.id
+              ? "bg-accent text-white"
+              : "text-zinc-400 hover:text-zinc-200"
+          }`}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export function TradeForm({ currentBalance, onSubmit }: TradeFormProps) {
   const [form, setForm] = useState<TradeFormData>(emptyTradeForm());
 
   const update = <K extends keyof TradeFormData>(
@@ -27,13 +62,56 @@ export function TradeForm({ onSubmit }: TradeFormProps) {
     value: TradeFormData[K]
   ) => setForm((prev) => ({ ...prev, [key]: value }));
 
+  const resolvedPnl = useMemo(
+    () =>
+      resolvePnlDollars(
+        form.outcome,
+        form.pnlMode,
+        form.pnlInput,
+        currentBalance
+      ),
+    [form.outcome, form.pnlMode, form.pnlInput, currentBalance]
+  );
+
+  const calculatedLot = useMemo(
+    () =>
+      calculateLotSize({
+        riskSizeMode: form.riskSizeMode,
+        riskPercent: form.riskPercent,
+        fixedLotSize: form.fixedLotSize,
+        entryPrice: form.entryPrice,
+        stopLoss: form.stopLoss,
+        accountBalance: currentBalance,
+      }),
+    [
+      form.riskSizeMode,
+      form.riskPercent,
+      form.fixedLotSize,
+      form.entryPrice,
+      form.stopLoss,
+      currentBalance,
+    ]
+  );
+
+  const displayLotSize =
+    form.riskSizeMode === "fixed"
+      ? form.fixedLotSize || "—"
+      : formatLotSize(calculatedLot);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.pair.trim()) return;
 
-    onSubmit(form);
+    onSubmit({
+      ...form,
+      pnlDollars: resolvedPnl,
+      lotSize: displayLotSize === "—" ? "" : displayLotSize,
+      accountBalanceAtEntry: currentBalance,
+    });
     setForm(emptyTradeForm());
   };
+
+  const showPnlFields = form.outcome !== "Breakeven";
 
   return (
     <form
@@ -42,8 +120,8 @@ export function TradeForm({ onSubmit }: TradeFormProps) {
     >
       <h3 className="text-lg font-semibold text-zinc-100">Log New Trade</h3>
       <p className="mt-1 text-sm text-zinc-500">
-        Attach chart screenshots for each timeframe, then capture execution and
-        outcome details below.
+        Attach chart screenshots for each timeframe, then capture execution,
+        risk, and outcome details below.
       </p>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -159,6 +237,105 @@ export function TradeForm({ onSubmit }: TradeFormProps) {
             onChange={(e) => update("takeProfit", e.target.value)}
             className={inputClass}
           />
+        </div>
+      </div>
+
+      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+        <div className="rounded-lg border border-border bg-surface-overlay/40 p-4">
+          <p className="text-sm font-medium text-zinc-200">Profit / Loss</p>
+          <p className="mt-1 text-xs text-zinc-500">
+            Enter the result as dollars or as a percent of your current balance (
+            {formatBalance(currentBalance)}).
+          </p>
+
+          {showPnlFields ? (
+            <div className="mt-4 space-y-3">
+              <ToggleGroup<PnlMode>
+                value={form.pnlMode}
+                options={[
+                  { id: "dollar", label: "$ Amount" },
+                  { id: "percent", label: "% Percent" },
+                ]}
+                onChange={(value) => update("pnlMode", value)}
+              />
+              <input
+                type="text"
+                inputMode="decimal"
+                placeholder={
+                  form.pnlMode === "dollar" ? "e.g. 250" : "e.g. 1.5"
+                }
+                value={form.pnlInput}
+                onChange={(e) => update("pnlInput", e.target.value)}
+                className={inputClass}
+              />
+              <p className="text-sm text-zinc-400">
+                Resolved P/L:{" "}
+                <span
+                  className={
+                    resolvedPnl >= 0 ? "text-emerald-400" : "text-rose-400"
+                  }
+                >
+                  {formatPnlDollars(resolvedPnl)}
+                </span>
+                {form.pnlMode === "percent" && form.pnlInput.trim() && (
+                  <span className="text-zinc-500">
+                    {" "}
+                    ({form.pnlInput}% of balance)
+                  </span>
+                )}
+              </p>
+            </div>
+          ) : (
+            <p className="mt-4 text-sm text-zinc-500">
+              Break-even trades apply $0 P/L to your account.
+            </p>
+          )}
+        </div>
+
+        <div className="rounded-lg border border-border bg-surface-overlay/40 p-4">
+          <p className="text-sm font-medium text-zinc-200">Lot Size</p>
+          <p className="mt-1 text-xs text-zinc-500">
+            Use a fixed lot size or risk a percentage of balance based on entry
+            and stop distance.
+          </p>
+
+          <div className="mt-4 space-y-3">
+            <ToggleGroup<RiskSizeMode>
+              value={form.riskSizeMode}
+              options={[
+                { id: "fixed", label: "Fixed Size" },
+                { id: "percent", label: "Risk %" },
+              ]}
+              onChange={(value) => update("riskSizeMode", value)}
+            />
+
+            {form.riskSizeMode === "fixed" ? (
+              <input
+                type="text"
+                inputMode="decimal"
+                placeholder="Fixed lot / contracts"
+                value={form.fixedLotSize}
+                onChange={(e) => update("fixedLotSize", e.target.value)}
+                className={inputClass}
+              />
+            ) : (
+              <input
+                type="text"
+                inputMode="decimal"
+                placeholder="Risk % of balance (e.g. 1)"
+                value={form.riskPercent}
+                onChange={(e) => update("riskPercent", e.target.value)}
+                className={inputClass}
+              />
+            )}
+
+            <div className="rounded-lg bg-surface-overlay px-3 py-2">
+              <p className="text-xs text-zinc-500">Calculated lot size</p>
+              <p className="mt-1 font-mono text-lg text-zinc-100">
+                {displayLotSize}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 

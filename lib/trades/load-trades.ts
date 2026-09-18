@@ -13,6 +13,17 @@ export function normalizeTrade(trade: Trade): Trade {
     middleTimeFrame: toChartImage(trade.middleTimeFrame),
     lowerTimeFrame: toChartImage(trade.lowerTimeFrame),
     entry: toChartImage(trade.entry),
+    pnlMode: trade.pnlMode ?? "dollar",
+    pnlInput: trade.pnlInput ?? "",
+    pnlDollars: typeof trade.pnlDollars === "number" ? trade.pnlDollars : 0,
+    riskSizeMode: trade.riskSizeMode ?? "percent",
+    riskPercent: trade.riskPercent ?? "1",
+    fixedLotSize: trade.fixedLotSize ?? "",
+    lotSize: trade.lotSize ?? "",
+    accountBalanceAtEntry:
+      typeof trade.accountBalanceAtEntry === "number"
+        ? trade.accountBalanceAtEntry
+        : 0,
   };
 }
 

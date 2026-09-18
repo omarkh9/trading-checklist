@@ -1,5 +1,7 @@
 export type Direction = "Long" | "Short";
 export type Outcome = "Win" | "Loss" | "Breakeven";
+export type PnlMode = "dollar" | "percent";
+export type RiskSizeMode = "fixed" | "percent";
 
 export type Trade = {
   id: string;
@@ -13,6 +15,14 @@ export type Trade = {
   stopLoss: string;
   takeProfit: string;
   outcome: Outcome;
+  pnlMode: PnlMode;
+  pnlInput: string;
+  pnlDollars: number;
+  riskSizeMode: RiskSizeMode;
+  riskPercent: string;
+  fixedLotSize: string;
+  lotSize: string;
+  accountBalanceAtEntry: number;
   notes: string;
   beforeChart: string | null;
   afterChart: string | null;
@@ -32,6 +42,14 @@ export const emptyTradeForm = (): TradeFormData => ({
   stopLoss: "",
   takeProfit: "",
   outcome: "Win",
+  pnlMode: "dollar",
+  pnlInput: "",
+  pnlDollars: 0,
+  riskSizeMode: "percent",
+  riskPercent: "1",
+  fixedLotSize: "",
+  lotSize: "",
+  accountBalanceAtEntry: 0,
   notes: "",
   beforeChart: null,
   afterChart: null,
