@@ -1,5 +1,6 @@
 "use client";
 
+import { TradeDetailCard } from "@/components/trade-journal/TradeDetailCard";
 import { formatPnlDollars } from "@/lib/trades/pnl";
 import type { Direction, Outcome, Trade } from "@/lib/types/trade";
 import { ChevronDown, ChevronUp, Trash2 } from "lucide-react";
@@ -29,38 +30,6 @@ function formatDate(iso: string) {
     hour: "2-digit",
     minute: "2-digit",
   });
-}
-
-function ChartPreview({
-  label,
-  src,
-}: {
-  label: string;
-  src: string | null;
-}) {
-  if (!src) {
-    return (
-      <div className="flex h-48 items-center justify-center rounded-lg border border-dashed border-border bg-surface-overlay/50">
-        <p className="text-sm text-zinc-600">No {label.toLowerCase()} uploaded</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-2">
-      <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">
-        {label}
-      </p>
-      <div className="overflow-hidden rounded-lg border border-border">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={src}
-          alt={label}
-          className="h-48 w-full cursor-pointer object-cover transition-transform hover:scale-[1.02]"
-        />
-      </div>
-    </div>
-  );
 }
 
 export function TradeTable({ trades, onDelete }: TradeTableProps) {
@@ -185,64 +154,8 @@ export function TradeTable({ trades, onDelete }: TradeTableProps) {
                       </div>
 
                       {isExpanded && (
-                        <div className="border-t border-border-subtle px-4 py-5">
-                          {(trade.lotSize || trade.pnlInput) && (
-                            <div className="mb-5 flex flex-wrap gap-4 text-sm text-zinc-400">
-                              {trade.lotSize && (
-                                <span>
-                                  Lot:{" "}
-                                  <span className="font-mono text-zinc-200">
-                                    {trade.lotSize}
-                                  </span>
-                                </span>
-                              )}
-                              {trade.pnlInput && (
-                                <span>
-                                  P/L input: {trade.pnlInput}
-                                  {trade.pnlMode === "percent" ? "%" : " USD"}
-                                </span>
-                              )}
-                            </div>
-                          )}
-                          {hasTimeframeCharts && (
-                            <div className="mb-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                              <ChartPreview
-                                label="Higher Time Frame"
-                                src={trade.higherTimeFrame}
-                              />
-                              <ChartPreview
-                                label="Middle Time Frame"
-                                src={trade.middleTimeFrame}
-                              />
-                              <ChartPreview
-                                label="Lower Time Frame"
-                                src={trade.lowerTimeFrame}
-                              />
-                              <ChartPreview label="Entry" src={trade.entry} />
-                            </div>
-                          )}
-                          {hasNotes && (
-                            <div className="mb-5">
-                              <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">
-                                Notes
-                              </p>
-                              <p className="mt-2 text-sm leading-relaxed text-zinc-300">
-                                {trade.notes}
-                              </p>
-                            </div>
-                          )}
-                          {(trade.beforeChart || trade.afterChart) && (
-                            <div className="grid gap-4 sm:grid-cols-2">
-                              <ChartPreview
-                                label="Before Chart (Setup)"
-                                src={trade.beforeChart}
-                              />
-                              <ChartPreview
-                                label="After Chart (Result)"
-                                src={trade.afterChart}
-                              />
-                            </div>
-                          )}
+                        <div className="border-t border-border-subtle p-4 sm:p-5">
+                          <TradeDetailCard trade={trade} />
                         </div>
                       )}
                     </div>

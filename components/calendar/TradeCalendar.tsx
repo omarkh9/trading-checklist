@@ -5,8 +5,8 @@ import {
   loadTrades,
   tradeDateKey,
 } from "@/lib/trades/load-trades";
-import { formatPnlDollars } from "@/lib/trades/pnl";
-import type { Direction, Outcome, Trade } from "@/lib/types/trade";
+import { TradeDetailCard } from "@/components/trade-journal/TradeDetailCard";
+import type { Outcome, Trade } from "@/lib/types/trade";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -24,17 +24,6 @@ const outcomeCellClass: Record<Outcome, string> = {
   Loss: "border-rose-500/45 bg-rose-500/35 text-zinc-100 hover:border-rose-500/55 hover:bg-rose-500/40",
   Breakeven:
     "border-blue-500/45 bg-blue-500/35 text-zinc-100 hover:border-blue-500/55 hover:bg-blue-500/40",
-};
-
-const outcomeBadgeClass: Record<Outcome, string> = {
-  Win: "bg-emerald-500/15 text-emerald-400 ring-emerald-500/30",
-  Loss: "bg-red-500/15 text-red-400 ring-red-500/30",
-  Breakeven: "bg-blue-500/15 text-blue-400 ring-blue-500/30",
-};
-
-const directionStyles: Record<Direction, string> = {
-  Long: "text-emerald-400",
-  Short: "text-red-400",
 };
 
 function buildCalendarDays(year: number, month: number): (Date | null)[] {
@@ -61,39 +50,6 @@ function formatSelectedLabel(dateKey: string) {
     day: "numeric",
     year: "numeric",
   });
-}
-
-function formatTradeTime(iso: string) {
-  return new Date(iso).toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
-function ChartPreview({
-  label,
-  src,
-}: {
-  label: string;
-  src: string | null;
-}) {
-  if (!src) return null;
-
-  return (
-    <div className="space-y-2">
-      <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">
-        {label}
-      </p>
-      <div className="overflow-hidden rounded-lg border border-border">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={src}
-          alt={label}
-          className="max-h-56 w-full object-cover"
-        />
-      </div>
-    </div>
-  );
 }
 
 type DayDetailModalProps = {
@@ -127,7 +83,7 @@ function DayDetailModal({ dateKey, trades, onClose }: DayDetailModalProps) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="day-detail-title"
-        className="fixed inset-x-4 top-[max(1rem,env(safe-area-inset-top))] z-50 mx-auto flex max-h-[min(90vh,900px)] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-border bg-surface-raised shadow-2xl sm:inset-x-auto"
+        className="fixed inset-x-3 top-[max(0.75rem,env(safe-area-inset-top))] z-50 mx-auto flex max-h-[min(92vh,920px)] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-border bg-surface-raised shadow-2xl sm:inset-x-6"
       >
         <div className="flex shrink-0 items-start justify-between gap-4 border-b border-border px-5 py-4">
           <div>
@@ -152,7 +108,7 @@ function DayDetailModal({ dateKey, trades, onClose }: DayDetailModalProps) {
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-4">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5">
           {trades.length === 0 ? (
             <div className="rounded-lg border border-dashed border-border bg-surface-overlay/30 px-6 py-12 text-center">
               <p className="text-sm text-zinc-400">
@@ -167,109 +123,17 @@ function DayDetailModal({ dateKey, trades, onClose }: DayDetailModalProps) {
               </Link>
             </div>
           ) : (
-            <ul className="space-y-6">
-              {trades.map((trade) => {
-                const chartFields = [
-                  ["Higher Time Frame", trade.higherTimeFrame],
-                  ["Middle Time Frame", trade.middleTimeFrame],
-                  ["Lower Time Frame", trade.lowerTimeFrame],
-                  ["Entry", trade.entry],
-                  ["Before Chart (Setup)", trade.beforeChart],
-                  ["After Chart (Result)", trade.afterChart],
-                ] as const;
-                const charts = chartFields.filter(([, src]) => src);
-
-                return (
-                  <li
-                    key={trade.id}
-                    className="rounded-xl border border-border bg-surface-overlay/40 p-4 sm:p-5"
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <p className="text-xl font-semibold text-zinc-100">
-                          {trade.pair}
-                        </p>
-                        <p className="mt-1 text-sm text-zinc-500">
-                          {formatTradeTime(trade.createdAt)}
-                        </p>
-                      </div>
-                      <span
-                        className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${outcomeBadgeClass[trade.outcome]}`}
-                      >
-                        {trade.outcome}
-                      </span>
-                    </div>
-
-                    <dl className="mt-4 grid gap-3 sm:grid-cols-2">
-                      <div className="rounded-lg bg-surface-overlay/60 px-3 py-2">
-                        <dt className="text-xs text-zinc-500">Direction</dt>
-                        <dd
-                          className={`text-sm font-medium ${directionStyles[trade.direction]}`}
-                        >
-                          {trade.direction}
-                        </dd>
-                      </div>
-                      <div className="rounded-lg bg-surface-overlay/60 px-3 py-2">
-                        <dt className="text-xs text-zinc-500">Entry Price</dt>
-                        <dd className="font-mono text-sm text-zinc-200">
-                          {trade.entryPrice || "—"}
-                        </dd>
-                      </div>
-                      <div className="rounded-lg bg-surface-overlay/60 px-3 py-2">
-                        <dt className="text-xs text-zinc-500">Stop Loss</dt>
-                        <dd className="font-mono text-sm text-zinc-200">
-                          {trade.stopLoss || "—"}
-                        </dd>
-                      </div>
-                      <div className="rounded-lg bg-surface-overlay/60 px-3 py-2">
-                        <dt className="text-xs text-zinc-500">Take Profit</dt>
-                        <dd className="font-mono text-sm text-zinc-200">
-                          {trade.takeProfit || "—"}
-                        </dd>
-                      </div>
-                      <div className="rounded-lg bg-surface-overlay/60 px-3 py-2">
-                        <dt className="text-xs text-zinc-500">P/L</dt>
-                        <dd
-                          className={`font-mono text-sm ${
-                            trade.pnlDollars > 0
-                              ? "text-emerald-400"
-                              : trade.pnlDollars < 0
-                                ? "text-rose-400"
-                                : "text-zinc-400"
-                          }`}
-                        >
-                          {formatPnlDollars(trade.pnlDollars ?? 0)}
-                        </dd>
-                      </div>
-                      <div className="rounded-lg bg-surface-overlay/60 px-3 py-2">
-                        <dt className="text-xs text-zinc-500">Lot Size</dt>
-                        <dd className="font-mono text-sm text-zinc-200">
-                          {trade.lotSize || "—"}
-                        </dd>
-                      </div>
-                    </dl>
-
-                    {trade.notes.trim() && (
-                      <div className="mt-4">
-                        <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">
-                          Notes
-                        </p>
-                        <p className="mt-2 text-sm leading-relaxed text-zinc-300">
-                          {trade.notes}
-                        </p>
-                      </div>
-                    )}
-
-                    {charts.length > 0 && (
-                      <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                        {charts.map(([label, src]) => (
-                          <ChartPreview key={label} label={label} src={src} />
-                        ))}
-                      </div>
-                    )}
-                  </li>
-                );
-              })}
+            <ul className="space-y-5 pb-2">
+              {trades.map((trade, index) => (
+                <li key={trade.id}>
+                  {trades.length > 1 && (
+                    <p className="mb-2 text-xs font-medium uppercase tracking-wider text-zinc-500">
+                      Trade {index + 1} of {trades.length}
+                    </p>
+                  )}
+                  <TradeDetailCard trade={trade} />
+                </li>
+              ))}
             </ul>
           )}
         </div>
