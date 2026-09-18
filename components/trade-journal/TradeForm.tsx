@@ -13,11 +13,15 @@ import {
   type TradeFormData,
 } from "@/lib/types/trade";
 import { Save } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type TradeFormProps = {
   currentBalance: number;
   onSubmit: (data: TradeFormData) => void;
+  initialData?: TradeFormData;
+  onCancel?: () => void;
+  submitLabel?: string;
+  embedded?: boolean;
 };
 
 const inputClass =
@@ -54,8 +58,21 @@ function ToggleGroup<T extends string>({
   );
 }
 
-export function TradeForm({ currentBalance, onSubmit }: TradeFormProps) {
-  const [form, setForm] = useState<TradeFormData>(emptyTradeForm());
+export function TradeForm({
+  currentBalance,
+  onSubmit,
+  initialData,
+  onCancel,
+  submitLabel = "Save Trade",
+  embedded = false,
+}: TradeFormProps) {
+  const [form, setForm] = useState<TradeFormData>(
+    initialData ?? emptyTradeForm()
+  );
+
+  useEffect(() => {
+    setForm(initialData ?? emptyTradeForm());
+  }, [initialData]);
 
   const update = <K extends keyof TradeFormData>(
     key: K,
@@ -108,7 +125,9 @@ export function TradeForm({ currentBalance, onSubmit }: TradeFormProps) {
       lotSize: displayLotSize === "—" ? "" : displayLotSize,
       accountBalanceAtEntry: currentBalance,
     });
-    setForm(emptyTradeForm());
+    if (!initialData) {
+      setForm(emptyTradeForm());
+    }
   };
 
   const showPnlFields = form.outcome !== "Breakeven";
@@ -116,7 +135,11 @@ export function TradeForm({ currentBalance, onSubmit }: TradeFormProps) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="rounded-xl border border-border bg-surface-raised p-6"
+      className={
+        embedded
+          ? "p-0"
+          : "rounded-xl border border-border bg-surface-raised p-6"
+      }
     >
       <h3 className="text-lg font-semibold text-zinc-100">Log New Trade</h3>
       <p className="mt-1 text-sm text-zinc-500">
@@ -366,13 +389,22 @@ export function TradeForm({ currentBalance, onSubmit }: TradeFormProps) {
         />
       </div>
 
-      <div className="mt-6 flex justify-end">
+      <div className="mt-6 flex justify-end gap-3">
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-lg border border-border px-5 py-2.5 text-sm font-medium text-zinc-300 transition-colors hover:bg-surface-overlay"
+          >
+            Cancel
+          </button>
+        )}
         <button
           type="submit"
           className="inline-flex items-center gap-2 rounded-lg bg-accent px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-accent-hover"
         >
           <Save className="h-4 w-4" />
-          Save Trade
+          {submitLabel}
         </button>
       </div>
     </form>

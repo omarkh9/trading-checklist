@@ -2,7 +2,7 @@
 
 import { AccountBalancePanel } from "@/components/trade-journal/AccountBalancePanel";
 import { TradeForm } from "@/components/trade-journal/TradeForm";
-import { TradeTable } from "@/components/trade-journal/TradeTable";
+import { TradeHistoryGrid } from "@/components/trade-journal/TradeHistoryGrid";
 import { TRADES_STORAGE_KEY } from "@/lib/storage/keys";
 import {
   computeCurrentBalance,
@@ -48,6 +48,20 @@ export function TradeJournal() {
     setTrades((prev) => [trade, ...prev]);
   };
 
+  const handleUpdate = (id: string, data: TradeFormData) => {
+    setTrades((prev) =>
+      prev.map((trade) =>
+        trade.id === id
+          ? {
+              ...data,
+              id: trade.id,
+              createdAt: trade.createdAt,
+            }
+          : trade
+      )
+    );
+  };
+
   const handleDelete = (id: string) => {
     setTrades((prev) => prev.filter((t) => t.id !== id));
   };
@@ -66,17 +80,21 @@ export function TradeJournal() {
 
       <TradeForm currentBalance={currentBalance} onSubmit={handleSubmit} />
 
-      <div>
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-semibold text-zinc-100">Trade History</h3>
-            <p className="text-sm text-zinc-500">
-              {trades.length} {trades.length === 1 ? "entry" : "entries"} logged
-            </p>
-          </div>
+      <section className="rounded-xl border border-border bg-surface-raised p-6">
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold text-zinc-100">Trade History</h3>
+          <p className="mt-1 text-sm text-zinc-500">
+            Filter, review, update, or remove logged trades.
+          </p>
         </div>
-        <TradeTable trades={trades} onDelete={handleDelete} />
-      </div>
+
+        <TradeHistoryGrid
+          trades={trades}
+          startingBalance={startingBalance}
+          onDelete={handleDelete}
+          onUpdate={handleUpdate}
+        />
+      </section>
     </div>
   );
 }
