@@ -8,7 +8,7 @@
   }
 
   body {
-    @apply bg-surface text-zinc-100 antialiased;
+    @apply overflow-x-hidden bg-surface text-zinc-100 antialiased;
   }
 
   ::-webkit-scrollbar {
