@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   BarChart3,
+  CalendarDays,
   ClipboardCheck,
   LayoutDashboard,
   NotebookPen,
@@ -22,6 +23,11 @@ export const navItems: NavItem[] = [
     label: "Trade Journal",
     href: "/trade-journal",
     icon: NotebookPen,
+  },
+  {
+    label: "Calendar",
+    href: "/calendar",
+    icon: CalendarDays,
   },
   {
     label: "Pre-Trade Checklist",

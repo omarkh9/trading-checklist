@@ -3,34 +3,9 @@
 import { TradeForm } from "@/components/trade-journal/TradeForm";
 import { TradeTable } from "@/components/trade-journal/TradeTable";
 import { TRADES_STORAGE_KEY } from "@/lib/storage/keys";
+import { loadTrades } from "@/lib/trades/load-trades";
 import type { Trade, TradeFormData } from "@/lib/types/trade";
 import { useEffect, useState } from "react";
-
-function toChartImage(value: unknown): string | null {
-  if (typeof value !== "string" || !value) return null;
-  return value.startsWith("data:image") ? value : null;
-}
-
-function normalizeTrade(trade: Trade): Trade {
-  return {
-    ...trade,
-    higherTimeFrame: toChartImage(trade.higherTimeFrame),
-    middleTimeFrame: toChartImage(trade.middleTimeFrame),
-    lowerTimeFrame: toChartImage(trade.lowerTimeFrame),
-    entry: toChartImage(trade.entry),
-  };
-}
-
-function loadTrades(): Trade[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(TRADES_STORAGE_KEY);
-    const parsed = raw ? (JSON.parse(raw) as Trade[]) : [];
-    return parsed.map(normalizeTrade);
-  } catch {
-    return [];
-  }
-}
 
 export function TradeJournal() {
   const [trades, setTrades] = useState<Trade[]>([]);
