@@ -13,15 +13,16 @@ import { useEffect, useMemo, useState } from "react";
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 
 const outcomeFillClass: Record<Outcome, string> = {
-  Win: "bg-emerald-500",
-  Loss: "bg-red-500",
-  Breakeven: "bg-blue-500",
+  Win: "bg-emerald-500/20",
+  Loss: "bg-red-500/20",
+  Breakeven: "bg-blue-500/20",
 };
 
 const outcomeCellClass: Record<Outcome, string> = {
-  Win: "border-emerald-400/60 bg-emerald-500/85 text-emerald-950",
-  Loss: "border-red-400/60 bg-red-500/85 text-red-950",
-  Breakeven: "border-blue-400/60 bg-blue-500/85 text-blue-950",
+  Win: "border-emerald-500/25 bg-emerald-500/12 text-zinc-100 hover:border-emerald-500/40 hover:bg-emerald-500/18",
+  Loss: "border-red-500/25 bg-red-500/12 text-zinc-100 hover:border-red-500/40 hover:bg-red-500/18",
+  Breakeven:
+    "border-blue-500/25 bg-blue-500/12 text-zinc-100 hover:border-blue-500/40 hover:bg-blue-500/18",
 };
 
 const outcomeBadgeClass: Record<Outcome, string> = {
@@ -408,10 +409,10 @@ export function TradeCalendar() {
                 cellClass +=
                   "border-border bg-surface-overlay/40 hover:border-border/80 hover:bg-surface-overlay text-zinc-200";
               } else if (singleOutcome) {
-                cellClass += `${outcomeCellClass[singleOutcome]} hover:brightness-110`;
+                cellClass += outcomeCellClass[singleOutcome];
               } else {
                 cellClass +=
-                  "border-zinc-600/80 bg-surface-overlay p-0 hover:brightness-105";
+                  "border-border bg-surface-overlay/80 p-0 hover:bg-surface-overlay";
               }
 
               if (isToday) {
@@ -443,7 +444,7 @@ export function TradeCalendar() {
                       hasTrades
                         ? singleOutcome
                           ? ""
-                          : "rounded-md bg-black/45 px-1.5 py-0.5 text-white shadow-sm"
+                          : "rounded-md bg-surface-raised/90 px-1.5 py-0.5 text-zinc-200 ring-1 ring-border/80"
                         : isToday
                           ? "text-accent-hover"
                           : ""
@@ -453,7 +454,7 @@ export function TradeCalendar() {
                   </span>
 
                   {hasTrades && dayTrades.length > 1 && (
-                    <span className="relative z-10 mt-auto self-end rounded bg-black/50 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                    <span className="relative z-10 mt-auto self-end rounded bg-surface-raised/90 px-1.5 py-0.5 text-[10px] font-medium text-zinc-300 ring-1 ring-border/80">
                       {dayTrades.length} trades
                     </span>
                   )}
@@ -464,21 +465,21 @@ export function TradeCalendar() {
 
           <div className="mt-6 flex flex-wrap gap-4 border-t border-border pt-4 text-xs text-zinc-500">
             <span className="flex items-center gap-2">
-              <span className="h-5 w-5 rounded border border-emerald-400/60 bg-emerald-500/85" />
+              <span className="h-5 w-5 rounded border border-emerald-500/25 bg-emerald-500/12" />
               Win day
             </span>
             <span className="flex items-center gap-2">
-              <span className="h-5 w-5 rounded border border-red-400/60 bg-red-500/85" />
+              <span className="h-5 w-5 rounded border border-red-500/25 bg-red-500/12" />
               Loss day
             </span>
             <span className="flex items-center gap-2">
-              <span className="h-5 w-5 rounded border border-blue-400/60 bg-blue-500/85" />
+              <span className="h-5 w-5 rounded border border-blue-500/25 bg-blue-500/12" />
               Breakeven day
             </span>
             <span className="flex items-center gap-2">
-              <span className="flex h-5 w-5 overflow-hidden rounded border border-zinc-600">
-                <span className="flex-1 bg-emerald-500" />
-                <span className="flex-1 bg-red-500" />
+              <span className="flex h-5 w-5 overflow-hidden rounded border border-border">
+                <span className="flex-1 bg-emerald-500/20" />
+                <span className="flex-1 bg-red-500/20" />
               </span>
               Multiple trades (split by outcome)
             </span>
