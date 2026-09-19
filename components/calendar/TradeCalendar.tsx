@@ -1,29 +1,49 @@
 "use client";
 
-import {
-  dateKeyFromDate,
-  tradeDateKey,
-} from "@/lib/trades/load-trades";
-import { fetchTrades } from "@/lib/supabase/trades";
 import { TradeDetailCard } from "@/components/trade-journal/TradeDetailCard";
-import type { Outcome, Trade } from "@/lib/types/trade";
+import { loadAccountSettings } from "@/lib/trades/account-balance";
+import {
+  buildStartingEquityByDay,
+  computeDayStats,
+  formatDayMetric,
+  formatTradeCount,
+  formatWinRate,
+  groupTradesByDay,
+  loadCalendarDisplayMetric,
+  saveCalendarDisplayMetric,
+  startingEquityForDay,
+  type CalendarDisplayMetric,
+  type DayStats,
+  type DayTone,
+} from "@/lib/trades/day-stats";
+import { dateKeyFromDate } from "@/lib/trades/load-trades";
+import { fetchTrades } from "@/lib/supabase/trades";
+import type { Trade } from "@/lib/types/trade";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 
-const outcomeFillClass: Record<Outcome, string> = {
-  Win: "bg-emerald-500/35",
-  Loss: "bg-rose-500/35",
-  Breakeven: "bg-blue-500/35",
+const dayToneCellClass: Record<DayTone, string> = {
+  positive:
+    "border-emerald-400/55 bg-emerald-500/20 text-zinc-100 hover:border-emerald-400/75 hover:bg-emerald-500/28",
+  negative:
+    "border-rose-400/55 bg-rose-500/20 text-zinc-100 hover:border-rose-400/75 hover:bg-rose-500/28",
+  breakeven:
+    "border-blue-400/55 bg-blue-500/20 text-zinc-100 hover:border-blue-400/75 hover:bg-blue-500/28",
 };
 
-const outcomeCellClass: Record<Outcome, string> = {
-  Win: "border-emerald-500/45 bg-emerald-500/35 text-zinc-100 hover:border-emerald-500/55 hover:bg-emerald-500/40",
-  Loss: "border-rose-500/45 bg-rose-500/35 text-zinc-100 hover:border-rose-500/55 hover:bg-rose-500/40",
-  Breakeven:
-    "border-blue-500/45 bg-blue-500/35 text-zinc-100 hover:border-blue-500/55 hover:bg-blue-500/40",
+const dayToneMetricClass: Record<DayTone, string> = {
+  positive: "text-emerald-300",
+  negative: "text-rose-300",
+  breakeven: "text-sky-300",
+};
+
+const dayToneCardClass: Record<DayTone, string> = {
+  positive: "border-emerald-400/45 bg-emerald-500/15",
+  negative: "border-rose-400/45 bg-rose-500/15",
+  breakeven: "border-blue-400/45 bg-blue-500/15",
 };
 
 function buildCalendarDays(year: number, month: number): (Date | null)[] {
@@ -52,13 +72,98 @@ function formatSelectedLabel(dateKey: string) {
   });
 }
 
+function MetricToggle({
+  value,
+  onChange,
+}: {
+  value: CalendarDisplayMetric;
+  onChange: (value: CalendarDisplayMetric) => void;
+}) {
+  return (
+    <div
+      className="flex rounded-lg border border-border bg-surface-overlay p-1"
+      role="group"
+      aria-label="Calendar display metric"
+    >
+      {(
+        [
+          { id: "dollar", label: "$ P/L" },
+          { id: "percent", label: "% Return" },
+        ] as const
+      ).map((option) => (
+        <button
+          key={option.id}
+          type="button"
+          onClick={() => onChange(option.id)}
+          className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+            value === option.id
+              ? "bg-accent text-white"
+              : "text-zinc-400 hover:text-zinc-200"
+          }`}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function DaySummaryCards({
+  stats,
+  metric,
+}: {
+  stats: DayStats;
+  metric: CalendarDisplayMetric;
+}) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-3">
+      <div
+        className={`rounded-lg border px-3 py-2.5 ${dayToneCardClass[stats.tone]}`}
+      >
+        <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-400">
+          {metric === "percent" ? "Return" : "Net P/L"}
+        </p>
+        <p
+          className={`mt-1 font-mono text-lg font-semibold tabular-nums ${dayToneMetricClass[stats.tone]}`}
+        >
+          {formatDayMetric(stats, metric)}
+        </p>
+      </div>
+      <div className="rounded-lg border border-border bg-surface-overlay/50 px-3 py-2.5">
+        <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-400">
+          Trades
+        </p>
+        <p className="mt-1 font-mono text-lg font-semibold text-zinc-100">
+          {formatTradeCount(stats.tradeCount)}
+        </p>
+      </div>
+      <div className="rounded-lg border border-border bg-surface-overlay/50 px-3 py-2.5">
+        <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-400">
+          Win rate
+        </p>
+        <p className="mt-1 font-mono text-lg font-semibold text-zinc-100">
+          {formatWinRate(stats.winRate)}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 type DayDetailModalProps = {
   dateKey: string;
   trades: Trade[];
+  stats: DayStats | null;
+  metric: CalendarDisplayMetric;
   onClose: () => void;
 };
 
-function DayDetailModal({ dateKey, trades, onClose }: DayDetailModalProps) {
+function DayDetailModal({
+  dateKey,
+  trades,
+  stats,
+  metric,
+  onClose,
+}: DayDetailModalProps) {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
@@ -93,9 +198,7 @@ function DayDetailModal({ dateKey, trades, onClose }: DayDetailModalProps) {
             <p className="mt-1 text-sm text-zinc-500">
               {trades.length === 0
                 ? "No trades logged on this day."
-                : `${trades.length} ${
-                    trades.length === 1 ? "trade" : "trades"
-                  } logged`}
+                : `${formatTradeCount(trades.length)} logged`}
             </p>
           </div>
           <button
@@ -109,6 +212,12 @@ function DayDetailModal({ dateKey, trades, onClose }: DayDetailModalProps) {
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5">
+          {stats && (
+            <div className="mb-5">
+              <DaySummaryCards stats={stats} metric={metric} />
+            </div>
+          )}
+
           {trades.length === 0 ? (
             <div className="rounded-lg border border-dashed border-border bg-surface-overlay/30 px-6 py-12 text-center">
               <p className="text-sm text-zinc-400">
@@ -147,6 +256,15 @@ export function TradeCalendar() {
   const [isLoaded, setIsLoaded] = useState(false);
   const [viewDate, setViewDate] = useState(() => new Date());
   const [modalDateKey, setModalDateKey] = useState<string | null>(null);
+  const [startingBalance, setStartingBalance] = useState(
+    () => loadAccountSettings().startingBalance
+  );
+  const [metric, setMetric] = useState<CalendarDisplayMetric>("dollar");
+
+  useEffect(() => {
+    setStartingBalance(loadAccountSettings().startingBalance);
+    setMetric(loadCalendarDisplayMetric());
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -165,6 +283,7 @@ export function TradeCalendar() {
     void load();
     const onFocus = () => {
       void load();
+      setStartingBalance(loadAccountSettings().startingBalance);
     };
     window.addEventListener("focus", onFocus);
 
@@ -174,22 +293,11 @@ export function TradeCalendar() {
     };
   }, []);
 
-  const tradesByDay = useMemo(() => {
-    const map = new Map<string, Trade[]>();
-    for (const trade of trades) {
-      const key = tradeDateKey(trade.createdAt);
-      const list = map.get(key) ?? [];
-      list.push(trade);
-      map.set(key, list);
-    }
-    for (const list of map.values()) {
-      list.sort(
-        (a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
-    }
-    return map;
-  }, [trades]);
+  const tradesByDay = useMemo(() => groupTradesByDay(trades), [trades]);
+  const equityByDay = useMemo(
+    () => buildStartingEquityByDay(tradesByDay, startingBalance),
+    [tradesByDay, startingBalance]
+  );
 
   const calendarDays = useMemo(
     () => buildCalendarDays(viewDate.getFullYear(), viewDate.getMonth()),
@@ -200,6 +308,18 @@ export function TradeCalendar() {
   const modalTrades = modalDateKey
     ? (tradesByDay.get(modalDateKey) ?? [])
     : [];
+  const modalStats =
+    modalDateKey && modalTrades.length > 0
+      ? computeDayStats(
+          modalTrades,
+          startingEquityForDay(
+            modalTrades,
+            modalDateKey,
+            equityByDay,
+            startingBalance
+          )
+        )
+      : null;
 
   const goToPreviousMonth = () => {
     setViewDate(
@@ -219,6 +339,11 @@ export function TradeCalendar() {
     setModalDateKey(dateKeyFromDate(today));
   };
 
+  const handleMetricChange = (next: CalendarDisplayMetric) => {
+    setMetric(next);
+    saveCalendarDisplayMetric(next);
+  };
+
   if (!isLoaded) {
     return (
       <div className="animate-pulse space-y-4">
@@ -230,19 +355,19 @@ export function TradeCalendar() {
 
   return (
     <>
-      <div className="mx-auto max-w-5xl">
+      <div className="mx-auto max-w-6xl">
         <div className="rounded-xl border border-border bg-surface-raised p-4 sm:p-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h3 className="text-lg font-semibold text-zinc-100">
                 {formatMonthLabel(viewDate)}
               </h3>
               <p className="mt-1 text-sm text-zinc-500">
-                Days are colored by trade outcome. Click a date for full
-                details.
+                Days are colored by net P/L. Click a date for full details.
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <MetricToggle value={metric} onChange={handleMetricChange} />
               <button
                 type="button"
                 onClick={goToPreviousMonth}
@@ -284,7 +409,7 @@ export function TradeCalendar() {
                 return (
                   <div
                     key={`empty-${index}`}
-                    className="min-h-[4.5rem] rounded-lg bg-transparent sm:min-h-[5.5rem]"
+                    className="min-h-[6.75rem] rounded-lg bg-transparent sm:min-h-[8.25rem]"
                     aria-hidden
                   />
                 );
@@ -294,25 +419,37 @@ export function TradeCalendar() {
               const dayTrades = tradesByDay.get(key) ?? [];
               const isToday = key === todayKey;
               const hasTrades = dayTrades.length > 0;
-              const singleOutcome =
-                dayTrades.length === 1 ? dayTrades[0].outcome : null;
+              const stats = hasTrades
+                ? computeDayStats(
+                    dayTrades,
+                    startingEquityForDay(
+                      dayTrades,
+                      key,
+                      equityByDay,
+                      startingBalance
+                    )
+                  )
+                : null;
 
               let cellClass =
-                "relative flex min-h-[4.5rem] flex-col overflow-hidden rounded-lg border p-2 text-left transition-all sm:min-h-[5.5rem] sm:p-3 ";
+                "relative flex min-h-[6.75rem] flex-col rounded-lg border p-1.5 text-left transition-all sm:min-h-[8.25rem] sm:p-2.5 ";
 
-              if (!hasTrades) {
+              if (!hasTrades || !stats) {
                 cellClass +=
                   "border-border bg-surface-overlay/40 hover:border-border/80 hover:bg-surface-overlay text-zinc-200";
-              } else if (singleOutcome) {
-                cellClass += outcomeCellClass[singleOutcome];
               } else {
-                cellClass +=
-                  "border-border bg-surface-overlay/80 p-0 hover:border-zinc-500/40";
+                cellClass += dayToneCellClass[stats.tone];
               }
 
               if (isToday) {
-                cellClass += " ring-2 ring-white/90 ring-offset-2 ring-offset-surface-raised";
+                cellClass +=
+                  " ring-2 ring-white/90 ring-offset-2 ring-offset-surface-raised";
               }
+
+              const metricLabel = stats ? formatDayMetric(stats, metric) : "";
+              const ariaLabel = stats
+                ? `${date.getDate()}, ${metricLabel}, ${formatTradeCount(stats.tradeCount)}, ${formatWinRate(stats.winRate)} win rate`
+                : `${date.getDate()}, no trades`;
 
               return (
                 <button
@@ -320,38 +457,30 @@ export function TradeCalendar() {
                   type="button"
                   onClick={() => setModalDateKey(key)}
                   className={cellClass}
-                  aria-label={`${date.getDate()}, ${dayTrades.length} trades`}
+                  aria-label={ariaLabel}
                 >
-                  {hasTrades && dayTrades.length > 1 && (
-                    <div className="absolute inset-0 flex flex-col">
-                      {dayTrades.map((trade) => (
-                        <div
-                          key={trade.id}
-                          className={`min-h-0 flex-1 ${outcomeFillClass[trade.outcome]}`}
-                          title={`${trade.pair} — ${trade.outcome}`}
-                        />
-                      ))}
-                    </div>
-                  )}
-
                   <span
-                    className={`relative z-10 text-sm font-bold ${
-                      hasTrades
-                        ? singleOutcome
-                          ? ""
-                          : "rounded-md bg-surface-raised/90 px-1.5 py-0.5 text-zinc-200 ring-1 ring-border/80"
-                        : isToday
-                          ? "text-accent-hover"
-                          : ""
+                    className={`text-[11px] font-semibold sm:text-sm ${
+                      isToday && !hasTrades ? "text-accent-hover" : "text-zinc-200"
                     }`}
                   >
                     {date.getDate()}
                   </span>
 
-                  {hasTrades && dayTrades.length > 1 && (
-                    <span className="relative z-10 mt-auto self-end rounded bg-surface-raised/90 px-1.5 py-0.5 text-[10px] font-medium text-zinc-300 ring-1 ring-border/80">
-                      {dayTrades.length} trades
-                    </span>
+                  {stats && (
+                    <div className="mt-auto space-y-0.5 sm:space-y-1">
+                      <p
+                        className={`truncate font-mono text-[11px] font-semibold leading-tight tabular-nums sm:text-sm ${dayToneMetricClass[stats.tone]}`}
+                      >
+                        {metricLabel}
+                      </p>
+                      <p className="text-[10px] leading-tight text-zinc-400 sm:text-xs">
+                        {formatTradeCount(stats.tradeCount)}
+                      </p>
+                      <p className="text-[10px] leading-tight text-zinc-400 sm:text-xs">
+                        {formatWinRate(stats.winRate)}
+                      </p>
+                    </div>
                   )}
                 </button>
               );
@@ -360,23 +489,16 @@ export function TradeCalendar() {
 
           <div className="mt-6 flex flex-wrap gap-4 border-t border-border pt-4 text-xs text-zinc-500">
             <span className="flex items-center gap-2">
-              <span className="h-5 w-5 rounded border border-emerald-500/45 bg-emerald-500/35" />
-              Win day
+              <span className="h-5 w-5 rounded border border-emerald-400/55 bg-emerald-500/20" />
+              Profitable day
             </span>
             <span className="flex items-center gap-2">
-              <span className="h-5 w-5 rounded border border-rose-500/45 bg-rose-500/35" />
-              Loss day
+              <span className="h-5 w-5 rounded border border-rose-400/55 bg-rose-500/20" />
+              Losing day
             </span>
             <span className="flex items-center gap-2">
-              <span className="h-5 w-5 rounded border border-blue-500/45 bg-blue-500/35" />
-              Breakeven day
-            </span>
-            <span className="flex items-center gap-2">
-              <span className="flex h-5 w-5 overflow-hidden rounded border border-border">
-                <span className="flex-1 bg-emerald-500/35" />
-                <span className="flex-1 bg-rose-500/35" />
-              </span>
-              Multiple trades (split by outcome)
+              <span className="h-5 w-5 rounded border border-blue-400/55 bg-blue-500/20" />
+              Break-even day
             </span>
           </div>
         </div>
@@ -386,6 +508,8 @@ export function TradeCalendar() {
         <DayDetailModal
           dateKey={modalDateKey}
           trades={modalTrades}
+          stats={modalStats}
+          metric={metric}
           onClose={() => setModalDateKey(null)}
         />
       )}

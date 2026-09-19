@@ -5,7 +5,7 @@ export default function CalendarPage() {
   return (
     <DashboardShell
       title="Calendar"
-      description="Review trades by day across the month"
+      description="Review daily net P/L, trade count, and win rate"
     >
       <TradeCalendar />
     </DashboardShell>

@@ -129,6 +129,20 @@ export function TradeHistoryGrid({
           {filteredTrades.map((trade) => {
             const pnl = trade.pnlDollars ?? 0;
             const notesPreview = trade.notes.trim() || "No notes added yet.";
+            const pnlTone =
+              pnl > 0 ? "positive" : pnl < 0 ? "negative" : "breakeven";
+            const pnlCardClass =
+              pnlTone === "positive"
+                ? "border-emerald-400/40 bg-emerald-500/10"
+                : pnlTone === "negative"
+                  ? "border-rose-400/40 bg-rose-500/10"
+                  : "border-blue-400/40 bg-blue-500/10";
+            const pnlTextClass =
+              pnlTone === "positive"
+                ? "text-emerald-400"
+                : pnlTone === "negative"
+                  ? "text-rose-400"
+                  : "text-sky-300";
 
             return (
               <article
@@ -158,18 +172,12 @@ export function TradeHistoryGrid({
                   </div>
                 </div>
 
-                <div className="mt-4 rounded-lg border border-border bg-surface-overlay/50 px-3 py-2.5">
+                <div className={`mt-4 rounded-lg border px-3 py-2.5 ${pnlCardClass}`}>
                   <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">
                     Total P/L
                   </p>
                   <p
-                    className={`mt-1 font-mono text-xl font-semibold ${
-                      pnl > 0
-                        ? "text-emerald-400"
-                        : pnl < 0
-                          ? "text-rose-400"
-                          : "text-zinc-400"
-                    }`}
+                    className={`mt-1 font-mono text-xl font-semibold ${pnlTextClass}`}
                   >
                     {formatPnlDollars(pnl)}
                   </p>

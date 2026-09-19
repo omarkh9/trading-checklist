@@ -81,7 +81,14 @@ export function TradeDetailCard({ trade }: TradeDetailCardProps) {
       ? "text-emerald-400"
       : trade.pnlDollars < 0
         ? "text-rose-400"
-        : "text-zinc-400";
+        : "text-sky-300";
+
+  const pnlCardClass =
+    trade.pnlDollars > 0
+      ? "border-emerald-400/40 bg-emerald-500/10"
+      : trade.pnlDollars < 0
+        ? "border-rose-400/40 bg-rose-500/10"
+        : "border-blue-400/40 bg-blue-500/10";
 
   return (
     <article className="rounded-xl border border-border bg-surface-overlay/40 p-4 sm:p-5">
@@ -108,7 +115,7 @@ export function TradeDetailCard({ trade }: TradeDetailCardProps) {
         </div>
       </div>
 
-      <div className="mt-4 rounded-lg border border-border bg-surface-overlay/60 px-4 py-3">
+      <div className={`mt-4 rounded-lg border px-4 py-3 ${pnlCardClass}`}>
         <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">
           Profit / Loss
         </p>
