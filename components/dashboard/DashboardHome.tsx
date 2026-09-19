@@ -1,9 +1,9 @@
 "use client";
 
-import type { ChecklistRule } from "@/lib/types/checklist";
 import type { Outcome, Trade } from "@/lib/types/trade";
-import { CHECKLIST_RULES_STORAGE_KEY } from "@/lib/storage/keys";
+import { fetchChecklistSnapshot } from "@/lib/supabase/checklist";
 import { fetchTrades } from "@/lib/supabase/trades";
+import { withDailyChecks, type ChecklistItem } from "@/lib/types/checklist";
 import { formatPnlDollars } from "@/lib/trades/pnl";
 import {
   ArrowRight,
@@ -14,18 +14,6 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-
-function loadChecklistRules(): ChecklistRule[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(CHECKLIST_RULES_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as { rules?: ChecklistRule[] };
-    return parsed.rules ?? [];
-  } catch {
-    return [];
-  }
-}
 
 function startOfWeek(date: Date): Date {
   const d = new Date(date);
@@ -205,24 +193,31 @@ function rrAccent(avgRr: number | null): Accent {
 
 export function DashboardHome() {
   const [trades, setTrades] = useState<Trade[]>([]);
-  const [checklistRules, setChecklistRules] = useState<ChecklistRule[]>([]);
+  const [checklistRules, setChecklistRules] = useState<ChecklistItem[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
     const load = async () => {
-      try {
-        const nextTrades = await fetchTrades();
-        if (!cancelled) setTrades(nextTrades);
-      } catch {
-        if (!cancelled) setTrades([]);
-      } finally {
-        if (!cancelled) {
-          setChecklistRules(loadChecklistRules());
-          setIsLoaded(true);
-        }
+      const [tradesResult, checklistResult] = await Promise.allSettled([
+        fetchTrades(),
+        fetchChecklistSnapshot(),
+      ]);
+
+      if (cancelled) return;
+
+      setTrades(
+        tradesResult.status === "fulfilled" ? tradesResult.value : []
+      );
+      if (checklistResult.status === "fulfilled") {
+        setChecklistRules(
+          withDailyChecks(checklistResult.value.rules, checklistResult.value.session)
+        );
+      } else {
+        setChecklistRules([]);
       }
+      setIsLoaded(true);
     };
 
     void load();
@@ -362,7 +357,7 @@ export function DashboardHome() {
           hint={
             metrics.checklistTotal > 0
               ? `${metrics.checked} of ${metrics.checklistTotal} rules checked`
-              : "Complete rules on the checklist page"
+              : "Configure your pre-trade routine"
           }
           icon={ClipboardCheck}
           accent={checklistAccent(

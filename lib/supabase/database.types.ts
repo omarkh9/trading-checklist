@@ -111,6 +111,60 @@ export type Database = {
         };
         Relationships: [];
       };
+      checklist_rules: {
+        Row: {
+          id: string;
+          user_id: string;
+          label: string;
+          sort_order: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          label: string;
+          sort_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          label?: string;
+          sort_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      checklist_sessions: {
+        Row: {
+          id: string;
+          user_id: string;
+          session_date: string;
+          checked_rule_ids: string[];
+          confidence: number;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          session_date: string;
+          checked_rule_ids?: string[];
+          confidence?: number;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          session_date?: string;
+          checked_rule_ids?: string[];
+          confidence?: number;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -133,3 +187,7 @@ export type Database = {
 export type TradeRow = Database["public"]["Tables"]["trades"]["Row"];
 export type TradeInsert = Database["public"]["Tables"]["trades"]["Insert"];
 export type TradeUpdate = Database["public"]["Tables"]["trades"]["Update"];
+export type ChecklistRuleRow =
+  Database["public"]["Tables"]["checklist_rules"]["Row"];
+export type ChecklistSessionRow =
+  Database["public"]["Tables"]["checklist_sessions"]["Row"];

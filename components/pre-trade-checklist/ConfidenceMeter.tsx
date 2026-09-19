@@ -8,6 +8,7 @@ type ConfidenceMeterProps = {
   executionConfidence: number;
   onConfidenceChange: (value: number) => void;
   allRulesMet: boolean;
+  sessionLabel?: string;
 };
 
 function getConfidenceColor(value: number) {
@@ -70,6 +71,7 @@ export function ConfidenceMeter({
   executionConfidence,
   onConfidenceChange,
   allRulesMet,
+  sessionLabel,
 }: ConfidenceMeterProps) {
   const combinedScore = allRulesMet
     ? Math.round((checklistProgress + executionConfidence) / 2)
@@ -86,9 +88,11 @@ export function ConfidenceMeter({
           : ""
       }
     >
-      <h3 className={desk.title}>Execution Confidence</h3>
+      <h3 className={desk.title}>Session readiness</h3>
       <p className={desk.subtitle}>
-        Combined readiness from checklist and self-assessment
+        {sessionLabel
+          ? `${sessionLabel} — checklist progress plus your conviction`
+          : "Combined readiness from checklist and self-assessment"}
       </p>
 
       <div className="mt-6 flex flex-col items-center gap-6 sm:flex-row sm:items-start sm:justify-around">
