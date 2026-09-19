@@ -1,4 +1,8 @@
 -- Run this in the Supabase SQL editor for existing Edge Log projects.
+-- SQL Editor: https://supabase.com/dashboard/project/agfzhwyhrrcbadbzvmpy/sql/new
+--
+-- Creates public.checklist_rules and public.checklist_sessions so users can
+-- save custom pre-trade rules and tick them for the current day's session.
 
 create table if not exists public.checklist_rules (
   id uuid primary key default gen_random_uuid(),

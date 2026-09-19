@@ -19,8 +19,23 @@ type LegacyStoredRule = {
   label?: string;
 };
 
+function isMissingChecklistTable(error: { message: string } | null) {
+  const message = error?.message.toLowerCase() ?? "";
+  return (
+    message.includes("schema cache") ||
+    message.includes("checklist_rules") ||
+    message.includes("checklist_sessions")
+  );
+}
+
 function throwIfError(error: { message: string } | null) {
-  if (error) throw new Error(error.message);
+  if (!error) return;
+  if (isMissingChecklistTable(error)) {
+    throw new Error(
+      "Checklist tables are missing. Run supabase/checklist.sql in the Supabase SQL editor, then refresh."
+    );
+  }
+  throw new Error(error.message);
 }
 
 async function requireUserId() {
