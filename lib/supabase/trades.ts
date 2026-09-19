@@ -1,10 +1,21 @@
-import { supabase } from "@/lib/supabase/client";
+import { createClient } from "@/lib/supabase/client";
 import type { TradeInsert, TradeRow, TradeUpdate } from "@/lib/supabase/database.types";
 import { normalizeTrade } from "@/lib/trades/load-trades";
 import type { Trade, TradeFormData } from "@/lib/types/trade";
 
 function throwIfError(error: { message: string } | null) {
   if (error) throw new Error(error.message);
+}
+
+async function requireUserId() {
+  const supabase = createClient();
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
+  throwIfError(error);
+  if (!user) throw new Error("You must be signed in to manage trades.");
+  return { supabase, userId: user.id };
 }
 
 export function tradeFromRow(row: TradeRow): Trade {
@@ -35,13 +46,10 @@ export function tradeFromRow(row: TradeRow): Trade {
   };
 }
 
-export function tradeToInsert(
-  trade: Trade,
-  userId?: string | null
-): TradeInsert {
+export function tradeToInsert(trade: Trade, userId: string): TradeInsert {
   return {
     id: trade.id,
-    user_id: userId ?? null,
+    user_id: userId,
     pair: trade.pair,
     higher_time_frame: trade.higherTimeFrame,
     middle_time_frame: trade.middleTimeFrame,
@@ -69,10 +77,10 @@ export function tradeToInsert(
 
 export function tradeFormToInsert(
   data: TradeFormData,
-  userId?: string | null
+  userId: string
 ): TradeInsert {
   return {
-    user_id: userId ?? null,
+    user_id: userId,
     pair: data.pair,
     higher_time_frame: data.higherTimeFrame,
     middle_time_frame: data.middleTimeFrame,
@@ -98,7 +106,7 @@ export function tradeFormToInsert(
 }
 
 export function tradeFormToUpdate(data: TradeFormData): TradeUpdate {
-  const insert = tradeFormToInsert(data);
+  const insert = tradeFormToInsert(data, "unused");
   return {
     pair: insert.pair,
     higher_time_frame: insert.higher_time_frame,
@@ -125,19 +133,19 @@ export function tradeFormToUpdate(data: TradeFormData): TradeUpdate {
 }
 
 export async function fetchTrades(): Promise<Trade[]> {
+  const { supabase, userId } = await requireUserId();
   const { data, error } = await supabase
     .from("trades")
     .select("*")
+    .eq("user_id", userId)
     .order("created_at", { ascending: false });
 
   throwIfError(error);
   return (data ?? []).map((row) => normalizeTrade(tradeFromRow(row)));
 }
 
-export async function insertTrade(
-  data: TradeFormData,
-  userId?: string | null
-): Promise<Trade> {
+export async function insertTrade(data: TradeFormData): Promise<Trade> {
+  const { supabase, userId } = await requireUserId();
   const { data: row, error } = await supabase
     .from("trades")
     .insert(tradeFormToInsert(data, userId))
@@ -153,10 +161,12 @@ export async function updateTrade(
   id: string,
   data: TradeFormData
 ): Promise<Trade> {
+  const { supabase, userId } = await requireUserId();
   const { data: row, error } = await supabase
     .from("trades")
     .update(tradeFormToUpdate(data))
     .eq("id", id)
+    .eq("user_id", userId)
     .select()
     .single();
 
@@ -166,6 +176,11 @@ export async function updateTrade(
 }
 
 export async function deleteTrade(id: string): Promise<void> {
-  const { error } = await supabase.from("trades").delete().eq("id", id);
+  const { supabase, userId } = await requireUserId();
+  const { error } = await supabase
+    .from("trades")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", userId);
   throwIfError(error);
 }

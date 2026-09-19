@@ -1,5 +1,6 @@
 "use client";
 
+import { UserMenu } from "@/components/auth/UserMenu";
 import { SessionStatus, Sidebar, SidebarPanel } from "@/components/Sidebar";
 import { Menu } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -83,13 +84,7 @@ export function DashboardShell({
             <div className="md:hidden">
               <SessionStatus variant="compact" />
             </div>
-            <div className="hidden text-right sm:block">
-              <p className="text-sm font-medium text-zinc-300">Trader</p>
-              <p className="text-xs text-zinc-500">Pro Account</p>
-            </div>
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-sm font-semibold text-white ring-2 ring-surface-overlay">
-              T
-            </div>
+            <UserMenu />
           </div>
         </header>
 

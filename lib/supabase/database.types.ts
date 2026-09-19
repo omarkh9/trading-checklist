@@ -12,7 +12,7 @@ export type Database = {
       trades: {
         Row: {
           id: string;
-          user_id: string | null;
+          user_id: string;
           pair: string;
           higher_time_frame: string | null;
           middle_time_frame: string | null;
@@ -38,7 +38,7 @@ export type Database = {
         };
         Insert: {
           id?: string;
-          user_id?: string | null;
+          user_id: string;
           pair: string;
           higher_time_frame?: string | null;
           middle_time_frame?: string | null;
@@ -64,7 +64,7 @@ export type Database = {
         };
         Update: {
           id?: string;
-          user_id?: string | null;
+          user_id?: string;
           pair?: string;
           higher_time_frame?: string | null;
           middle_time_frame?: string | null;
@@ -86,6 +86,24 @@ export type Database = {
           notes?: string;
           before_chart?: string | null;
           after_chart?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      profiles: {
+        Row: {
+          id: string;
+          username: string;
+          created_at: string;
+        };
+        Insert: {
+          id: string;
+          username: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          username?: string;
           created_at?: string;
         };
         Relationships: [];

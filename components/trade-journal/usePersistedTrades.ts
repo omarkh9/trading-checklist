@@ -12,7 +12,6 @@ import {
   saveAccountSettings,
 } from "@/lib/trades/account-balance";
 import type { Trade, TradeFormData } from "@/lib/types/trade";
-import { useUser } from "@clerk/nextjs";
 import { useEffect, useMemo, useState } from "react";
 
 function errorMessage(error: unknown) {
@@ -20,7 +19,6 @@ function errorMessage(error: unknown) {
 }
 
 export function usePersistedTrades() {
-  const { user } = useUser();
   const [trades, setTrades] = useState<Trade[]>([]);
   const [startingBalance, setStartingBalance] = useState(10_000);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -64,7 +62,7 @@ export function usePersistedTrades() {
   const handleSubmit = async (data: TradeFormData) => {
     setError(null);
     try {
-      const created = await insertTrade(data, user?.id ?? null);
+      const created = await insertTrade(data);
       setTrades((prev) => [created, ...prev]);
     } catch (cause) {
       const message = errorMessage(cause);
