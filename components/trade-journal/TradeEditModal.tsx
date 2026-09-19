@@ -9,7 +9,7 @@ import { useEffect } from "react";
 type TradeEditModalProps = {
   trade: Trade;
   currentBalance: number;
-  onSave: (data: TradeFormData) => void;
+  onSave: (data: TradeFormData) => void | Promise<void>;
   onClose: () => void;
 };
 
@@ -67,8 +67,8 @@ export function TradeEditModal({
             initialData={tradeToFormData(trade)}
             submitLabel="Save Changes"
             onCancel={onClose}
-            onSubmit={(data) => {
-              onSave(data);
+            onSubmit={async (data) => {
+              await onSave(data);
               onClose();
             }}
           />

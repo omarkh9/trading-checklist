@@ -2,9 +2,9 @@
 
 import {
   dateKeyFromDate,
-  loadTrades,
   tradeDateKey,
 } from "@/lib/trades/load-trades";
+import { fetchTrades } from "@/lib/supabase/trades";
 import { TradeDetailCard } from "@/components/trade-journal/TradeDetailCard";
 import type { Outcome, Trade } from "@/lib/types/trade";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
@@ -148,19 +148,29 @@ export function TradeCalendar() {
   const [viewDate, setViewDate] = useState(() => new Date());
   const [modalDateKey, setModalDateKey] = useState<string | null>(null);
 
-  const refreshTrades = () => setTrades(loadTrades());
-
   useEffect(() => {
-    refreshTrades();
-    setIsLoaded(true);
+    let cancelled = false;
 
-    const onStorage = () => refreshTrades();
-    window.addEventListener("storage", onStorage);
-    window.addEventListener("focus", onStorage);
+    const load = async () => {
+      try {
+        const nextTrades = await fetchTrades();
+        if (!cancelled) setTrades(nextTrades);
+      } catch {
+        if (!cancelled) setTrades([]);
+      } finally {
+        if (!cancelled) setIsLoaded(true);
+      }
+    };
+
+    void load();
+    const onFocus = () => {
+      void load();
+    };
+    window.addEventListener("focus", onFocus);
 
     return () => {
-      window.removeEventListener("storage", onStorage);
-      window.removeEventListener("focus", onStorage);
+      cancelled = true;
+      window.removeEventListener("focus", onFocus);
     };
   }, []);
 

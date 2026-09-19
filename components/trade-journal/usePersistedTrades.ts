@@ -1,43 +1,55 @@
 "use client";
 
-import { TRADES_STORAGE_KEY } from "@/lib/storage/keys";
+import {
+  deleteTrade,
+  fetchTrades,
+  insertTrade,
+  updateTrade,
+} from "@/lib/supabase/trades";
 import {
   computeCurrentBalance,
   loadAccountSettings,
   saveAccountSettings,
 } from "@/lib/trades/account-balance";
-import { loadTrades } from "@/lib/trades/load-trades";
 import type { Trade, TradeFormData } from "@/lib/types/trade";
+import { useUser } from "@clerk/nextjs";
 import { useEffect, useMemo, useState } from "react";
 
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Something went wrong.";
+}
+
 export function usePersistedTrades() {
+  const { user } = useUser();
   const [trades, setTrades] = useState<Trade[]>([]);
   const [startingBalance, setStartingBalance] = useState(10_000);
   const [isLoaded, setIsLoaded] = useState(false);
-
-  const refresh = () => {
-    setTrades(loadTrades());
-    setStartingBalance(loadAccountSettings().startingBalance);
-  };
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    refresh();
-    setIsLoaded(true);
+    let cancelled = false;
 
-    const onStorage = () => refresh();
-    window.addEventListener("storage", onStorage);
-    window.addEventListener("focus", onStorage);
+    const load = async () => {
+      try {
+        const nextTrades = await fetchTrades();
+        if (cancelled) return;
+        setTrades(nextTrades);
+        setError(null);
+      } catch (cause) {
+        if (cancelled) return;
+        setError(errorMessage(cause));
+      } finally {
+        if (cancelled) return;
+        setStartingBalance(loadAccountSettings().startingBalance);
+        setIsLoaded(true);
+      }
+    };
 
+    void load();
     return () => {
-      window.removeEventListener("storage", onStorage);
-      window.removeEventListener("focus", onStorage);
+      cancelled = true;
     };
   }, []);
-
-  useEffect(() => {
-    if (!isLoaded) return;
-    localStorage.setItem(TRADES_STORAGE_KEY, JSON.stringify(trades));
-  }, [trades, isLoaded]);
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -49,31 +61,40 @@ export function usePersistedTrades() {
     [startingBalance, trades]
   );
 
-  const handleSubmit = (data: TradeFormData) => {
-    const trade: Trade = {
-      ...data,
-      id: crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
-    };
-    setTrades((prev) => [trade, ...prev]);
+  const handleSubmit = async (data: TradeFormData) => {
+    setError(null);
+    try {
+      const created = await insertTrade(data, user?.id ?? null);
+      setTrades((prev) => [created, ...prev]);
+    } catch (cause) {
+      const message = errorMessage(cause);
+      setError(message);
+      throw cause;
+    }
   };
 
-  const handleUpdate = (id: string, data: TradeFormData) => {
-    setTrades((prev) =>
-      prev.map((trade) =>
-        trade.id === id
-          ? {
-              ...data,
-              id: trade.id,
-              createdAt: trade.createdAt,
-            }
-          : trade
-      )
-    );
+  const handleUpdate = async (id: string, data: TradeFormData) => {
+    setError(null);
+    try {
+      const updated = await updateTrade(id, data);
+      setTrades((prev) =>
+        prev.map((trade) => (trade.id === id ? updated : trade))
+      );
+    } catch (cause) {
+      const message = errorMessage(cause);
+      setError(message);
+      throw cause;
+    }
   };
 
-  const handleDelete = (id: string) => {
-    setTrades((prev) => prev.filter((t) => t.id !== id));
+  const handleDelete = async (id: string) => {
+    setError(null);
+    try {
+      await deleteTrade(id);
+      setTrades((prev) => prev.filter((trade) => trade.id !== id));
+    } catch (cause) {
+      setError(errorMessage(cause));
+    }
   };
 
   return {
@@ -82,6 +103,7 @@ export function usePersistedTrades() {
     setStartingBalance,
     currentBalance,
     isLoaded,
+    error,
     handleSubmit,
     handleUpdate,
     handleDelete,

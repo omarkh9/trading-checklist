@@ -17,7 +17,7 @@ import { useEffect, useMemo, useState } from "react";
 
 type TradeFormProps = {
   currentBalance: number;
-  onSubmit: (data: TradeFormData) => void;
+  onSubmit: (data: TradeFormData) => void | Promise<void>;
   initialData?: TradeFormData;
   onCancel?: () => void;
   submitLabel?: string;
@@ -69,6 +69,7 @@ export function TradeForm({
   const [form, setForm] = useState<TradeFormData>(
     initialData ?? emptyTradeForm()
   );
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     setForm(initialData ?? emptyTradeForm());
@@ -115,18 +116,25 @@ export function TradeForm({
       ? form.fixedLotSize || "—"
       : formatLotSize(calculatedLot);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.pair.trim()) return;
+    if (!form.pair.trim() || isSaving) return;
 
-    onSubmit({
-      ...form,
-      pnlDollars: resolvedPnl,
-      lotSize: displayLotSize === "—" ? "" : displayLotSize,
-      accountBalanceAtEntry: currentBalance,
-    });
-    if (!initialData) {
-      setForm(emptyTradeForm());
+    setIsSaving(true);
+    try {
+      await onSubmit({
+        ...form,
+        pnlDollars: resolvedPnl,
+        lotSize: displayLotSize === "—" ? "" : displayLotSize,
+        accountBalanceAtEntry: currentBalance,
+      });
+      if (!initialData) {
+        setForm(emptyTradeForm());
+      }
+    } catch {
+      // Persist errors are shown by the journal/history views.
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -401,10 +409,11 @@ export function TradeForm({
         )}
         <button
           type="submit"
-          className="inline-flex items-center gap-2 rounded-lg bg-accent px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-accent-hover"
+          disabled={isSaving}
+          className="inline-flex items-center gap-2 rounded-lg bg-accent px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
         >
           <Save className="h-4 w-4" />
-          {submitLabel}
+          {isSaving ? "Saving..." : submitLabel}
         </button>
       </div>
     </form>

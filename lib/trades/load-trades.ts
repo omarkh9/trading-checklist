@@ -1,4 +1,3 @@
-import { TRADES_STORAGE_KEY } from "@/lib/storage/keys";
 import type { Trade } from "@/lib/types/trade";
 
 function toChartImage(value: unknown): string | null {
@@ -25,17 +24,6 @@ export function normalizeTrade(trade: Trade): Trade {
         ? trade.accountBalanceAtEntry
         : 0,
   };
-}
-
-export function loadTrades(): Trade[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(TRADES_STORAGE_KEY);
-    const parsed = raw ? (JSON.parse(raw) as Trade[]) : [];
-    return parsed.map(normalizeTrade);
-  } catch {
-    return [];
-  }
 }
 
 export function tradeDateKey(iso: string): string {

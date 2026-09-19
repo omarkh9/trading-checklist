@@ -2,10 +2,8 @@
 
 import type { ChecklistRule } from "@/lib/types/checklist";
 import type { Trade } from "@/lib/types/trade";
-import {
-  CHECKLIST_RULES_STORAGE_KEY,
-  TRADES_STORAGE_KEY,
-} from "@/lib/storage/keys";
+import { CHECKLIST_RULES_STORAGE_KEY } from "@/lib/storage/keys";
+import { fetchTrades } from "@/lib/supabase/trades";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -15,16 +13,6 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-
-function loadTrades(): Trade[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(TRADES_STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as Trade[]) : [];
-  } catch {
-    return [];
-  }
-}
 
 function loadChecklistRules(): ChecklistRule[] {
   if (typeof window === "undefined") return [];
@@ -109,9 +97,26 @@ export function DashboardHome() {
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
-    setTrades(loadTrades());
-    setChecklistRules(loadChecklistRules());
-    setIsLoaded(true);
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        const nextTrades = await fetchTrades();
+        if (!cancelled) setTrades(nextTrades);
+      } catch {
+        if (!cancelled) setTrades([]);
+      } finally {
+        if (!cancelled) {
+          setChecklistRules(loadChecklistRules());
+          setIsLoaded(true);
+        }
+      }
+    };
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const metrics = useMemo(() => {

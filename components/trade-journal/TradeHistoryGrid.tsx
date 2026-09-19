@@ -13,8 +13,8 @@ type FilterTab = "All" | Outcome;
 type TradeHistoryGridProps = {
   trades: Trade[];
   startingBalance: number;
-  onDelete: (id: string) => void;
-  onUpdate: (id: string, data: TradeFormData) => void;
+  onDelete: (id: string) => void | Promise<void>;
+  onUpdate: (id: string, data: TradeFormData) => void | Promise<void>;
 };
 
 const outcomeBadgeClass: Record<Outcome, string> = {
@@ -224,7 +224,7 @@ export function TradeHistoryGrid({
         <TradeEditModal
           trade={editTrade}
           currentBalance={editBalance}
-          onSave={(data) => onUpdate(editTrade.id, data)}
+          onSave={async (data) => onUpdate(editTrade.id, data)}
           onClose={() => setEditTradeId(null)}
         />
       )}
