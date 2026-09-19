@@ -1,7 +1,9 @@
 "use client";
 
+import { ASSET_CLASS_LABELS, resolveAsset } from "@/lib/trades/assets";
 import { formatPnlDollars } from "@/lib/trades/pnl";
 import type { Direction, Outcome, Trade } from "@/lib/types/trade";
+import { assetClassBadgeClass } from "@/lib/ui/desk";
 
 const outcomeBadgeClass: Record<Outcome, string> = {
   Win: "bg-emerald-500/15 text-emerald-400 ring-emerald-500/30",
@@ -46,7 +48,7 @@ function ChartPreview({
 }) {
   if (!src) {
     return (
-      <div className="flex h-48 items-center justify-center rounded-lg border border-dashed border-border bg-surface-overlay/50">
+      <div className="flex h-48 items-center justify-center rounded-lg border border-dashed border-white/10 bg-white/[0.02]">
         <p className="px-2 text-center text-sm text-zinc-600">
           No {label.toLowerCase()} uploaded
         </p>
@@ -59,7 +61,7 @@ function ChartPreview({
       <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">
         {label}
       </p>
-      <div className="overflow-hidden rounded-lg border border-border">
+      <div className="overflow-hidden rounded-lg border border-white/10">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={src}
@@ -76,6 +78,7 @@ type TradeDetailCardProps = {
 };
 
 export function TradeDetailCard({ trade }: TradeDetailCardProps) {
+  const asset = resolveAsset(trade.pair);
   const pnlColor =
     trade.pnlDollars > 0
       ? "text-emerald-400"
@@ -91,10 +94,10 @@ export function TradeDetailCard({ trade }: TradeDetailCardProps) {
         : "border-blue-400/40 bg-blue-500/10";
 
   return (
-    <article className="rounded-xl border border-border bg-surface-overlay/40 p-4 sm:p-5">
+    <article className="rounded-xl border border-indigo-400/15 bg-[#0c0c16]/70 p-4 sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h4 className="text-xl font-semibold tracking-tight text-zinc-100">
+          <h4 className="text-xl font-semibold tracking-tight text-zinc-50">
             {trade.pair}
           </h4>
           <p className="mt-1 text-sm text-zinc-500">
@@ -102,6 +105,11 @@ export function TradeDetailCard({ trade }: TradeDetailCardProps) {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <span
+            className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${assetClassBadgeClass[asset.spec.assetClass]}`}
+          >
+            {ASSET_CLASS_LABELS[asset.spec.assetClass]}
+          </span>
           <span
             className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${directionBadgeClass[trade.direction]}`}
           >
@@ -113,7 +121,7 @@ export function TradeDetailCard({ trade }: TradeDetailCardProps) {
             {trade.outcome}
           </span>
           {trade.strategy.trim() && (
-            <span className="inline-flex rounded-full bg-accent/15 px-2.5 py-0.5 text-xs font-medium text-accent-hover ring-1 ring-accent/30">
+            <span className="inline-flex rounded-full bg-indigo-500/15 px-2.5 py-0.5 text-xs font-medium text-indigo-300 ring-1 ring-indigo-400/30">
               {trade.strategy.trim()}
             </span>
           )}
@@ -130,25 +138,25 @@ export function TradeDetailCard({ trade }: TradeDetailCardProps) {
       </div>
 
       <dl className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-lg bg-surface-overlay/60 px-3 py-2">
+        <div className="rounded-lg border border-white/5 bg-white/[0.03] px-3 py-2">
           <dt className="text-xs text-zinc-500">Entry Price</dt>
           <dd className="font-mono text-sm text-zinc-200">
             {trade.entryPrice || "—"}
           </dd>
         </div>
-        <div className="rounded-lg bg-surface-overlay/60 px-3 py-2">
+        <div className="rounded-lg border border-white/5 bg-white/[0.03] px-3 py-2">
           <dt className="text-xs text-zinc-500">Stop Loss</dt>
           <dd className="font-mono text-sm text-zinc-200">
             {trade.stopLoss || "—"}
           </dd>
         </div>
-        <div className="rounded-lg bg-surface-overlay/60 px-3 py-2">
+        <div className="rounded-lg border border-white/5 bg-white/[0.03] px-3 py-2">
           <dt className="text-xs text-zinc-500">Take Profit</dt>
           <dd className="font-mono text-sm text-zinc-200">
             {trade.takeProfit || "—"}
           </dd>
         </div>
-        <div className="rounded-lg bg-surface-overlay/60 px-3 py-2">
+        <div className="rounded-lg border border-white/5 bg-white/[0.03] px-3 py-2">
           <dt className="text-xs text-zinc-500">Lot Size</dt>
           <dd className="font-mono text-sm text-zinc-200">
             {trade.lotSize || "—"}

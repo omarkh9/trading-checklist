@@ -22,6 +22,8 @@ import {
   type RiskSizeMode,
   type TradeFormData,
 } from "@/lib/types/trade";
+import { DeskCard } from "@/components/ui/DeskCard";
+import { desk } from "@/lib/ui/desk";
 import { Save } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
@@ -36,10 +38,8 @@ type TradeFormProps = {
 
 const KNOWN_SYMBOLS = listKnownSymbols();
 
-const inputClass =
-  "w-full rounded-lg border border-border bg-surface-overlay px-3 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none transition-colors focus:border-accent/50 focus:ring-1 focus:ring-accent/30";
-
-const labelClass = "mb-1.5 block text-sm font-medium text-zinc-400";
+const inputClass = desk.input;
+const labelClass = desk.label;
 
 function ToggleGroup<T extends string>({
   value,
@@ -51,7 +51,7 @@ function ToggleGroup<T extends string>({
   onChange: (value: T) => void;
 }) {
   return (
-    <div className="flex rounded-lg border border-border bg-surface-overlay p-1">
+    <div className="flex rounded-lg border border-white/10 bg-white/[0.03] p-1">
       {options.map((option) => (
         <button
           key={option.id}
@@ -59,7 +59,7 @@ function ToggleGroup<T extends string>({
           onClick={() => onChange(option.id)}
           className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
             value === option.id
-              ? "bg-accent text-white"
+              ? "bg-indigo-500 text-white shadow-[0_0_16px_rgba(99,102,241,0.35)]"
               : "text-zinc-400 hover:text-zinc-200"
           }`}
         >
@@ -178,17 +178,10 @@ export function TradeForm({
 
   const showPnlFields = form.outcome !== "Breakeven";
 
-  return (
-    <form
-      onSubmit={handleSubmit}
-      className={
-        embedded
-          ? "p-0"
-          : "rounded-xl border border-border bg-surface-raised p-6"
-      }
-    >
-      <h3 className="text-lg font-semibold text-zinc-100">Log New Trade</h3>
-      <p className="mt-1 text-sm text-zinc-500">
+  const formBody = (
+    <>
+      <h3 className={desk.title}>Log New Trade</h3>
+      <p className={desk.subtitle}>
         Attach chart screenshots for each timeframe, then capture execution,
         risk, and outcome details below.
       </p>
@@ -361,8 +354,8 @@ export function TradeForm({
       </div>
 
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
-        <div className="rounded-lg border border-border bg-surface-overlay/40 p-4">
-          <p className="text-sm font-medium text-zinc-200">Profit / Loss</p>
+        <div className={`${desk.panel} border-indigo-400/15`}>
+          <p className="text-sm font-semibold text-zinc-100">Profit / Loss</p>
           <p className="mt-1 text-xs text-zinc-500">
             Enter the result as dollars or as a percent of your current balance (
             {formatBalance(currentBalance)}).
@@ -412,8 +405,8 @@ export function TradeForm({
           )}
         </div>
 
-        <div className="rounded-lg border border-border bg-surface-overlay/40 p-4">
-          <p className="text-sm font-medium text-zinc-200">Lot Size</p>
+        <div className={`${desk.panel} border-indigo-400/15`}>
+          <p className="text-sm font-semibold text-zinc-100">Lot Size</p>
           <p className="mt-1 text-xs text-zinc-500">
             Use a fixed lot size or risk a percentage of balance based on entry
             and stop distance.
@@ -449,7 +442,7 @@ export function TradeForm({
               />
             )}
 
-            <div className="rounded-lg bg-surface-overlay px-3 py-2">
+            <div className="rounded-lg border border-white/10 bg-[#0a0a12] px-3 py-2">
               <p className="text-xs text-zinc-500">Calculated lot size</p>
               <p className="mt-1 font-mono text-lg text-zinc-100">
                 {displayLotSize}
@@ -520,7 +513,7 @@ export function TradeForm({
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-lg border border-border px-5 py-2.5 text-sm font-medium text-zinc-300 transition-colors hover:bg-surface-overlay"
+            className={desk.btnGhost}
           >
             Cancel
           </button>
@@ -528,12 +521,18 @@ export function TradeForm({
         <button
           type="submit"
           disabled={isSaving}
-          className="inline-flex items-center gap-2 rounded-lg bg-accent px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
+          className={desk.btnPrimary}
         >
           <Save className="h-4 w-4" />
           {isSaving ? "Saving..." : submitLabel}
         </button>
       </div>
+    </>
+  );
+
+  return (
+    <form onSubmit={handleSubmit}>
+      {embedded ? formBody : <DeskCard>{formBody}</DeskCard>}
     </form>
   );
 }

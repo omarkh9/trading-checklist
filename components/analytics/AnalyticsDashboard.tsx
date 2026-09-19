@@ -1,6 +1,8 @@
 "use client";
 
+import { DeskCard } from "@/components/ui/DeskCard";
 import { fetchTrades } from "@/lib/supabase/trades";
+import { desk } from "@/lib/ui/desk";
 import {
   buildEquityCurve,
   computeAnalyticsSummary,
@@ -56,37 +58,42 @@ function StatCard({
       ? "text-emerald-300"
       : tone === "negative"
         ? "text-rose-300"
-        : "text-zinc-100";
+        : "text-zinc-50";
+
+  const iconWrap =
+    isEmpty
+      ? "bg-white/5 text-zinc-600"
+      : tone === "positive"
+        ? "bg-emerald-500/15 text-emerald-300"
+        : tone === "negative"
+          ? "bg-rose-500/15 text-rose-300"
+          : "bg-indigo-500/15 text-indigo-300";
 
   return (
-    <div
-      className={`rounded-xl border bg-surface-raised p-5 ${
-        isEmpty ? "border-dashed border-border" : "border-border"
-      }`}
+    <DeskCard
+      className={isEmpty ? "border-dashed border-white/10" : ""}
     >
       <div className="flex items-center justify-between">
-        <p className="text-sm font-medium text-zinc-400">{label}</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
+          {label}
+        </p>
         <div
-          className={`flex h-8 w-8 items-center justify-center rounded-lg ${
-            isEmpty ? "bg-surface-overlay" : "bg-accent/10"
-          }`}
+          className={`flex h-8 w-8 items-center justify-center rounded-lg ${iconWrap}`}
         >
-          <Icon
-            className={`h-4 w-4 ${isEmpty ? "text-zinc-600" : "text-accent"}`}
-          />
+          <Icon className="h-4 w-4" />
         </div>
       </div>
       <p className={`mt-3 text-3xl font-bold tracking-tight ${valueClass}`}>
         {value}
       </p>
       <p className="mt-1 text-sm text-zinc-500">{hint}</p>
-    </div>
+    </DeskCard>
   );
 }
 
 function ChartEmpty({ message }: { message: string }) {
   return (
-    <div className="flex h-64 items-center justify-center rounded-lg border border-dashed border-border bg-surface-overlay/50">
+    <div className="flex h-64 items-center justify-center rounded-lg border border-dashed border-white/10 bg-white/[0.02]">
       <p className="px-4 text-center text-sm text-zinc-500">{message}</p>
     </div>
   );
@@ -103,14 +110,14 @@ function EquityTooltip({
   const point = payload[0].payload;
   if (point.tradeNumber === 0) {
     return (
-      <div className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-xs text-zinc-300 shadow-xl">
+      <div className="rounded-lg border border-indigo-400/25 bg-[#0c0c16] px-3 py-2 text-xs text-zinc-300 shadow-[0_12px_32px_rgba(0,0,0,0.45)]">
         Starting equity · $0.00
       </div>
     );
   }
 
   return (
-    <div className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-xs text-zinc-300 shadow-xl">
+    <div className="rounded-lg border border-indigo-400/25 bg-[#0c0c16] px-3 py-2 text-xs text-zinc-300 shadow-[0_12px_32px_rgba(0,0,0,0.45)]">
       <p className="font-medium text-zinc-100">
         {point.pair} · Trade {point.tradeNumber}
       </p>
@@ -131,7 +138,7 @@ function StrategyTooltip({
   if (!active || !payload?.[0]) return null;
   const row = payload[0].payload;
   return (
-    <div className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-xs text-zinc-300 shadow-xl">
+    <div className="rounded-lg border border-indigo-400/25 bg-[#0c0c16] px-3 py-2 text-xs text-zinc-300 shadow-[0_12px_32px_rgba(0,0,0,0.45)]">
       <p className="font-medium text-zinc-100">{row.name}</p>
       <p className="mt-1">{formatWinRate(row.winRate)} win rate</p>
       <p>
@@ -208,12 +215,12 @@ export function AnalyticsDashboard() {
       <div className="space-y-6 animate-pulse">
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-32 rounded-xl bg-surface-raised" />
+            <div key={i} className="h-32 rounded-2xl bg-[#0c0c16]/80" />
           ))}
         </div>
         <div className="grid gap-6 lg:grid-cols-2">
-          <div className="h-80 rounded-xl bg-surface-raised" />
-          <div className="h-80 rounded-xl bg-surface-raised" />
+          <div className="h-80 rounded-2xl bg-[#0c0c16]/80" />
+          <div className="h-80 rounded-2xl bg-[#0c0c16]/80" />
         </div>
       </div>
     );
@@ -222,7 +229,7 @@ export function AnalyticsDashboard() {
   return (
     <div className="space-y-6">
       {error && (
-        <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+        <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">
           {error}
         </p>
       )}
@@ -285,13 +292,11 @@ export function AnalyticsDashboard() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <section className="rounded-xl border border-border bg-surface-raised p-6">
+        <DeskCard>
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h3 className="text-lg font-semibold text-zinc-100">
-                Performance by Setup
-              </h3>
-              <p className="mt-1 text-sm text-zinc-500">
+              <h3 className={desk.title}>Performance by Setup</h3>
+              <p className={desk.subtitle}>
                 Win rate, trade count, and net P/L by strategy tag
               </p>
             </div>
@@ -308,12 +313,12 @@ export function AnalyticsDashboard() {
                   data={strategies}
                   margin={{ top: 8, right: 8, left: 0, bottom: 24 }}
                 >
-                  <CartesianGrid stroke="#2a2a3a" vertical={false} />
+                  <CartesianGrid stroke="#1e1e32" vertical={false} />
                   <XAxis
                     dataKey="name"
                     tick={{ fill: "#a1a1aa", fontSize: 11 }}
                     tickLine={false}
-                    axisLine={{ stroke: "#2a2a3a" }}
+                    axisLine={{ stroke: "#2a2a42" }}
                     interval={0}
                     angle={strategies.length > 4 ? -25 : 0}
                     textAnchor={strategies.length > 4 ? "end" : "middle"}
@@ -328,7 +333,7 @@ export function AnalyticsDashboard() {
                     width={40}
                   />
                   <Tooltip
-                    cursor={{ fill: "rgba(255,255,255,0.04)" }}
+                    cursor={{ fill: "rgba(99,102,241,0.08)" }}
                     content={<StrategyTooltip />}
                   />
                   <Bar dataKey="winRate" radius={[6, 6, 0, 0]} maxBarSize={56}>
@@ -377,15 +382,13 @@ export function AnalyticsDashboard() {
               ))}
             </ul>
           )}
-        </section>
+        </DeskCard>
 
-        <section className="rounded-xl border border-border bg-surface-raised p-6">
+        <DeskCard>
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h3 className="text-lg font-semibold text-zinc-100">
-                Cumulative P&amp;L
-              </h3>
-              <p className="mt-1 text-sm text-zinc-500">
+              <h3 className={desk.title}>Cumulative P&amp;L</h3>
+              <p className={desk.subtitle}>
                 Equity curve of net profit over time
               </p>
             </div>
@@ -421,12 +424,12 @@ export function AnalyticsDashboard() {
                       <stop offset="100%" stopColor="#818cf8" stopOpacity={0.02} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid stroke="#2a2a3a" vertical={false} />
+                  <CartesianGrid stroke="#1e1e32" vertical={false} />
                   <XAxis
                     dataKey="label"
                     tick={{ fill: "#a1a1aa", fontSize: 11 }}
                     tickLine={false}
-                    axisLine={{ stroke: "#2a2a3a" }}
+                    axisLine={{ stroke: "#2a2a42" }}
                     minTickGap={24}
                   />
                   <YAxis
@@ -450,7 +453,7 @@ export function AnalyticsDashboard() {
               </ResponsiveContainer>
             </div>
           )}
-        </section>
+        </DeskCard>
       </div>
     </div>
   );

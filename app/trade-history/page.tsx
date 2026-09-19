@@ -5,7 +5,7 @@ export default function TradeHistoryPage() {
   return (
     <DashboardShell
       title="Trade History"
-      description="Filter, review, update, or remove logged trades"
+      description="Tabular history with asset, direction, and outcome badges"
     >
       <TradeHistoryView />
     </DashboardShell>

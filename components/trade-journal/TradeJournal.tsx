@@ -1,9 +1,11 @@
 "use client";
 
+import { DeskCard } from "@/components/ui/DeskCard";
 import { AccountBalancePanel } from "@/components/trade-journal/AccountBalancePanel";
 import { TradeForm } from "@/components/trade-journal/TradeForm";
 import { TradeHistoryGrid } from "@/components/trade-journal/TradeHistoryGrid";
 import { usePersistedTrades } from "@/components/trade-journal/usePersistedTrades";
+import { desk } from "@/lib/ui/desk";
 
 export function TradeJournal() {
   const {
@@ -19,13 +21,13 @@ export function TradeJournal() {
   } = usePersistedTrades();
 
   if (!isLoaded) {
-    return <div className="h-64 animate-pulse rounded-xl bg-surface-raised" />;
+    return <div className="h-64 animate-pulse rounded-2xl bg-[#12121a]" />;
   }
 
   return (
     <div className="space-y-8">
       {error && (
-        <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+        <p className="rounded-xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">
           {error}
         </p>
       )}
@@ -37,10 +39,10 @@ export function TradeJournal() {
 
       <TradeForm currentBalance={currentBalance} onSubmit={handleSubmit} />
 
-      <section className="rounded-xl border border-border bg-surface-raised p-6">
+      <DeskCard>
         <div className="mb-6">
-          <h3 className="text-lg font-semibold text-zinc-100">Trade History</h3>
-          <p className="mt-1 text-sm text-zinc-500">
+          <h3 className={desk.title}>Trade History</h3>
+          <p className={desk.subtitle}>
             Filter, review, update, or remove logged trades.
           </p>
         </div>
@@ -51,7 +53,7 @@ export function TradeJournal() {
           onDelete={handleDelete}
           onUpdate={handleUpdate}
         />
-      </section>
+      </DeskCard>
     </div>
   );
 }

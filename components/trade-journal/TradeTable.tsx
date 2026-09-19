@@ -1,8 +1,10 @@
 "use client";
 
 import { TradeDetailCard } from "@/components/trade-journal/TradeDetailCard";
+import { ASSET_CLASS_LABELS, resolveAsset } from "@/lib/trades/assets";
 import { formatPnlDollars } from "@/lib/trades/pnl";
 import type { Direction, Outcome, Trade } from "@/lib/types/trade";
+import { assetClassBadgeClass } from "@/lib/ui/desk";
 import { ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import { useState } from "react";
 
@@ -13,13 +15,13 @@ type TradeTableProps = {
 
 const outcomeStyles: Record<Outcome, string> = {
   Win: "bg-emerald-500/15 text-emerald-400 ring-emerald-500/30",
-  Loss: "bg-red-500/15 text-red-400 ring-red-500/30",
-  Breakeven: "bg-zinc-500/15 text-zinc-400 ring-zinc-500/30",
+  Loss: "bg-rose-500/15 text-rose-400 ring-rose-500/30",
+  Breakeven: "bg-sky-500/15 text-sky-300 ring-sky-500/30",
 };
 
 const directionStyles: Record<Direction, string> = {
-  Long: "text-emerald-400",
-  Short: "text-red-400",
+  Long: "bg-emerald-500/15 text-emerald-400 ring-emerald-500/30",
+  Short: "bg-rose-500/15 text-rose-400 ring-rose-500/30",
 };
 
 function formatDate(iso: string) {
@@ -37,7 +39,7 @@ export function TradeTable({ trades, onDelete }: TradeTableProps) {
 
   if (trades.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-border bg-surface-raised/50 p-12 text-center">
+      <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.02] p-12 text-center">
         <p className="text-lg font-medium text-zinc-300">No trades logged yet</p>
         <p className="mt-2 text-sm text-zinc-500">
           Use the form above to add your first journal entry.
@@ -47,22 +49,30 @@ export function TradeTable({ trades, onDelete }: TradeTableProps) {
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-surface-raised">
+    <div className="overflow-hidden rounded-xl border border-indigo-400/15">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[860px] text-left text-sm">
+        <table className="w-full min-w-[980px] text-left text-sm">
           <thead>
-            <tr className="border-b border-border bg-surface-overlay/50">
-              <th className="px-4 py-3 font-medium text-zinc-400">Pair</th>
-              <th className="px-4 py-3 font-medium text-zinc-400">Direction</th>
-              <th className="px-4 py-3 font-medium text-zinc-400">Entry</th>
-              <th className="px-4 py-3 font-medium text-zinc-400">SL</th>
-              <th className="px-4 py-3 font-medium text-zinc-400">TP</th>
-              <th className="px-4 py-3 font-medium text-zinc-400">P/L</th>
-              <th className="px-4 py-3 font-medium text-zinc-400">Outcome</th>
-              <th className="px-4 py-3 font-medium text-zinc-400">Date</th>
-              <th className="px-4 py-3 font-medium text-zinc-400">
-                <span className="sr-only">Actions</span>
-              </th>
+            <tr className="border-b border-white/10 bg-white/[0.03]">
+              {[
+                "Pair",
+                "Class",
+                "Direction",
+                "Entry",
+                "SL",
+                "TP",
+                "P/L",
+                "Outcome",
+                "Date",
+                "",
+              ].map((heading) => (
+                <th
+                  key={heading || "actions"}
+                  className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500"
+                >
+                  {heading}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
@@ -75,25 +85,37 @@ export function TradeTable({ trades, onDelete }: TradeTableProps) {
                 Boolean(trade.middleTimeFrame) ||
                 Boolean(trade.lowerTimeFrame) ||
                 Boolean(trade.entry);
-              const canExpand =
-                hasCharts || hasNotes || hasTimeframeCharts;
+              const canExpand = hasCharts || hasNotes || hasTimeframeCharts;
+              const asset = resolveAsset(trade.pair);
+              const pnl = trade.pnlDollars ?? 0;
 
               return (
-                <tr key={trade.id} className="group border-b border-border-subtle">
-                  <td colSpan={9} className="p-0">
+                <tr key={trade.id} className="group border-b border-white/5">
+                  <td colSpan={10} className="p-0">
                     <div
-                      className={`grid transition-colors ${
-                        isExpanded ? "bg-surface-overlay/30" : "hover:bg-surface-overlay/20"
+                      className={`grid transition-colors duration-300 ${
+                        isExpanded
+                          ? "bg-indigo-500/[0.07]"
+                          : "hover:bg-indigo-500/[0.06]"
                       }`}
                     >
-                      <div className="grid grid-cols-[repeat(8,minmax(0,1fr))_auto] items-center">
+                      <div className="grid grid-cols-[repeat(9,minmax(0,1fr))_auto] items-center">
                         <div className="px-4 py-3 font-semibold text-zinc-100">
                           {trade.pair}
                         </div>
-                        <div
-                          className={`px-4 py-3 font-medium ${directionStyles[trade.direction]}`}
-                        >
-                          {trade.direction}
+                        <div className="px-4 py-3">
+                          <span
+                            className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-medium ring-1 ${assetClassBadgeClass[asset.spec.assetClass]}`}
+                          >
+                            {ASSET_CLASS_LABELS[asset.spec.assetClass]}
+                          </span>
+                        </div>
+                        <div className="px-4 py-3">
+                          <span
+                            className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-medium ring-1 ${directionStyles[trade.direction]}`}
+                          >
+                            {trade.direction}
+                          </span>
                         </div>
                         <div className="px-4 py-3 font-mono text-zinc-300">
                           {trade.entryPrice || "—"}
@@ -105,15 +127,15 @@ export function TradeTable({ trades, onDelete }: TradeTableProps) {
                           {trade.takeProfit || "—"}
                         </div>
                         <div
-                          className={`px-4 py-3 font-mono text-sm ${
-                            trade.pnlDollars > 0
-                              ? "text-emerald-400"
-                              : trade.pnlDollars < 0
-                                ? "text-rose-400"
-                                : "text-zinc-500"
+                          className={`px-4 py-3 font-mono text-sm font-semibold ${
+                            pnl > 0
+                              ? "text-emerald-300"
+                              : pnl < 0
+                                ? "text-rose-300"
+                                : "text-sky-300"
                           }`}
                         >
-                          {formatPnlDollars(trade.pnlDollars ?? 0)}
+                          {formatPnlDollars(pnl)}
                         </div>
                         <div className="px-4 py-3">
                           <span
@@ -132,7 +154,7 @@ export function TradeTable({ trades, onDelete }: TradeTableProps) {
                               onClick={() =>
                                 setExpandedId(isExpanded ? null : trade.id)
                               }
-                              className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-surface-overlay hover:text-zinc-200"
+                              className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-indigo-500/15 hover:text-indigo-200"
                               aria-label={isExpanded ? "Collapse row" : "Expand row"}
                             >
                               {isExpanded ? (
@@ -145,7 +167,7 @@ export function TradeTable({ trades, onDelete }: TradeTableProps) {
                           <button
                             type="button"
                             onClick={() => onDelete(trade.id)}
-                            className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 opacity-0 transition-all hover:bg-red-500/10 hover:text-red-400 group-hover:opacity-100"
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 opacity-0 transition-all hover:bg-rose-500/10 hover:text-rose-400 group-hover:opacity-100"
                             aria-label="Delete trade"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -154,7 +176,7 @@ export function TradeTable({ trades, onDelete }: TradeTableProps) {
                       </div>
 
                       {isExpanded && (
-                        <div className="border-t border-border-subtle p-4 sm:p-5">
+                        <div className="border-t border-white/10 p-4 sm:p-5">
                           <TradeDetailCard trade={trade} />
                         </div>
                       )}

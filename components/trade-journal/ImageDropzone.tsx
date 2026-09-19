@@ -51,7 +51,7 @@ export function ImageDropzone({ label, value, onChange }: ImageDropzoneProps) {
     return (
       <div className="space-y-2">
         <p className="text-sm font-medium text-zinc-300">{label}</p>
-        <div className="group relative overflow-hidden rounded-xl border border-border bg-surface-overlay">
+        <div className="group relative overflow-hidden rounded-xl border border-indigo-400/20 bg-[#0c0c16]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={value}
@@ -84,15 +84,15 @@ export function ImageDropzone({ label, value, onChange }: ImageDropzoneProps) {
         onDrop={onDrop}
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}
-        className={`flex h-44 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed transition-all ${
+        className={`flex h-44 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed transition-all duration-300 ${
           isDragging
-            ? "border-accent bg-accent/10"
-            : "border-border bg-surface-overlay hover:border-accent/50 hover:bg-surface-overlay/80"
+            ? "border-indigo-400 bg-indigo-500/15 shadow-[0_0_24px_rgba(99,102,241,0.2)]"
+            : "border-white/10 bg-white/[0.03] hover:border-indigo-400/50 hover:bg-indigo-500/5"
         }`}
       >
         <div
           className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors ${
-            isDragging ? "bg-accent/20 text-accent" : "bg-surface-raised text-zinc-500"
+            isDragging ? "bg-indigo-500/20 text-indigo-300" : "bg-[#12121a] text-zinc-500"
           }`}
         >
           <ImagePlus className="h-5 w-5" />

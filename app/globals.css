@@ -34,6 +34,7 @@
     @apply bg-gradient-to-r from-indigo-400 to-violet-400 bg-clip-text text-transparent;
   }
 
+  .desk-atmosphere,
   .dashboard-atmosphere {
     background:
       radial-gradient(ellipse 80% 45% at 12% -8%, rgba(99, 102, 241, 0.18), transparent 52%),

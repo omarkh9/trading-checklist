@@ -5,7 +5,7 @@ export default function PreTradeChecklistPage() {
   return (
     <DashboardShell
       title="Pre-Trade Checklist"
-      description="Run through your rules before every trade"
+      description="Interactive rules with progress rings and glowing completion"
     >
       <PreTradeChecklist />
     </DashboardShell>

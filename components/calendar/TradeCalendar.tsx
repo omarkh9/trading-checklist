@@ -27,11 +27,11 @@ const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 
 const dayToneCellClass: Record<DayTone, string> = {
   positive:
-    "border-emerald-400/55 bg-emerald-500/20 text-zinc-100 hover:border-emerald-400/75 hover:bg-emerald-500/28",
+    "border-emerald-400/50 bg-emerald-500/20 text-zinc-100 shadow-[0_0_16px_rgba(16,185,129,0.12)] hover:border-emerald-300/70 hover:bg-emerald-500/30",
   negative:
-    "border-rose-400/55 bg-rose-500/20 text-zinc-100 hover:border-rose-400/75 hover:bg-rose-500/28",
+    "border-rose-400/50 bg-rose-500/20 text-zinc-100 shadow-[0_0_16px_rgba(244,63,94,0.12)] hover:border-rose-300/70 hover:bg-rose-500/30",
   breakeven:
-    "border-blue-400/55 bg-blue-500/20 text-zinc-100 hover:border-blue-400/75 hover:bg-blue-500/28",
+    "border-sky-400/50 bg-sky-500/20 text-zinc-100 shadow-[0_0_16px_rgba(56,189,248,0.12)] hover:border-sky-300/70 hover:bg-sky-500/30",
 };
 
 const dayToneMetricClass: Record<DayTone, string> = {
@@ -81,7 +81,7 @@ function MetricToggle({
 }) {
   return (
     <div
-      className="flex rounded-lg border border-border bg-surface-overlay p-1"
+      className="flex rounded-lg border border-white/10 bg-white/[0.03] p-1"
       role="group"
       aria-label="Calendar display metric"
     >
@@ -97,7 +97,7 @@ function MetricToggle({
           onClick={() => onChange(option.id)}
           className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
             value === option.id
-              ? "bg-accent text-white"
+              ? "bg-indigo-500 text-white shadow-[0_0_14px_rgba(99,102,241,0.35)]"
               : "text-zinc-400 hover:text-zinc-200"
           }`}
         >
@@ -129,7 +129,7 @@ function DaySummaryCards({
           {formatDayMetric(stats, metric)}
         </p>
       </div>
-      <div className="rounded-lg border border-border bg-surface-overlay/50 px-3 py-2.5">
+      <div className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5">
         <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-400">
           Trades
         </p>
@@ -137,7 +137,7 @@ function DaySummaryCards({
           {formatTradeCount(stats.tradeCount)}
         </p>
       </div>
-      <div className="rounded-lg border border-border bg-surface-overlay/50 px-3 py-2.5">
+      <div className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5">
         <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-400">
           Win rate
         </p>
@@ -188,9 +188,9 @@ function DayDetailModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="day-detail-title"
-        className="fixed inset-x-3 top-[max(0.75rem,env(safe-area-inset-top))] z-50 mx-auto flex max-h-[min(92vh,920px)] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-border bg-surface-raised shadow-2xl sm:inset-x-6"
+        className="fixed inset-x-3 top-[max(0.75rem,env(safe-area-inset-top))] z-50 mx-auto flex max-h-[min(92vh,920px)] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-indigo-400/25 bg-[#0c0c16] shadow-[0_20px_60px_rgba(0,0,0,0.55)] sm:inset-x-6"
       >
-        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-border px-5 py-4">
+        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-indigo-400/15 px-5 py-4">
           <div>
             <h3 id="day-detail-title" className="text-lg font-semibold text-zinc-100">
               {formatSelectedLabel(dateKey)}
@@ -204,7 +204,7 @@ function DayDetailModal({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border text-zinc-400 transition-colors hover:bg-surface-overlay hover:text-zinc-100"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-zinc-400 transition-all duration-300 hover:border-indigo-400/40 hover:bg-indigo-500/10 hover:text-zinc-100"
             aria-label="Close"
           >
             <X className="h-5 w-5" />
@@ -219,14 +219,14 @@ function DayDetailModal({
           )}
 
           {trades.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-border bg-surface-overlay/30 px-6 py-12 text-center">
+            <div className="rounded-lg border border-dashed border-white/10 bg-white/[0.02] px-6 py-12 text-center">
               <p className="text-sm text-zinc-400">
                 Log a trade in the journal to see it on your calendar.
               </p>
               <Link
                 href="/trade-journal"
                 onClick={onClose}
-                className="mt-4 inline-flex text-sm font-medium text-accent-hover hover:text-white"
+                className="mt-4 inline-flex text-sm font-medium text-indigo-300 transition-colors hover:text-white"
               >
                 Go to Trade Journal →
               </Link>
@@ -347,8 +347,8 @@ export function TradeCalendar() {
   if (!isLoaded) {
     return (
       <div className="animate-pulse space-y-4">
-        <div className="h-12 rounded-xl bg-surface-raised" />
-        <div className="h-96 rounded-xl bg-surface-raised" />
+        <div className="h-12 rounded-2xl bg-[#0c0c16]/80" />
+        <div className="h-96 rounded-2xl bg-[#0c0c16]/80" />
       </div>
     );
   }
@@ -356,10 +356,13 @@ export function TradeCalendar() {
   return (
     <>
       <div className="mx-auto max-w-6xl">
-        <div className="rounded-xl border border-border bg-surface-raised p-4 sm:p-6">
+        <div className="relative overflow-hidden rounded-2xl border border-indigo-400/20 bg-[#0c0c16]/90 p-4 shadow-[0_8px_32px_rgba(0,0,0,0.35)] sm:p-6">
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-indigo-400 via-violet-400 to-emerald-400" />
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-indigo-500/10 via-transparent to-transparent" />
+          <div className="relative">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-zinc-100">
+              <h3 className="text-lg font-semibold tracking-tight text-zinc-50">
                 {formatMonthLabel(viewDate)}
               </h3>
               <p className="mt-1 text-sm text-zinc-500">
@@ -371,7 +374,7 @@ export function TradeCalendar() {
               <button
                 type="button"
                 onClick={goToPreviousMonth}
-                className="flex h-10 w-10 items-center justify-center rounded-lg border border-border text-zinc-400 transition-colors hover:bg-surface-overlay hover:text-zinc-100"
+                className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-zinc-400 transition-all duration-300 hover:border-indigo-400/40 hover:bg-indigo-500/10 hover:text-zinc-100"
                 aria-label="Previous month"
               >
                 <ChevronLeft className="h-5 w-5" />
@@ -379,14 +382,14 @@ export function TradeCalendar() {
               <button
                 type="button"
                 onClick={goToToday}
-                className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-zinc-300 transition-colors hover:bg-surface-overlay"
+                className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-zinc-300 transition-all duration-300 hover:border-indigo-400/40 hover:bg-indigo-500/10"
               >
                 Today
               </button>
               <button
                 type="button"
                 onClick={goToNextMonth}
-                className="flex h-10 w-10 items-center justify-center rounded-lg border border-border text-zinc-400 transition-colors hover:bg-surface-overlay hover:text-zinc-100"
+                className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-zinc-400 transition-all duration-300 hover:border-indigo-400/40 hover:bg-indigo-500/10 hover:text-zinc-100"
                 aria-label="Next month"
               >
                 <ChevronRight className="h-5 w-5" />
@@ -436,14 +439,14 @@ export function TradeCalendar() {
 
               if (!hasTrades || !stats) {
                 cellClass +=
-                  "border-border bg-surface-overlay/40 hover:border-border/80 hover:bg-surface-overlay text-zinc-200";
+                  "border-white/10 bg-white/[0.03] text-zinc-200 hover:border-indigo-400/30 hover:bg-indigo-500/5";
               } else {
                 cellClass += dayToneCellClass[stats.tone];
               }
 
               if (isToday) {
                 cellClass +=
-                  " ring-2 ring-white/90 ring-offset-2 ring-offset-surface-raised";
+                  " ring-2 ring-indigo-300/80 ring-offset-2 ring-offset-[#0c0c16]";
               }
 
               const metricLabel = stats ? formatDayMetric(stats, metric) : "";
@@ -461,7 +464,7 @@ export function TradeCalendar() {
                 >
                   <span
                     className={`text-[11px] font-semibold sm:text-sm ${
-                      isToday && !hasTrades ? "text-accent-hover" : "text-zinc-200"
+                      isToday && !hasTrades ? "text-indigo-300" : "text-zinc-200"
                     }`}
                   >
                     {date.getDate()}
@@ -487,7 +490,7 @@ export function TradeCalendar() {
             })}
           </div>
 
-          <div className="mt-6 flex flex-wrap gap-4 border-t border-border pt-4 text-xs text-zinc-500">
+          <div className="mt-6 flex flex-wrap gap-4 border-t border-white/10 pt-4 text-xs text-zinc-500">
             <span className="flex items-center gap-2">
               <span className="h-5 w-5 rounded border border-emerald-400/55 bg-emerald-500/20" />
               Profitable day
@@ -500,6 +503,7 @@ export function TradeCalendar() {
               <span className="h-5 w-5 rounded border border-blue-400/55 bg-blue-500/20" />
               Break-even day
             </span>
+          </div>
           </div>
         </div>
       </div>

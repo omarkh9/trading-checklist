@@ -5,7 +5,7 @@ export default function AnalyticsPage() {
   return (
     <DashboardShell
       title="Analytics"
-      description="Live P/L, setup performance, and risk statistics from your journal"
+      description="Dark-terminal equity curves, setup bars, and live risk stats"
     >
       <AnalyticsDashboard />
     </DashboardShell>

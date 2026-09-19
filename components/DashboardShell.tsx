@@ -60,7 +60,7 @@ export function DashboardShell({
       )}
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="flex h-auto min-h-16 shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border bg-surface-raised/80 px-4 py-3 backdrop-blur-sm sm:px-8 sm:py-0">
+        <header className="flex h-auto min-h-16 shrink-0 flex-wrap items-center justify-between gap-3 border-b border-indigo-400/15 bg-[#0c0c16]/85 px-4 py-3 backdrop-blur-sm sm:px-8 sm:py-0">
           <div className="flex min-w-0 flex-1 items-center gap-3">
             <button
               type="button"
@@ -89,7 +89,7 @@ export function DashboardShell({
           </div>
         </header>
 
-        <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-4 sm:p-8">
+        <main className="desk-atmosphere min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-4 sm:p-8">
           {children}
         </main>
       </div>

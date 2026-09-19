@@ -280,21 +280,19 @@ export function DashboardHome() {
 
   if (!isLoaded) {
     return (
-      <div className="dashboard-atmosphere -mx-4 space-y-8 px-4 sm:-mx-8 sm:px-8">
-        <div className="animate-pulse space-y-8">
-          <div className="h-36 rounded-2xl bg-[#12121a]" />
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-40 rounded-2xl bg-[#12121a]" />
-            ))}
-          </div>
+      <div className="animate-pulse space-y-8">
+        <div className="h-36 rounded-2xl bg-[#12121a]" />
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-40 rounded-2xl bg-[#12121a]" />
+          ))}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="dashboard-atmosphere -mx-4 min-h-full space-y-8 px-4 sm:-mx-8 sm:px-8">
+    <div className="min-h-full space-y-8">
       {!hasTrades && (
         <section className="relative overflow-hidden rounded-2xl border border-indigo-400/25 bg-[#0c0c16] p-6 shadow-[0_0_40px_rgba(99,102,241,0.12)] sm:p-8">
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-indigo-500/20 via-violet-600/5 to-emerald-500/10" />

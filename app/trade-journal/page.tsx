@@ -5,7 +5,7 @@ export default function TradeJournalPage() {
   return (
     <DashboardShell
       title="Trade Journal"
-      description="Log, review, and reflect on every trade"
+      description="Log setups with glowing inputs, asset badges, and live P/L summaries"
     >
       <TradeJournal />
     </DashboardShell>
