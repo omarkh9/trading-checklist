@@ -2,8 +2,18 @@
 
 import { ImageDropzone } from "@/components/trade-journal/ImageDropzone";
 import { formatBalance } from "@/lib/trades/account-balance";
+import {
+  ASSET_CLASS_LABELS,
+  listKnownSymbols,
+  resolveAsset,
+} from "@/lib/trades/assets";
+import {
+  analyzePositionRisk,
+  formatPips,
+  formatUsdCompact,
+} from "@/lib/trades/contract-math";
 import { calculateLotSize, formatLotSize } from "@/lib/trades/lot-size";
-import { formatPnlDollars, resolvePnlDollars } from "@/lib/trades/pnl";
+import { formatPnlDollars, parseNumericInput, resolvePnlDollars } from "@/lib/trades/pnl";
 import {
   emptyTradeForm,
   type Direction,
@@ -23,6 +33,8 @@ type TradeFormProps = {
   submitLabel?: string;
   embedded?: boolean;
 };
+
+const KNOWN_SYMBOLS = listKnownSymbols();
 
 const inputClass =
   "w-full rounded-lg border border-border bg-surface-overlay px-3 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none transition-colors focus:border-accent/50 focus:ring-1 focus:ring-accent/30";
@@ -94,6 +106,7 @@ export function TradeForm({
   const calculatedLot = useMemo(
     () =>
       calculateLotSize({
+        pair: form.pair,
         riskSizeMode: form.riskSizeMode,
         riskPercent: form.riskPercent,
         fixedLotSize: form.fixedLotSize,
@@ -102,6 +115,7 @@ export function TradeForm({
         accountBalance: currentBalance,
       }),
     [
+      form.pair,
       form.riskSizeMode,
       form.riskPercent,
       form.fixedLotSize,
@@ -110,6 +124,30 @@ export function TradeForm({
       currentBalance,
     ]
   );
+
+  const resolvedAsset = useMemo(() => resolveAsset(form.pair), [form.pair]);
+
+  const positionRisk = useMemo(() => {
+    const entry = parseNumericInput(form.entryPrice);
+    const stop = parseNumericInput(form.stopLoss);
+    const takeProfit = parseNumericInput(form.takeProfit);
+    if (entry === null || stop === null) return null;
+    return analyzePositionRisk({
+      pair: form.pair,
+      entryPrice: entry,
+      stopLoss: stop,
+      takeProfit,
+    });
+  }, [form.pair, form.entryPrice, form.stopLoss, form.takeProfit]);
+
+  const sizedRiskUsd =
+    calculatedLot != null && positionRisk
+      ? calculatedLot * positionRisk.riskPerLotUsd
+      : null;
+  const sizedRewardUsd =
+    calculatedLot != null && positionRisk?.rewardPerLotUsd != null
+      ? calculatedLot * positionRisk.rewardPerLotUsd
+      : null;
 
   const displayLotSize =
     form.riskSizeMode === "fixed"
@@ -187,11 +225,32 @@ export function TradeForm({
             id="pair"
             type="text"
             required
-            placeholder="e.g. ES, BTCUSD"
+            placeholder="e.g. EURUSD, XAUUSD, BTCUSD"
             value={form.pair}
             onChange={(e) => update("pair", e.target.value.toUpperCase())}
             className={inputClass}
+            list="known-assets"
           />
+          <datalist id="known-assets">
+            {KNOWN_SYMBOLS.map((symbol) => (
+              <option key={symbol} value={symbol} />
+            ))}
+          </datalist>
+          {form.pair.trim() && (
+            <p className="mt-1.5 text-xs text-zinc-500">
+              {resolvedAsset.recognized ? (
+                <>
+                  {resolvedAsset.spec.name} ·{" "}
+                  {ASSET_CLASS_LABELS[resolvedAsset.spec.assetClass]} · 1.00 lot
+                  ={" "}
+                  {resolvedAsset.spec.contractSize.toLocaleString("en-US")}{" "}
+                  {resolvedAsset.spec.contractUnit}
+                </>
+              ) : (
+                "Unrecognized symbol — sizing as 1 unit per lot"
+              )}
+            </p>
+          )}
         </div>
 
         <div>
@@ -365,6 +424,35 @@ export function TradeForm({
               <p className="mt-1 font-mono text-lg text-zinc-100">
                 {displayLotSize}
               </p>
+              {positionRisk && form.pair.trim() && (
+                <div className="mt-2 space-y-1 text-xs text-zinc-500">
+                  <p>
+                    {formatPips(positionRisk.stopPips, positionRisk.spec)}{" "}
+                    {positionRisk.spec.pipSize >= 1 ? "pts" : "pips"} stop ·{" "}
+                    {formatUsdCompact(positionRisk.pipValuePerLotUsd)}
+                    /{positionRisk.spec.pipSize >= 1 ? "pt" : "pip"}/lot
+                    {positionRisk.conversionAccuracy === "approximate"
+                      ? " (approx. FX conversion)"
+                      : ""}
+                  </p>
+                  {sizedRiskUsd != null && (
+                    <p>
+                      Risk at this size: {formatUsdCompact(sizedRiskUsd)}
+                      {sizedRewardUsd != null && (
+                        <>
+                          {" "}
+                          · Reward: {formatUsdCompact(sizedRewardUsd)}
+                        </>
+                      )}
+                    </p>
+                  )}
+                  <p>
+                    Micro lot {positionRisk.spec.microLot} · Mini{" "}
+                    {positionRisk.spec.miniLot} · Step{" "}
+                    {positionRisk.spec.lotStep}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>

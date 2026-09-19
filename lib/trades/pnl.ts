@@ -1,4 +1,5 @@
-import type { Outcome, PnlMode, Trade } from "@/lib/types/trade";
+import { calculatePnlFromPrices } from "@/lib/trades/contract-math";
+import type { Direction, Outcome, PnlMode, Trade } from "@/lib/types/trade";
 
 export function parseNumericInput(value: string): number | null {
   const parsed = parseFloat(value.replace(/,/g, ""));
@@ -34,4 +35,28 @@ export function formatPnlDollars(value: number): string {
 
 export function sumTradePnl(trades: Trade[]): number {
   return trades.reduce((sum, trade) => sum + (trade.pnlDollars ?? 0), 0);
+}
+
+export function estimatePnlFromPrices(input: {
+  pair: string;
+  direction: Direction;
+  entryPrice: string;
+  exitPrice: string;
+  lots: number | null;
+}): number | null {
+  const entry = parseNumericInput(input.entryPrice);
+  const exit = parseNumericInput(input.exitPrice);
+  if (entry === null || exit === null || input.lots === null || input.lots <= 0) {
+    return null;
+  }
+
+  return (
+    calculatePnlFromPrices({
+      pair: input.pair,
+      direction: input.direction,
+      entryPrice: entry,
+      exitPrice: exit,
+      lots: input.lots,
+    })?.pnlUsd ?? null
+  );
 }
