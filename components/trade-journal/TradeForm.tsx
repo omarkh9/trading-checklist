@@ -254,6 +254,36 @@ export function TradeForm({
         </div>
 
         <div>
+          <label htmlFor="strategy" className={labelClass}>
+            Strategy / Setup
+          </label>
+          <input
+            id="strategy"
+            type="text"
+            placeholder="e.g. Breakout, FVG, Scalp"
+            value={form.strategy}
+            onChange={(e) => update("strategy", e.target.value)}
+            className={inputClass}
+            list="known-strategies"
+          />
+          <datalist id="known-strategies">
+            {[
+              "Breakout",
+              "Pullback",
+              "Reversal",
+              "Scalp",
+              "Order Block",
+              "FVG",
+              "Supply Demand",
+              "Trend",
+              "News",
+            ].map((setup) => (
+              <option key={setup} value={setup} />
+            ))}
+          </datalist>
+        </div>
+
+        <div>
           <label htmlFor="direction" className={labelClass}>
             Direction
           </label>

@@ -39,6 +39,7 @@ create table public.trades (
   fixed_lot_size text not null default '',
   lot_size text not null default '',
   account_balance_at_entry double precision not null default 0,
+  strategy text not null default '',
   notes text not null default '',
   before_chart text,
   after_chart text,

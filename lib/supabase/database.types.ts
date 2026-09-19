@@ -31,6 +31,7 @@ export type Database = {
           fixed_lot_size: string;
           lot_size: string;
           account_balance_at_entry: number;
+          strategy: string;
           notes: string;
           before_chart: string | null;
           after_chart: string | null;
@@ -57,6 +58,7 @@ export type Database = {
           fixed_lot_size?: string;
           lot_size?: string;
           account_balance_at_entry?: number;
+          strategy?: string;
           notes?: string;
           before_chart?: string | null;
           after_chart?: string | null;
@@ -83,6 +85,7 @@ export type Database = {
           fixed_lot_size?: string;
           lot_size?: string;
           account_balance_at_entry?: number;
+          strategy?: string;
           notes?: string;
           before_chart?: string | null;
           after_chart?: string | null;

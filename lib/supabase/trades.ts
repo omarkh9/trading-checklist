@@ -7,6 +7,23 @@ function throwIfError(error: { message: string } | null) {
   if (error) throw new Error(error.message);
 }
 
+function isMissingStrategyColumn(error: { message: string } | null) {
+  return Boolean(error?.message.toLowerCase().includes("strategy"));
+}
+
+function withoutStrategy<T extends { strategy?: string }>(payload: T) {
+  const { strategy: _strategy, ...rest } = payload;
+  return rest;
+}
+
+function persistStrategyInNotes(strategy: string | undefined, notes: string | undefined) {
+  const text = notes ?? "";
+  const slug = (strategy ?? "").trim().replace(/\s+/g, "");
+  if (!slug) return text;
+  if (new RegExp(`#${slug}\\b`, "i").test(text)) return text;
+  return text.trim() ? `#${slug} ${text}` : `#${slug}`;
+}
+
 async function requireUserId() {
   const supabase = createClient();
   const {
@@ -39,6 +56,7 @@ export function tradeFromRow(row: TradeRow): Trade {
     fixedLotSize: row.fixed_lot_size,
     lotSize: row.lot_size,
     accountBalanceAtEntry: row.account_balance_at_entry,
+    strategy: row.strategy ?? "",
     notes: row.notes,
     beforeChart: row.before_chart,
     afterChart: row.after_chart,
@@ -68,6 +86,7 @@ export function tradeToInsert(trade: Trade, userId: string): TradeInsert {
     fixed_lot_size: trade.fixedLotSize,
     lot_size: trade.lotSize,
     account_balance_at_entry: trade.accountBalanceAtEntry,
+    strategy: trade.strategy,
     notes: trade.notes,
     before_chart: trade.beforeChart,
     after_chart: trade.afterChart,
@@ -99,6 +118,7 @@ export function tradeFormToInsert(
     fixed_lot_size: data.fixedLotSize,
     lot_size: data.lotSize,
     account_balance_at_entry: data.accountBalanceAtEntry,
+    strategy: data.strategy,
     notes: data.notes,
     before_chart: data.beforeChart,
     after_chart: data.afterChart,
@@ -126,6 +146,7 @@ export function tradeFormToUpdate(data: TradeFormData): TradeUpdate {
     fixed_lot_size: insert.fixed_lot_size,
     lot_size: insert.lot_size,
     account_balance_at_entry: insert.account_balance_at_entry,
+    strategy: insert.strategy,
     notes: insert.notes,
     before_chart: insert.before_chart,
     after_chart: insert.after_chart,
@@ -146,11 +167,25 @@ export async function fetchTrades(): Promise<Trade[]> {
 
 export async function insertTrade(data: TradeFormData): Promise<Trade> {
   const { supabase, userId } = await requireUserId();
-  const { data: row, error } = await supabase
+  const payload = tradeFormToInsert(data, userId);
+  let { data: row, error } = await supabase
     .from("trades")
-    .insert(tradeFormToInsert(data, userId))
+    .insert(payload)
     .select()
     .single();
+
+  if (isMissingStrategyColumn(error)) {
+    const retry = await supabase
+      .from("trades")
+      .insert({
+        ...withoutStrategy(payload),
+        notes: persistStrategyInNotes(payload.strategy, payload.notes),
+      })
+      .select()
+      .single();
+    row = retry.data;
+    error = retry.error;
+  }
 
   throwIfError(error);
   if (!row) throw new Error("Trade was not saved.");
@@ -162,13 +197,29 @@ export async function updateTrade(
   data: TradeFormData
 ): Promise<Trade> {
   const { supabase, userId } = await requireUserId();
-  const { data: row, error } = await supabase
+  const payload = tradeFormToUpdate(data);
+  let { data: row, error } = await supabase
     .from("trades")
-    .update(tradeFormToUpdate(data))
+    .update(payload)
     .eq("id", id)
     .eq("user_id", userId)
     .select()
     .single();
+
+  if (isMissingStrategyColumn(error)) {
+    const retry = await supabase
+      .from("trades")
+      .update({
+        ...withoutStrategy(payload),
+        notes: persistStrategyInNotes(payload.strategy, payload.notes),
+      })
+      .eq("id", id)
+      .eq("user_id", userId)
+      .select()
+      .single();
+    row = retry.data;
+    error = retry.error;
+  }
 
   throwIfError(error);
   if (!row) throw new Error("Trade was not updated.");

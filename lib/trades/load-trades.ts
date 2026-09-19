@@ -19,6 +19,7 @@ export function normalizeTrade(trade: Trade): Trade {
     riskPercent: trade.riskPercent ?? "1",
     fixedLotSize: trade.fixedLotSize ?? "",
     lotSize: trade.lotSize ?? "",
+    strategy: trade.strategy ?? "",
     accountBalanceAtEntry:
       typeof trade.accountBalanceAtEntry === "number"
         ? trade.accountBalanceAtEntry
