@@ -5,7 +5,7 @@ export default function DashboardPage() {
   return (
     <DashboardShell
       title="Dashboard"
-      description="Overview of your trading performance and activity"
+      description="Your edge at a glance — performance, flow, and readiness"
     >
       <DashboardHome />
     </DashboardShell>
