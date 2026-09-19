@@ -48,7 +48,7 @@ export function DashboardShell({
             onClick={() => setMobileMenuOpen(false)}
           />
           <aside
-            className="fixed inset-y-0 left-0 z-50 flex w-[min(100vw-3rem,280px)] flex-col border-r border-border bg-surface-raised shadow-xl md:hidden"
+            className="fixed inset-y-0 left-0 z-50 flex w-[min(100vw-3rem,280px)] flex-col border-r border-indigo-400/15 bg-[#0c0c16] shadow-[0_20px_60px_rgba(0,0,0,0.55)] md:hidden"
             aria-label="Mobile navigation"
           >
             <SidebarPanel
@@ -65,7 +65,7 @@ export function DashboardShell({
             <button
               type="button"
               onClick={() => setMobileMenuOpen(true)}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border text-zinc-300 transition-colors hover:bg-surface-overlay md:hidden"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-zinc-300 transition-all duration-300 hover:border-indigo-400/40 hover:bg-indigo-500/10 md:hidden"
               aria-label="Open navigation menu"
               aria-expanded={mobileMenuOpen}
             >
@@ -85,7 +85,9 @@ export function DashboardShell({
             <div className="md:hidden">
               <SessionStatus variant="compact" />
             </div>
-            <UserMenu />
+            <div className="md:hidden">
+              <UserMenu />
+            </div>
           </div>
         </header>
 

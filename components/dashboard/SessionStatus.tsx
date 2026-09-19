@@ -46,13 +46,13 @@ function StatusDot({
         : "bg-emerald-400";
 
   return (
-    <span className="relative flex h-2 w-2 shrink-0">
-      {tone !== "closed" && (
-        <span
-          className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${ping}`}
-        />
-      )}
-      <span className={`relative inline-flex h-2 w-2 rounded-full ${color}`} />
+    <span className="relative flex h-2.5 w-2.5 shrink-0">
+      <span
+        className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-70 ${ping}`}
+      />
+      <span
+        className={`relative inline-flex h-2.5 w-2.5 rounded-full shadow-[0_0_10px_currentColor] ${color}`}
+      />
     </span>
   );
 }
@@ -74,7 +74,7 @@ export function SessionStatus({ variant = "full" }: SessionStatusProps) {
     if (variant === "compact") {
       return (
         <div
-          className="flex items-center gap-2 rounded-lg bg-surface-overlay px-2.5 py-1.5 ring-1 ring-border"
+          className="flex items-center gap-2 rounded-lg border border-indigo-400/15 bg-[#0c0c16]/80 px-2.5 py-1.5"
           aria-label="Detecting session status"
         >
           <span className="h-2 w-2 rounded-full bg-zinc-600" />
@@ -84,8 +84,10 @@ export function SessionStatus({ variant = "full" }: SessionStatusProps) {
     }
 
     return (
-      <div className="rounded-lg bg-surface-overlay p-3 ring-1 ring-border">
-        <p className="text-xs font-medium text-zinc-400">Session Status</p>
+      <div className="rounded-xl border border-indigo-400/20 bg-[#0c0c16]/90 p-3 shadow-[0_0_20px_rgba(99,102,241,0.08)]">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
+          Session Status
+        </p>
         <p className="mt-2 text-sm text-zinc-500">Detecting market hours…</p>
       </div>
     );
@@ -101,7 +103,7 @@ export function SessionStatus({ variant = "full" }: SessionStatusProps) {
   if (variant === "compact") {
     return (
       <div
-        className="flex max-w-[14rem] items-center gap-2 rounded-lg bg-surface-overlay px-2.5 py-1.5 ring-1 ring-border"
+        className="flex max-w-[14rem] items-center gap-2 rounded-lg border border-indigo-400/15 bg-[#0c0c16]/80 px-2.5 py-1.5"
         aria-label={`Session status: ${title}`}
         title={clock.nextChangeLabel ?? title}
       >
@@ -116,14 +118,17 @@ export function SessionStatus({ variant = "full" }: SessionStatusProps) {
   }
 
   return (
-    <div className="rounded-lg bg-surface-overlay p-3 ring-1 ring-border">
-      <p className="text-xs font-medium text-zinc-400">Session Status</p>
-      <div className="mt-2 flex items-start gap-2">
+    <div className="relative overflow-hidden rounded-xl border border-indigo-400/20 bg-[#0c0c16]/90 p-3 shadow-[0_0_20px_rgba(99,102,241,0.1)]">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-indigo-400/50 via-violet-400/40 to-transparent" />
+      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
+        Session Status
+      </p>
+      <div className="mt-2.5 flex items-start gap-2.5">
         <span className="mt-1.5">
           <StatusDot tone={tone} />
         </span>
         <div className="min-w-0">
-          <p className={`text-sm font-medium ${statusTextClass(clock)}`}>
+          <p className={`text-sm font-semibold tracking-tight ${statusTextClass(clock)}`}>
             {clock.label}
           </p>
           <p className="mt-0.5 text-[11px] leading-snug text-zinc-500">
@@ -134,7 +139,7 @@ export function SessionStatus({ variant = "full" }: SessionStatusProps) {
         </div>
       </div>
 
-      <ul className="mt-3 space-y-1.5 border-t border-border pt-3">
+      <ul className="mt-3 space-y-1.5 border-t border-white/10 pt-3">
         {clock.sessions.map((session) => (
           <li
             key={session.id}
@@ -158,7 +163,11 @@ export function SessionStatus({ variant = "full" }: SessionStatusProps) {
                 {session.name}
               </span>
             </span>
-            <span className="shrink-0 tabular-nums text-zinc-500">
+            <span
+              className={`shrink-0 tabular-nums ${
+                session.active ? "text-zinc-400" : "text-zinc-600"
+              }`}
+            >
               {session.localRange}
             </span>
           </li>
