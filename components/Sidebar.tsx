@@ -1,43 +1,12 @@
 "use client";
 
+import { SessionStatus } from "@/components/dashboard/SessionStatus";
+import { navItems } from "@/lib/navigation";
+import { Activity, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, X } from "lucide-react";
-import { navItems } from "@/lib/navigation";
 
-type SessionStatusProps = {
-  variant?: "full" | "compact";
-};
-
-export function SessionStatus({ variant = "full" }: SessionStatusProps) {
-  if (variant === "compact") {
-    return (
-      <div
-        className="flex items-center gap-2 rounded-lg bg-surface-overlay px-2.5 py-1.5 ring-1 ring-border"
-        aria-label="Session status: Markets Open"
-      >
-        <span className="relative flex h-2 w-2 shrink-0">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-          <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-        </span>
-        <span className="text-xs font-medium text-zinc-300">Markets Open</span>
-      </div>
-    );
-  }
-
-  return (
-    <div className="rounded-lg bg-surface-overlay p-3 ring-1 ring-border">
-      <p className="text-xs font-medium text-zinc-400">Session Status</p>
-      <div className="mt-2 flex items-center gap-2">
-        <span className="relative flex h-2 w-2">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-          <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-        </span>
-        <span className="text-sm text-zinc-300">Markets Open</span>
-      </div>
-    </div>
-  );
-}
+export { SessionStatus };
 
 type SidebarPanelProps = {
   onNavigate?: () => void;

@@ -1,7 +1,8 @@
 "use client";
 
 import { UserMenu } from "@/components/auth/UserMenu";
-import { SessionStatus, Sidebar, SidebarPanel } from "@/components/Sidebar";
+import { SessionStatus } from "@/components/dashboard/SessionStatus";
+import { Sidebar, SidebarPanel } from "@/components/Sidebar";
 import { Menu } from "lucide-react";
 import { useEffect, useState } from "react";
 
