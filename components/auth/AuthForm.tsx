@@ -26,7 +26,10 @@ const inputClass =
 const labelClass = "mb-1.5 block text-sm font-medium text-zinc-400";
 
 const secondaryButtonClass =
-  "mt-3 w-full rounded-lg border border-border bg-surface-overlay px-5 py-2.5 text-sm font-medium text-zinc-200 transition-colors hover:border-accent/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-60";
+  "w-full rounded-lg border border-border bg-surface-overlay px-5 py-2.5 text-sm font-medium text-zinc-200 transition-colors hover:border-accent/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-60";
+
+const recoveryPrimaryClass =
+  "block w-full rounded-lg bg-accent px-5 py-2.5 text-center text-sm font-medium text-white transition-colors hover:bg-accent-hover";
 
 type AuthFormProps = {
   mode: "login" | "signup";
@@ -42,7 +45,12 @@ export function AuthForm({ mode }: AuthFormProps) {
   const [info, setInfo] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [needsConfirmation, setNeedsConfirmation] = useState(false);
-  const [showPasswordReset, setShowPasswordReset] = useState(false);
+  const [accountExists, setAccountExists] = useState(
+    searchParams.get("existing") === "1"
+  );
+  const [showPasswordReset, setShowPasswordReset] = useState(
+    searchParams.get("existing") === "1" || searchParams.get("error") === "auth"
+  );
 
   const isSignup = mode === "signup";
   const normalizedEmail = email.trim().toLowerCase();
@@ -70,6 +78,7 @@ export function AuthForm({ mode }: AuthFormProps) {
   const loginHref = getAuthPageUrl("/login", {
     next: nextPath,
     email: normalizedEmail,
+    existing: accountExists,
   });
   const signupHref = getAuthPageUrl("/signup", {
     next: nextPath,
@@ -81,8 +90,25 @@ export function AuthForm({ mode }: AuthFormProps) {
   });
   const homeHref = getRedirectUrl("/");
 
+  const showRecovery = Boolean(
+    needsConfirmation ||
+      showPasswordReset ||
+      accountExists ||
+      queryError ||
+      queryInfo ||
+      (isSignup && error)
+  );
+
   const resetMessages = () => {
     setError(null);
+    setInfo(null);
+  };
+
+  const showExistingAccountFeedback = (cause: unknown) => {
+    setAccountExists(true);
+    setShowPasswordReset(true);
+    setNeedsConfirmation(false);
+    setError(mapAuthError(cause));
     setInfo(null);
   };
 
@@ -103,13 +129,7 @@ export function AuthForm({ mode }: AuthFormProps) {
       );
     } catch (cause) {
       if (isExistingAccountError(cause) && !isUnconfirmedAuthError(cause)) {
-        window.location.assign(
-          getAuthPageUrl("/login", {
-            next: nextPath,
-            email: normalizedEmail,
-            existing: true,
-          })
-        );
+        showExistingAccountFeedback(cause);
         return;
       }
       setError(mapAuthError(cause));
@@ -123,6 +143,7 @@ export function AuthForm({ mode }: AuthFormProps) {
     resetMessages();
     setNeedsConfirmation(false);
     setShowPasswordReset(false);
+    setAccountExists(false);
 
     const emailError = validateEmail(email);
     if (emailError) {
@@ -174,19 +195,14 @@ export function AuthForm({ mode }: AuthFormProps) {
         isExistingAccountError(cause) &&
         !isUnconfirmedAuthError(cause)
       ) {
-        window.location.assign(
-          getAuthPageUrl("/login", {
-            next: nextPath,
-            email: normalizedEmail,
-            existing: true,
-          })
-        );
+        showExistingAccountFeedback(cause);
         return;
       }
 
       if (isUnconfirmedAuthError(cause)) {
         setError(null);
         setNeedsConfirmation(true);
+        setShowPasswordReset(true);
         setInfo(
           "This email is registered but not confirmed yet. Resend the link, sign in if you already confirmed, or reset your password."
         );
@@ -206,15 +222,14 @@ export function AuthForm({ mode }: AuthFormProps) {
       setError(mapAuthError(cause));
       if (isInvalidCredentialsError(cause) || isExistingAccountError(cause)) {
         setShowPasswordReset(true);
+        if (isExistingAccountError(cause)) {
+          setAccountExists(true);
+        }
       }
     } finally {
       setIsSubmitting(false);
     }
   };
-
-  const showRecovery = Boolean(
-    needsConfirmation || showPasswordReset || queryError || queryInfo
-  );
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-surface px-4 py-10">
@@ -247,14 +262,40 @@ export function AuthForm({ mode }: AuthFormProps) {
           className="rounded-xl border border-border bg-surface-raised p-6"
         >
           {(error || queryError) && (
-            <p className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
-              {error ?? queryError}
-            </p>
+            <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-3">
+              <p className="text-sm text-red-300">{error ?? queryError}</p>
+            </div>
           )}
           {(info || (!error && !queryError && queryInfo)) && (
-            <p className="mb-4 rounded-lg border border-accent/30 bg-accent/10 px-3 py-2 text-sm text-accent-hover">
-              {info ?? queryInfo}
-            </p>
+            <div className="mb-4 rounded-lg border border-accent/30 bg-accent/10 px-3 py-3">
+              <p className="text-sm text-accent-hover">{info ?? queryInfo}</p>
+            </div>
+          )}
+
+          {showRecovery && (
+            <div className="mb-4 flex flex-col gap-2">
+              {(needsConfirmation || queryError) && email && (
+                <button
+                  type="button"
+                  onClick={() => void handleResend()}
+                  disabled={isSubmitting}
+                  className={secondaryButtonClass}
+                >
+                  Resend confirmation email
+                </button>
+              )}
+              {isSignup && (
+                <Link href={loginHref} className={recoveryPrimaryClass}>
+                  Sign in instead
+                </Link>
+              )}
+              <Link
+                href={resetHref}
+                className={`${secondaryButtonClass} block text-center`}
+              >
+                Reset password
+              </Link>
+            </div>
           )}
 
           <div>
@@ -331,29 +372,6 @@ export function AuthForm({ mode }: AuthFormProps) {
                 ? "Create account"
                 : "Sign in"}
           </button>
-
-          {showRecovery && (
-            <div className="mt-1">
-              {(needsConfirmation || queryError) && email && (
-                <button
-                  type="button"
-                  onClick={() => void handleResend()}
-                  disabled={isSubmitting}
-                  className={secondaryButtonClass}
-                >
-                  Resend confirmation email
-                </button>
-              )}
-              {isSignup && (
-                <Link href={loginHref} className={`${secondaryButtonClass} block text-center`}>
-                  Sign in instead
-                </Link>
-              )}
-              <Link href={resetHref} className={`${secondaryButtonClass} block text-center`}>
-                Reset password
-              </Link>
-            </div>
-          )}
 
           <p className="mt-4 text-center text-sm text-zinc-500">
             {isSignup ? (

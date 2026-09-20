@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
-import { getAuthCallbackUrl } from "@/lib/auth-path";
+import { getAuthCallbackUrl, toSiteUrl } from "@/lib/auth-path";
 import { ensureUserProfile } from "@/lib/supabase/profile";
 
 export { getOwnerEmail, isOwnerEmail, isOwnerUser } from "@/lib/owner";
@@ -9,6 +9,7 @@ export {
   getRedirectUrl,
   safeNextPath,
   SITE_URL,
+  toSiteUrl,
 } from "@/lib/auth-path";
 
 function errorText(error: unknown) {
@@ -102,7 +103,7 @@ export async function resendConfirmationEmail(email: string) {
   const { error } = await supabase.auth.resend({
     type: "signup",
     email: email.trim().toLowerCase(),
-    options: { emailRedirectTo: getAuthCallbackUrl() },
+    options: { emailRedirectTo: toSiteUrl(getAuthCallbackUrl()) },
   });
   if (error) throw error;
 }
@@ -111,7 +112,7 @@ export async function requestPasswordReset(email: string) {
   const supabase = createClient();
   const { error } = await supabase.auth.resetPasswordForEmail(
     email.trim().toLowerCase(),
-    { redirectTo: getAuthCallbackUrl("/auth/update-password") }
+    { redirectTo: toSiteUrl(getAuthCallbackUrl("/auth/update-password")) }
   );
   if (error) throw error;
 }
@@ -145,7 +146,7 @@ export async function signUpWithEmail(
   const { data, error } = await supabase.auth.signUp({
     email: normalizedEmail,
     password,
-    options: { emailRedirectTo },
+    options: { emailRedirectTo: toSiteUrl(emailRedirectTo) },
   });
   if (error) {
     if (isExistingAccountError(error)) {

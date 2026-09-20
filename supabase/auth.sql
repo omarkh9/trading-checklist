@@ -9,6 +9,8 @@
 --     https://edge-log-11.netlify.app/**
 --     https://edge-log-11.netlify.app/auth/callback
 --     https://edge-log-11.netlify.app/auth/update-password
+-- Do not add localhost redirect URLs. Confirmation and reset emails
+-- must open on the production Netlify host.
 --
 -- If confirmation emails are on, users must open the Netlify callback link
 -- before they can sign in. Keep Site URL on the production domain above.

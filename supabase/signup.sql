@@ -7,6 +7,7 @@
 --     https://edge-log-11.netlify.app/**
 --     https://edge-log-11.netlify.app/auth/callback
 --     https://edge-log-11.netlify.app/auth/update-password
+-- Do not add localhost. Email confirmation must land on production.
 -- Authentication → Providers → Email: enable Email and allow new users.
 
 drop policy if exists "Users can insert own profile" on public.profiles;

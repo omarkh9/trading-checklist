@@ -14,7 +14,6 @@ function loginUrl(params: Record<string, string>) {
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url, getSiteOrigin());
-  const origin = getSiteOrigin();
   const code = searchParams.get("code");
   const tokenHash = searchParams.get("token_hash");
   const type = searchParams.get("type") as EmailOtpType | null;
@@ -60,7 +59,7 @@ export async function GET(request: Request) {
 
   if (user) {
     await ensureUserProfile(supabase, user);
-    return NextResponse.redirect(new URL(next, origin));
+    return NextResponse.redirect(new URL(getRedirectUrl(next)));
   }
 
   if (isRecovery) {
