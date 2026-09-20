@@ -36,6 +36,7 @@ export type Database = {
           before_chart: string | null;
           after_chart: string | null;
           created_at: string;
+          account_id: string | null;
         };
         Insert: {
           id?: string;
@@ -63,6 +64,7 @@ export type Database = {
           before_chart?: string | null;
           after_chart?: string | null;
           created_at?: string;
+          account_id?: string | null;
         };
         Update: {
           id?: string;
@@ -89,6 +91,31 @@ export type Database = {
           notes?: string;
           before_chart?: string | null;
           after_chart?: string | null;
+          created_at?: string;
+          account_id?: string | null;
+        };
+        Relationships: [];
+      };
+      trading_accounts: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          starting_balance: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          name: string;
+          starting_balance?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          name?: string;
+          starting_balance?: number;
           created_at?: string;
         };
         Relationships: [];
@@ -187,6 +214,12 @@ export type Database = {
 export type TradeRow = Database["public"]["Tables"]["trades"]["Row"];
 export type TradeInsert = Database["public"]["Tables"]["trades"]["Insert"];
 export type TradeUpdate = Database["public"]["Tables"]["trades"]["Update"];
+export type TradingAccountRow =
+  Database["public"]["Tables"]["trading_accounts"]["Row"];
+export type TradingAccountInsert =
+  Database["public"]["Tables"]["trading_accounts"]["Insert"];
+export type TradingAccountUpdate =
+  Database["public"]["Tables"]["trading_accounts"]["Update"];
 export type ChecklistRuleRow =
   Database["public"]["Tables"]["checklist_rules"]["Row"];
 export type ChecklistSessionRow =

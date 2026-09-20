@@ -1,7 +1,11 @@
 "use client";
 
+import { useAccounts } from "@/components/accounts/AccountProvider";
 import { TradeDetailCard } from "@/components/trade-journal/TradeDetailCard";
-import { loadAccountSettings } from "@/lib/trades/account-balance";
+import {
+  fallbackAccountId,
+  tradesForAccount,
+} from "@/lib/trades/account-balance";
 import {
   buildStartingEquityByDay,
   computeDayStats,
@@ -247,17 +251,14 @@ function DayDetailModal({
 }
 
 export function TradeCalendar() {
-  const [trades, setTrades] = useState<Trade[]>([]);
+  const { accounts, activeAccount, isLoaded: accountsLoaded } = useAccounts();
+  const [allTrades, setAllTrades] = useState<Trade[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
   const [viewDate, setViewDate] = useState(() => new Date());
   const [modalDateKey, setModalDateKey] = useState<string | null>(null);
-  const [startingBalance, setStartingBalance] = useState(
-    () => loadAccountSettings().startingBalance
-  );
   const [metric, setMetric] = useState<CalendarDisplayMetric>("dollar");
 
   useEffect(() => {
-    setStartingBalance(loadAccountSettings().startingBalance);
     setMetric(loadCalendarDisplayMetric());
   }, []);
 
@@ -267,9 +268,9 @@ export function TradeCalendar() {
     const load = async () => {
       try {
         const nextTrades = await fetchTrades();
-        if (!cancelled) setTrades(nextTrades);
+        if (!cancelled) setAllTrades(nextTrades);
       } catch {
-        if (!cancelled) setTrades([]);
+        if (!cancelled) setAllTrades([]);
       } finally {
         if (!cancelled) setIsLoaded(true);
       }
@@ -278,7 +279,6 @@ export function TradeCalendar() {
     void load();
     const onFocus = () => {
       void load();
-      setStartingBalance(loadAccountSettings().startingBalance);
     };
     window.addEventListener("focus", onFocus);
 
@@ -287,6 +287,17 @@ export function TradeCalendar() {
       window.removeEventListener("focus", onFocus);
     };
   }, []);
+
+  const trades = useMemo(
+    () =>
+      tradesForAccount(
+        allTrades,
+        activeAccount?.id ?? "",
+        fallbackAccountId(accounts)
+      ),
+    [allTrades, activeAccount?.id, accounts]
+  );
+  const startingBalance = activeAccount?.startingBalance ?? 0;
 
   const tradesByDay = useMemo(() => groupTradesByDay(trades), [trades]);
   const equityByDay = useMemo(
@@ -339,7 +350,7 @@ export function TradeCalendar() {
     saveCalendarDisplayMetric(next);
   };
 
-  if (!isLoaded) {
+  if (!isLoaded || !accountsLoaded) {
     return (
       <div className="animate-pulse space-y-4">
         <div className="h-12 rounded-2xl bg-[#0c0c16]/80" />
@@ -361,7 +372,9 @@ export function TradeCalendar() {
                 {formatMonthLabel(viewDate)}
               </h3>
               <p className="mt-1 text-sm text-zinc-500">
-                Days are colored by net P/L. Click a date for full details.
+                {activeAccount
+                  ? `${activeAccount.name} — days are colored by net P/L. Click a date for full details.`
+                  : "Days are colored by net P/L. Click a date for full details."}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">

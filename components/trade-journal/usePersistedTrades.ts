@@ -1,5 +1,6 @@
 "use client";
 
+import { useAccounts } from "@/components/accounts/AccountProvider";
 import {
   deleteTrade,
   fetchTrades,
@@ -7,9 +8,10 @@ import {
   updateTrade,
 } from "@/lib/supabase/trades";
 import {
+  balancesByAccount,
   computeCurrentBalance,
-  loadAccountSettings,
-  saveAccountSettings,
+  fallbackAccountId,
+  tradesForAccount,
 } from "@/lib/trades/account-balance";
 import type { Trade, TradeFormData } from "@/lib/types/trade";
 import { useEffect, useMemo, useState } from "react";
@@ -19,8 +21,14 @@ function errorMessage(error: unknown) {
 }
 
 export function usePersistedTrades() {
-  const [trades, setTrades] = useState<Trade[]>([]);
-  const [startingBalance, setStartingBalance] = useState(10_000);
+  const {
+    accounts,
+    activeAccount,
+    isLoaded: accountsLoaded,
+    error: accountsError,
+    setActiveAccountId,
+  } = useAccounts();
+  const [allTrades, setAllTrades] = useState<Trade[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,15 +39,13 @@ export function usePersistedTrades() {
       try {
         const nextTrades = await fetchTrades();
         if (cancelled) return;
-        setTrades(nextTrades);
+        setAllTrades(nextTrades);
         setError(null);
       } catch (cause) {
         if (cancelled) return;
         setError(errorMessage(cause));
       } finally {
-        if (cancelled) return;
-        setStartingBalance(loadAccountSettings().startingBalance);
-        setIsLoaded(true);
+        if (!cancelled) setIsLoaded(true);
       }
     };
 
@@ -49,21 +55,35 @@ export function usePersistedTrades() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!isLoaded) return;
-    saveAccountSettings({ startingBalance });
-  }, [startingBalance, isLoaded]);
+  const fallbackId = fallbackAccountId(accounts);
+  const activeAccountId = activeAccount?.id ?? "";
+
+  const trades = useMemo(
+    () => tradesForAccount(allTrades, activeAccountId, fallbackId),
+    [allTrades, activeAccountId, fallbackId]
+  );
+
+  const startingBalance = activeAccount?.startingBalance ?? 0;
 
   const currentBalance = useMemo(
     () => computeCurrentBalance(startingBalance, trades),
     [startingBalance, trades]
   );
 
+  const accountBalances = useMemo(
+    () => balancesByAccount(accounts, allTrades),
+    [accounts, allTrades]
+  );
+
   const handleSubmit = async (data: TradeFormData) => {
     setError(null);
+    const accountId = data.accountId || activeAccountId;
     try {
-      const created = await insertTrade(data);
-      setTrades((prev) => [created, ...prev]);
+      const created = await insertTrade({ ...data, accountId });
+      setAllTrades((prev) => [created, ...prev]);
+      if (accountId && accountId !== activeAccountId) {
+        setActiveAccountId(accountId);
+      }
     } catch (cause) {
       const message = errorMessage(cause);
       setError(message);
@@ -75,7 +95,7 @@ export function usePersistedTrades() {
     setError(null);
     try {
       const updated = await updateTrade(id, data);
-      setTrades((prev) =>
+      setAllTrades((prev) =>
         prev.map((trade) => (trade.id === id ? updated : trade))
       );
     } catch (cause) {
@@ -89,7 +109,7 @@ export function usePersistedTrades() {
     setError(null);
     try {
       await deleteTrade(id);
-      setTrades((prev) => prev.filter((trade) => trade.id !== id));
+      setAllTrades((prev) => prev.filter((trade) => trade.id !== id));
     } catch (cause) {
       setError(errorMessage(cause));
     }
@@ -97,11 +117,14 @@ export function usePersistedTrades() {
 
   return {
     trades,
+    allTrades,
+    accounts,
+    activeAccount,
     startingBalance,
-    setStartingBalance,
     currentBalance,
-    isLoaded,
-    error,
+    accountBalances,
+    isLoaded: isLoaded && accountsLoaded,
+    error: error ?? accountsError,
     handleSubmit,
     handleUpdate,
     handleDelete,

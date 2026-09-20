@@ -2,10 +2,15 @@
 
 import { TradeDetailModal } from "@/components/trade-journal/TradeDetailModal";
 import { TradeEditModal } from "@/components/trade-journal/TradeEditModal";
-import { computeCurrentBalance } from "@/lib/trades/account-balance";
+import {
+  computeCurrentBalance,
+  resolveTradeAccountId,
+  tradesForAccount,
+} from "@/lib/trades/account-balance";
 import { ASSET_CLASS_LABELS, resolveAsset } from "@/lib/trades/assets";
 import { formatLocalDateTime, timestampMs } from "@/lib/time";
 import { formatPnlDollars } from "@/lib/trades/pnl";
+import type { TradingAccount } from "@/lib/types/account";
 import type { Direction, Outcome, Trade, TradeFormData } from "@/lib/types/trade";
 import { assetClassBadgeClass } from "@/lib/ui/desk";
 import { Eye, Pencil, Trash2 } from "lucide-react";
@@ -15,7 +20,9 @@ type FilterTab = "All" | Outcome;
 
 type TradeHistoryGridProps = {
   trades: Trade[];
-  startingBalance: number;
+  accounts: TradingAccount[];
+  accountBalances: Record<string, number>;
+  fallbackAccountId: string;
   onDelete: (id: string) => void | Promise<void>;
   onUpdate: (id: string, data: TradeFormData) => void | Promise<void>;
   variant?: "cards" | "table";
@@ -41,7 +48,9 @@ function formatCardDate(iso: string) {
 
 export function TradeHistoryGrid({
   trades,
-  startingBalance,
+  accounts,
+  accountBalances,
+  fallbackAccountId,
   onDelete,
   onUpdate,
   variant = "cards",
@@ -73,11 +82,19 @@ export function TradeHistoryGrid({
     ? trades.find((trade) => trade.id === editTradeId) ?? null
     : null;
 
-  const editBalance = useMemo(() => {
-    if (!editTrade) return startingBalance;
-    const others = trades.filter((trade) => trade.id !== editTrade.id);
-    return computeCurrentBalance(startingBalance, others);
-  }, [editTrade, startingBalance, trades]);
+  const editBalances = useMemo(() => {
+    const next = { ...accountBalances };
+    if (!editTrade) return next;
+    const accountId = resolveTradeAccountId(editTrade, fallbackAccountId);
+    const account = accounts.find((item) => item.id === accountId);
+    next[accountId] = computeCurrentBalance(
+      account?.startingBalance ?? 0,
+      tradesForAccount(trades, accountId, fallbackAccountId).filter(
+        (trade) => trade.id !== editTrade.id
+      )
+    );
+    return next;
+  }, [accountBalances, accounts, editTrade, fallbackAccountId, trades]);
 
   const tabCounts = useMemo(
     () => ({
@@ -349,7 +366,9 @@ export function TradeHistoryGrid({
       {editTrade && (
         <TradeEditModal
           trade={editTrade}
-          currentBalance={editBalance}
+          accounts={accounts}
+          accountBalances={editBalances}
+          defaultAccountId={fallbackAccountId}
           onSave={async (data) => onUpdate(editTrade.id, data)}
           onClose={() => setEditTradeId(null)}
         />

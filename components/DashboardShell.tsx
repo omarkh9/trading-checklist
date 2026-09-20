@@ -1,5 +1,7 @@
 "use client";
 
+import { AccountProvider } from "@/components/accounts/AccountProvider";
+import { AccountSwitcher } from "@/components/accounts/AccountSwitcher";
 import { UserMenu } from "@/components/auth/UserMenu";
 import { SessionStatus } from "@/components/dashboard/SessionStatus";
 import { Sidebar, SidebarPanel } from "@/components/Sidebar";
@@ -36,6 +38,7 @@ export function DashboardShell({
   }, [mobileMenuOpen]);
 
   return (
+    <AccountProvider>
     <div className="flex h-screen min-w-0 overflow-hidden bg-surface">
       <Sidebar />
 
@@ -82,6 +85,7 @@ export function DashboardShell({
           </div>
 
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            <AccountSwitcher />
             <div className="md:hidden">
               <SessionStatus variant="compact" />
             </div>
@@ -96,5 +100,6 @@ export function DashboardShell({
         </main>
       </div>
     </div>
+    </AccountProvider>
   );
 }

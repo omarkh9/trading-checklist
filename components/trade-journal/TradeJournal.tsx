@@ -10,9 +10,10 @@ import { desk } from "@/lib/ui/desk";
 export function TradeJournal() {
   const {
     trades,
-    startingBalance,
-    setStartingBalance,
+    accounts,
+    activeAccount,
     currentBalance,
+    accountBalances,
     isLoaded,
     error,
     handleSubmit,
@@ -31,14 +32,12 @@ export function TradeJournal() {
           {error}
         </p>
       )}
-      <AccountBalancePanel
-        startingBalance={startingBalance}
-        currentBalance={currentBalance}
-        onStartingBalanceChange={setStartingBalance}
-      />
+      <AccountBalancePanel currentBalance={currentBalance} />
 
       <TradeForm
-        currentBalance={currentBalance}
+        accounts={accounts}
+        accountBalances={accountBalances}
+        defaultAccountId={activeAccount?.id ?? ""}
         onSubmit={handleSubmit}
       />
 
@@ -46,15 +45,24 @@ export function TradeJournal() {
         <div className="mb-6">
           <h3 className={desk.title}>Trade History</h3>
           <p className={desk.subtitle}>
-            Filter, review, update, or remove logged trades.
+            {activeAccount
+              ? `Journal for ${activeAccount.name}. Filter, review, update, or remove logged trades.`
+              : "Filter, review, update, or remove logged trades."}
           </p>
         </div>
 
         <TradeHistoryGrid
           trades={trades}
-          startingBalance={startingBalance}
+          accounts={accounts}
+          accountBalances={accountBalances}
+          fallbackAccountId={accounts[0]?.id ?? ""}
           onDelete={handleDelete}
           onUpdate={handleUpdate}
+          emptyHint={
+            activeAccount
+              ? `No trades on ${activeAccount.name} yet. Log a trade above, or switch accounts.`
+              : undefined
+          }
         />
       </DeskCard>
     </div>

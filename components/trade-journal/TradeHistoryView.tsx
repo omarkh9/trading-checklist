@@ -5,8 +5,15 @@ import { usePersistedTrades } from "@/components/trade-journal/usePersistedTrade
 import { DeskCard } from "@/components/ui/DeskCard";
 
 export function TradeHistoryView() {
-  const { trades, startingBalance, isLoaded, error, handleUpdate, handleDelete } =
-    usePersistedTrades();
+  const {
+    trades,
+    accounts,
+    accountBalances,
+    isLoaded,
+    error,
+    handleUpdate,
+    handleDelete,
+  } = usePersistedTrades();
 
   if (!isLoaded) {
     return <div className="h-64 animate-pulse rounded-2xl bg-[#0c0c16]/80" />;
@@ -21,11 +28,13 @@ export function TradeHistoryView() {
       )}
       <TradeHistoryGrid
         trades={trades}
-        startingBalance={startingBalance}
+        accounts={accounts}
+        accountBalances={accountBalances}
+        fallbackAccountId={accounts[0]?.id ?? ""}
         onDelete={handleDelete}
         onUpdate={handleUpdate}
         variant="table"
-        emptyHint="Log a trade from the journal to populate this table."
+        emptyHint="Log a trade from the journal to populate this table for the active account."
       />
     </DeskCard>
   );

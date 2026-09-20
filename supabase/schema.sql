@@ -18,6 +18,26 @@ create table public.profiles (
 create unique index profiles_username_lower_idx
   on public.profiles (lower(username));
 
+create table public.trading_accounts (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  name text not null,
+  starting_balance double precision not null default 10000,
+  created_at timestamptz not null default timezone('utc', now()),
+  constraint trading_accounts_name_len check (
+    char_length(trim(name)) between 1 and 48
+  ),
+  constraint trading_accounts_starting_balance_nonnegative check (
+    starting_balance >= 0
+  )
+);
+
+create unique index trading_accounts_user_name_lower_idx
+  on public.trading_accounts (user_id, lower(name));
+
+create index trading_accounts_user_created_idx
+  on public.trading_accounts (user_id, created_at);
+
 create table public.trades (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
@@ -43,13 +63,16 @@ create table public.trades (
   notes text not null default '',
   before_chart text,
   after_chart text,
-  created_at timestamptz not null default timezone('utc', now())
+  created_at timestamptz not null default timezone('utc', now()),
+  account_id uuid references public.trading_accounts (id) on delete set null
 );
 
 create index trades_created_at_idx on public.trades (created_at desc);
 create index trades_user_id_idx on public.trades (user_id);
+create index trades_account_id_idx on public.trades (account_id);
 
 alter table public.profiles enable row level security;
+alter table public.trading_accounts enable row level security;
 alter table public.trades enable row level security;
 
 create policy "Users can read own profile"
@@ -64,6 +87,31 @@ create policy "Users can update own profile"
   to authenticated
   using (auth.uid() = id)
   with check (auth.uid() = id);
+
+create policy "Users can view own trading accounts"
+  on public.trading_accounts
+  for select
+  to authenticated
+  using (auth.uid() = user_id);
+
+create policy "Users can insert own trading accounts"
+  on public.trading_accounts
+  for insert
+  to authenticated
+  with check (auth.uid() = user_id);
+
+create policy "Users can update own trading accounts"
+  on public.trading_accounts
+  for update
+  to authenticated
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+create policy "Users can delete own trading accounts"
+  on public.trading_accounts
+  for delete
+  to authenticated
+  using (auth.uid() = user_id);
 
 create policy "Users can view own trades"
   on public.trades
@@ -112,6 +160,13 @@ begin
   values (new.id, left(chosen_username, 24))
   on conflict (id) do nothing;
 
+  if not exists (
+    select 1 from public.trading_accounts where user_id = new.id
+  ) then
+    insert into public.trading_accounts (user_id, name, starting_balance)
+    values (new.id, 'Main', 10000);
+  end if;
+
   return new;
 end;
 $$;
@@ -120,6 +175,30 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
+
+create or replace function public.enforce_trading_account_limit()
+returns trigger
+language plpgsql
+as $$
+declare
+  account_count integer;
+begin
+  select count(*) into account_count
+  from public.trading_accounts
+  where user_id = new.user_id;
+
+  if account_count >= 10 then
+    raise exception 'You can keep up to 10 trading accounts.';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists trading_accounts_limit on public.trading_accounts;
+create trigger trading_accounts_limit
+  before insert on public.trading_accounts
+  for each row execute procedure public.enforce_trading_account_limit();
 
 create or replace function public.username_taken(uname text)
 returns boolean

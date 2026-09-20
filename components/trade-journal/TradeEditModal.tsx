@@ -2,20 +2,25 @@
 
 import { TradeForm } from "@/components/trade-journal/TradeForm";
 import { tradeToFormData } from "@/lib/trades/trade-form";
+import type { TradingAccount } from "@/lib/types/account";
 import type { Trade, TradeFormData } from "@/lib/types/trade";
 import { X } from "lucide-react";
 import { useEffect } from "react";
 
 type TradeEditModalProps = {
   trade: Trade;
-  currentBalance: number;
+  accounts: TradingAccount[];
+  accountBalances: Record<string, number>;
+  defaultAccountId: string;
   onSave: (data: TradeFormData) => void | Promise<void>;
   onClose: () => void;
 };
 
 export function TradeEditModal({
   trade,
-  currentBalance,
+  accounts,
+  accountBalances,
+  defaultAccountId,
   onSave,
   onClose,
 }: TradeEditModalProps) {
@@ -63,7 +68,9 @@ export function TradeEditModal({
           <TradeForm
             key={trade.id}
             embedded
-            currentBalance={currentBalance}
+            accounts={accounts}
+            accountBalances={accountBalances}
+            defaultAccountId={trade.accountId || defaultAccountId}
             initialData={tradeToFormData(trade)}
             submitLabel="Save Changes"
             onCancel={onClose}

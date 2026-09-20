@@ -1,5 +1,6 @@
 "use client";
 
+import { useAccounts } from "@/components/accounts/AccountProvider";
 import type { Outcome, Trade } from "@/lib/types/trade";
 import { fetchChecklistSnapshot } from "@/lib/supabase/checklist";
 import { fetchTrades } from "@/lib/supabase/trades";
@@ -9,6 +10,10 @@ import {
   startOfLocalWeek,
   timestampMs,
 } from "@/lib/time";
+import {
+  fallbackAccountId,
+  tradesForAccount,
+} from "@/lib/trades/account-balance";
 import { formatPnlDollars } from "@/lib/trades/pnl";
 import {
   ArrowRight,
@@ -188,7 +193,8 @@ function rrAccent(avgRr: number | null): Accent {
 }
 
 export function DashboardHome() {
-  const [trades, setTrades] = useState<Trade[]>([]);
+  const { accounts, activeAccount, isLoaded: accountsLoaded } = useAccounts();
+  const [allTrades, setAllTrades] = useState<Trade[]>([]);
   const [checklistRules, setChecklistRules] = useState<ChecklistItem[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
 
@@ -203,7 +209,7 @@ export function DashboardHome() {
 
       if (cancelled) return;
 
-      setTrades(
+      setAllTrades(
         tradesResult.status === "fulfilled" ? tradesResult.value : []
       );
       if (checklistResult.status === "fulfilled") {
@@ -221,6 +227,16 @@ export function DashboardHome() {
       cancelled = true;
     };
   }, []);
+
+  const trades = useMemo(
+    () =>
+      tradesForAccount(
+        allTrades,
+        activeAccount?.id ?? "",
+        fallbackAccountId(accounts)
+      ),
+    [allTrades, activeAccount?.id, accounts]
+  );
 
   const metrics = useMemo(() => {
     const weekStart = startOfLocalWeek(new Date());
@@ -269,7 +285,7 @@ export function DashboardHome() {
   const hasChecklistActivity =
     metrics.checklistScore !== null && metrics.checked > 0;
 
-  if (!isLoaded) {
+  if (!isLoaded || !accountsLoaded) {
     return (
       <div className="animate-pulse space-y-8">
         <div className="h-36 rounded-2xl bg-[#12121a]" />
@@ -296,8 +312,9 @@ export function DashboardHome() {
               Your desk is live
             </h3>
             <p className="mt-2 max-w-xl text-sm text-zinc-400 sm:text-base">
-              Run the pre-trade checklist, then log your first setup. Stats,
-              session color, and the equity curve unlock from your journal.
+              {activeAccount
+                ? `No trades on ${activeAccount.name} yet. Run the pre-trade checklist, then log a setup to this account. Stats stay separate when you switch accounts.`
+                : "Run the pre-trade checklist, then log your first setup. Stats, session color, and the equity curve unlock from your journal."}
             </p>
             <div className="mt-6 flex flex-col gap-3 sm:flex-row">
               <Link

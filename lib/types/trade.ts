@@ -23,6 +23,7 @@ export type Trade = {
   fixedLotSize: string;
   lotSize: string;
   accountBalanceAtEntry: number;
+  accountId: string;
   strategy: string;
   notes: string;
   beforeChart: string | null;
@@ -51,6 +52,7 @@ export const emptyTradeForm = (): TradeFormData => ({
   fixedLotSize: "",
   lotSize: "",
   accountBalanceAtEntry: 0,
+  accountId: "",
   strategy: "",
   notes: "",
   beforeChart: null,

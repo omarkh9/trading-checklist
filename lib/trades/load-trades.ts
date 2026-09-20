@@ -25,6 +25,7 @@ export function normalizeTrade(trade: Trade): Trade {
       typeof trade.accountBalanceAtEntry === "number"
         ? trade.accountBalanceAtEntry
         : 0,
+    accountId: trade.accountId ?? "",
   };
 }
 

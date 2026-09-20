@@ -1,5 +1,11 @@
 import { createClient } from "@/lib/supabase/client";
 import type { TradeInsert, TradeRow, TradeUpdate } from "@/lib/supabase/database.types";
+import {
+  readTradeAccountMap,
+  removeTradeAccountMapEntries,
+  tradesForAccount,
+  writeTradeAccountMapEntry,
+} from "@/lib/trades/account-balance";
 import { normalizeTrade } from "@/lib/trades/load-trades";
 import type { Trade, TradeFormData } from "@/lib/types/trade";
 
@@ -11,8 +17,21 @@ function isMissingStrategyColumn(error: { message: string } | null) {
   return Boolean(error?.message.toLowerCase().includes("strategy"));
 }
 
+function isMissingAccountColumn(error: { message: string } | null) {
+  const message = error?.message.toLowerCase() ?? "";
+  return (
+    message.includes("account_id") ||
+    message.includes("trading_accounts")
+  );
+}
+
 function withoutStrategy<T extends { strategy?: string }>(payload: T) {
   const { strategy: _strategy, ...rest } = payload;
+  return rest;
+}
+
+function withoutAccountId<T extends { account_id?: string | null }>(payload: T) {
+  const { account_id: _accountId, ...rest } = payload;
   return rest;
 }
 
@@ -33,6 +52,11 @@ async function requireUserId() {
   throwIfError(error);
   if (!user) throw new Error("You must be signed in to manage trades.");
   return { supabase, userId: user.id };
+}
+
+function applyAccountFallback(trade: Trade, map: Record<string, string>): Trade {
+  if (trade.accountId) return trade;
+  return { ...trade, accountId: map[trade.id] ?? "" };
 }
 
 export function tradeFromRow(row: TradeRow): Trade {
@@ -56,6 +80,7 @@ export function tradeFromRow(row: TradeRow): Trade {
     fixedLotSize: row.fixed_lot_size,
     lotSize: row.lot_size,
     accountBalanceAtEntry: row.account_balance_at_entry,
+    accountId: row.account_id ?? "",
     strategy: row.strategy ?? "",
     notes: row.notes,
     beforeChart: row.before_chart,
@@ -86,6 +111,7 @@ export function tradeToInsert(trade: Trade, userId: string): TradeInsert {
     fixed_lot_size: trade.fixedLotSize,
     lot_size: trade.lotSize,
     account_balance_at_entry: trade.accountBalanceAtEntry,
+    account_id: trade.accountId || null,
     strategy: trade.strategy,
     notes: trade.notes,
     before_chart: trade.beforeChart,
@@ -118,6 +144,7 @@ export function tradeFormToInsert(
     fixed_lot_size: data.fixedLotSize,
     lot_size: data.lotSize,
     account_balance_at_entry: data.accountBalanceAtEntry,
+    account_id: data.accountId || null,
     strategy: (data.strategy ?? "").trim(),
     notes: data.notes,
     before_chart: data.beforeChart,
@@ -146,6 +173,7 @@ export function tradeFormToUpdate(data: TradeFormData): TradeUpdate {
     fixed_lot_size: insert.fixed_lot_size,
     lot_size: insert.lot_size,
     account_balance_at_entry: insert.account_balance_at_entry,
+    account_id: insert.account_id,
     strategy: insert.strategy,
     notes: insert.notes,
     before_chart: insert.before_chart,
@@ -162,25 +190,40 @@ export async function fetchTrades(): Promise<Trade[]> {
     .order("created_at", { ascending: false });
 
   throwIfError(error);
-  return (data ?? []).map((row) => normalizeTrade(tradeFromRow(row)));
+  const map = readTradeAccountMap();
+  return (data ?? []).map((row) =>
+    applyAccountFallback(normalizeTrade(tradeFromRow(row)), map)
+  );
 }
 
 export async function insertTrade(data: TradeFormData): Promise<Trade> {
   const { supabase, userId } = await requireUserId();
-  const payload = tradeFormToInsert(data, userId);
+  let payload: TradeInsert = tradeFormToInsert(data, userId);
   let { data: row, error } = await supabase
     .from("trades")
     .insert(payload)
     .select()
     .single();
 
-  if (isMissingStrategyColumn(error)) {
+  if (isMissingAccountColumn(error)) {
+    payload = withoutAccountId(payload);
     const retry = await supabase
       .from("trades")
-      .insert({
-        ...withoutStrategy(payload),
-        notes: persistStrategyInNotes(payload.strategy, payload.notes),
-      })
+      .insert(payload)
+      .select()
+      .single();
+    row = retry.data;
+    error = retry.error;
+  }
+
+  if (isMissingStrategyColumn(error)) {
+    payload = {
+      ...withoutStrategy(payload),
+      notes: persistStrategyInNotes(payload.strategy, payload.notes),
+    };
+    const retry = await supabase
+      .from("trades")
+      .insert(payload)
       .select()
       .single();
     row = retry.data;
@@ -189,7 +232,11 @@ export async function insertTrade(data: TradeFormData): Promise<Trade> {
 
   throwIfError(error);
   if (!row) throw new Error("Trade was not saved.");
-  return normalizeTrade(tradeFromRow(row));
+  if (data.accountId) writeTradeAccountMapEntry(row.id, data.accountId);
+  return applyAccountFallback(
+    normalizeTrade(tradeFromRow(row)),
+    readTradeAccountMap()
+  );
 }
 
 export async function updateTrade(
@@ -197,7 +244,7 @@ export async function updateTrade(
   data: TradeFormData
 ): Promise<Trade> {
   const { supabase, userId } = await requireUserId();
-  const payload = tradeFormToUpdate(data);
+  let payload: TradeUpdate = tradeFormToUpdate(data);
   let { data: row, error } = await supabase
     .from("trades")
     .update(payload)
@@ -206,13 +253,27 @@ export async function updateTrade(
     .select()
     .single();
 
-  if (isMissingStrategyColumn(error)) {
+  if (isMissingAccountColumn(error)) {
+    payload = withoutAccountId(payload);
     const retry = await supabase
       .from("trades")
-      .update({
-        ...withoutStrategy(payload),
-        notes: persistStrategyInNotes(payload.strategy, payload.notes),
-      })
+      .update(payload)
+      .eq("id", id)
+      .eq("user_id", userId)
+      .select()
+      .single();
+    row = retry.data;
+    error = retry.error;
+  }
+
+  if (isMissingStrategyColumn(error)) {
+    payload = {
+      ...withoutStrategy(payload),
+      notes: persistStrategyInNotes(payload.strategy, payload.notes),
+    };
+    const retry = await supabase
+      .from("trades")
+      .update(payload)
       .eq("id", id)
       .eq("user_id", userId)
       .select()
@@ -223,7 +284,11 @@ export async function updateTrade(
 
   throwIfError(error);
   if (!row) throw new Error("Trade was not updated.");
-  return normalizeTrade(tradeFromRow(row));
+  if (data.accountId) writeTradeAccountMapEntry(id, data.accountId);
+  return applyAccountFallback(
+    normalizeTrade(tradeFromRow(row)),
+    readTradeAccountMap()
+  );
 }
 
 export async function deleteTrade(id: string): Promise<void> {
@@ -234,4 +299,25 @@ export async function deleteTrade(id: string): Promise<void> {
     .eq("id", id)
     .eq("user_id", userId);
   throwIfError(error);
+  removeTradeAccountMapEntries([id]);
+}
+
+export async function deleteTradesForAccount(
+  accountId: string,
+  fallbackAccountId: string
+): Promise<void> {
+  const trades = await fetchTrades();
+  const ids = tradesForAccount(trades, accountId, fallbackAccountId).map(
+    (trade) => trade.id
+  );
+  if (ids.length === 0) return;
+
+  const { supabase, userId } = await requireUserId();
+  const { error } = await supabase
+    .from("trades")
+    .delete()
+    .eq("user_id", userId)
+    .in("id", ids);
+  throwIfError(error);
+  removeTradeAccountMapEntries(ids);
 }

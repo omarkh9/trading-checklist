@@ -5,5 +5,6 @@ export function tradeToFormData(trade: Trade): TradeFormData {
   return {
     ...formData,
     strategy: (formData.strategy ?? "").trim(),
+    accountId: formData.accountId ?? "",
   };
 }

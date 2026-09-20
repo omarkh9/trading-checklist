@@ -20,13 +20,16 @@ import {
   type RiskSizeMode,
   type TradeFormData,
 } from "@/lib/types/trade";
+import type { TradingAccount } from "@/lib/types/account";
 import { DeskCard } from "@/components/ui/DeskCard";
 import { desk } from "@/lib/ui/desk";
 import { ChevronDown, Save } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 type TradeFormProps = {
-  currentBalance: number;
+  accounts: TradingAccount[];
+  accountBalances: Record<string, number>;
+  defaultAccountId: string;
   onSubmit: (data: TradeFormData) => void | Promise<void>;
   initialData?: TradeFormData;
   onCancel?: () => void;
@@ -157,26 +160,35 @@ function ToggleGroup<T extends string>({
 }
 
 export function TradeForm({
-  currentBalance,
+  accounts,
+  accountBalances,
+  defaultAccountId,
   onSubmit,
   initialData,
   onCancel,
   submitLabel = "Save Trade",
   embedded = false,
 }: TradeFormProps) {
-  const [form, setForm] = useState<TradeFormData>(
-    initialData ?? emptyTradeForm()
-  );
+  const [form, setForm] = useState<TradeFormData>(() => ({
+    ...(initialData ?? emptyTradeForm()),
+    accountId: initialData?.accountId || defaultAccountId,
+  }));
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    setForm(initialData ?? emptyTradeForm());
-  }, [initialData]);
+    const next = initialData ?? emptyTradeForm();
+    setForm({
+      ...next,
+      accountId: next.accountId || defaultAccountId,
+    });
+  }, [initialData, defaultAccountId]);
 
   const update = <K extends keyof TradeFormData>(
     key: K,
     value: TradeFormData[K]
   ) => setForm((prev) => ({ ...prev, [key]: value }));
+
+  const currentBalance = accountBalances[form.accountId] ?? 0;
 
   const resolvedPnl = useMemo(
     () =>
@@ -252,9 +264,13 @@ export function TradeForm({
         pnlDollars: resolvedPnl,
         lotSize: displayLotSize === "—" ? "" : displayLotSize,
         accountBalanceAtEntry: currentBalance,
+        accountId: form.accountId || defaultAccountId,
       });
       if (!initialData) {
-        setForm(emptyTradeForm());
+        setForm({
+          ...emptyTradeForm(),
+          accountId: form.accountId || defaultAccountId,
+        });
       }
     } catch {
       // Persist errors are shown by the journal/history views.
@@ -297,6 +313,30 @@ export function TradeForm({
       </div>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div>
+          <label htmlFor="trade-account" className={labelClass}>
+            Trading account
+          </label>
+          <DeskSelect
+            id="trade-account"
+            value={form.accountId || defaultAccountId}
+            onChange={(value) => update("accountId", value)}
+            options={
+              accounts.length > 0
+                ? accounts.map((account) => ({
+                    value: account.id,
+                    label: account.name,
+                  }))
+                : [
+                    {
+                      value: defaultAccountId || "main",
+                      label: "Main",
+                    },
+                  ]
+            }
+          />
+        </div>
+
         <div>
           <label htmlFor="pair" className={labelClass}>
             Pair / Ticker
