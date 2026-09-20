@@ -2,6 +2,7 @@
 
 import { InstallAppButton } from "@/components/landing/InstallAppButton";
 import { HeroPreview } from "@/components/landing/HeroPreview";
+import { getAuthPageUrl, getRedirectUrl } from "@/lib/auth-path";
 import { desk } from "@/lib/ui/desk";
 import {
   Activity,
@@ -55,13 +56,16 @@ const steps = [
 
 const btnPrimary = desk.btnPrimary;
 const btnGhost = desk.btnGhost;
+const loginHref = getAuthPageUrl("/login");
+const signupHref = getAuthPageUrl("/signup");
+const homeHref = getRedirectUrl("/");
 
 export function LandingPage() {
   return (
     <div className="desk-atmosphere min-h-screen bg-surface text-zinc-100">
       <header className="sticky top-0 z-20 border-b border-white/5 bg-[#0a0a0f]/80 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
-          <Link href="/" className="flex min-w-0 items-center gap-3">
+          <Link href={homeHref} className="flex min-w-0 items-center gap-3">
             <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500/35 via-violet-500/20 to-emerald-500/10 ring-1 ring-indigo-400/40 shadow-[0_0_18px_rgba(99,102,241,0.35)]">
               <Activity className="h-5 w-5 text-indigo-200" />
             </span>
@@ -77,12 +81,12 @@ export function LandingPage() {
 
           <nav className="flex items-center gap-2 sm:gap-3">
             <Link
-              href="/login"
+              href={loginHref}
               className="px-2 py-2 text-sm font-medium text-zinc-400 transition-colors hover:text-white sm:px-3"
             >
               Sign in
             </Link>
-            <Link href="/signup" className={`${btnPrimary} !px-3 !py-2 sm:!px-5`}>
+            <Link href={signupHref} className={`${btnPrimary} !px-3 !py-2 sm:!px-5`}>
               Get started
             </Link>
           </nav>
@@ -108,10 +112,10 @@ export function LandingPage() {
             </p>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start">
-              <Link href="/signup" className={btnPrimary}>
+              <Link href={signupHref} className={btnPrimary}>
                 Get started
               </Link>
-              <Link href="/login" className={btnGhost}>
+              <Link href={loginHref} className={btnGhost}>
                 Sign in
               </Link>
               <InstallAppButton className={btnGhost} />
@@ -205,10 +209,10 @@ export function LandingPage() {
                   </p>
                 </div>
                 <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-                  <Link href="/signup" className={btnPrimary}>
+                  <Link href={signupHref} className={btnPrimary}>
                     Get started
                   </Link>
-                  <Link href="/login" className={btnGhost}>
+                  <Link href={loginHref} className={btnGhost}>
                     Sign in
                   </Link>
                 </div>
@@ -222,10 +226,10 @@ export function LandingPage() {
         <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-8 text-sm text-zinc-500 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <p>Edge Log by Omar</p>
           <div className="flex gap-4">
-            <Link href="/login" className="hover:text-zinc-200">
+            <Link href={loginHref} className="hover:text-zinc-200">
               Sign in
             </Link>
-            <Link href="/signup" className="hover:text-zinc-200">
+            <Link href={signupHref} className="hover:text-zinc-200">
               Create an account
             </Link>
           </div>

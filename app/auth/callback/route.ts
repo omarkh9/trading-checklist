@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import type { EmailOtpType } from "@supabase/supabase-js";
-import { getRedirectUrl, getSiteOrigin, safeNextPath } from "@/lib/auth-path";
+import { getAuthPageUrl, getRedirectUrl, getSiteOrigin, safeNextPath } from "@/lib/auth-path";
 import { ensureUserProfile } from "@/lib/supabase/profile";
 import { createClient } from "@/lib/supabase/server";
 
 function loginUrl(params: Record<string, string>) {
-  const url = new URL(getRedirectUrl("/login"));
+  const url = new URL(getAuthPageUrl("/login"));
   for (const [key, value] of Object.entries(params)) {
     url.searchParams.set(key, value);
   }

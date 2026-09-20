@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "@/lib/supabase/database.types";
+import { getAuthPageUrl, getRedirectUrl } from "@/lib/auth-path";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase/env";
 
 function isPublicPath(pathname: string) {
@@ -63,10 +64,7 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (!user && !isPublicPath(pathname)) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    url.search = "";
-    url.searchParams.set("next", pathname);
+    const url = new URL(getAuthPageUrl("/login", { next: pathname }));
     return copySessionCookies(supabaseResponse, NextResponse.redirect(url));
   }
 
@@ -76,10 +74,10 @@ export async function middleware(request: NextRequest) {
       pathname.startsWith("/signup") ||
       pathname.startsWith("/forgot-password"))
   ) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/";
-    url.search = "";
-    return copySessionCookies(supabaseResponse, NextResponse.redirect(url));
+    return copySessionCookies(
+      supabaseResponse,
+      NextResponse.redirect(new URL(getRedirectUrl("/")))
+    );
   }
 
   return supabaseResponse;

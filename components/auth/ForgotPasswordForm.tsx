@@ -1,8 +1,15 @@
 "use client";
 
-import { mapAuthError, requestPasswordReset, validateEmail } from "@/lib/auth";
+import {
+  getAuthPageUrl,
+  getRedirectUrl,
+  mapAuthError,
+  requestPasswordReset,
+  validateEmail,
+} from "@/lib/auth";
 import { Activity, Mail } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 const inputClass =
@@ -11,10 +18,16 @@ const inputClass =
 const labelClass = "mb-1.5 block text-sm font-medium text-zinc-400";
 
 export function ForgotPasswordForm() {
-  const [email, setEmail] = useState("");
+  const searchParams = useSearchParams();
+  const [email, setEmail] = useState(searchParams.get("email") ?? "");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [sentTo, setSentTo] = useState<string | null>(null);
+
+  const loginHref = getAuthPageUrl("/login", {
+    email: (sentTo || email).trim().toLowerCase(),
+  });
+  const homeHref = getRedirectUrl("/");
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -42,7 +55,7 @@ export function ForgotPasswordForm() {
       <div className="w-full max-w-md">
         <div className="mb-8 flex flex-col items-center text-center">
           <Link
-            href="/"
+            href={homeHref}
             className="flex h-12 w-12 items-center justify-center rounded-xl bg-accent/20 ring-1 ring-accent/30"
             aria-label="Back to Edge Log"
           >
@@ -55,7 +68,7 @@ export function ForgotPasswordForm() {
           <p className="mt-4 text-xs font-medium uppercase tracking-[0.2em] text-zinc-500">
             Trading
           </p>
-          <Link href="/">
+          <Link href={homeHref}>
             <h1 className="mt-1 text-2xl font-bold tracking-tight text-gradient">
               EDGE LOG
             </h1>
@@ -73,8 +86,8 @@ export function ForgotPasswordForm() {
               <p className="rounded-lg border border-accent/30 bg-accent/10 px-3 py-3 text-sm text-accent-hover">
                 If an account exists for{" "}
                 <span className="font-medium text-zinc-100">{sentTo}</span>, we
-                sent a password reset link. Open it on this device to set a new
-                password.
+                sent a password reset link. Open it to set a new password, then
+                sign in.
               </p>
               <button
                 type="button"
@@ -87,7 +100,7 @@ export function ForgotPasswordForm() {
                 Use a different email
               </button>
               <p className="mt-4 text-center text-sm text-zinc-500">
-                <Link href="/login" className="text-accent-hover hover:text-white">
+                <Link href={loginHref} className="text-accent-hover hover:text-white">
                   Back to sign in
                 </Link>
               </p>
@@ -123,7 +136,7 @@ export function ForgotPasswordForm() {
               </button>
               <p className="mt-4 text-center text-sm text-zinc-500">
                 Remembered it?{" "}
-                <Link href="/login" className="text-accent-hover hover:text-white">
+                <Link href={loginHref} className="text-accent-hover hover:text-white">
                   Sign in
                 </Link>
               </p>

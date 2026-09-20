@@ -3,7 +3,17 @@ import { getAuthCallbackUrl } from "@/lib/auth-path";
 import { ensureUserProfile } from "@/lib/supabase/profile";
 
 export { getOwnerEmail, isOwnerEmail, isOwnerUser } from "@/lib/owner";
-export { getAuthCallbackUrl, getRedirectUrl, safeNextPath, SITE_URL } from "@/lib/auth-path";
+export {
+  getAuthCallbackUrl,
+  getAuthPageUrl,
+  getRedirectUrl,
+  safeNextPath,
+  SITE_URL,
+} from "@/lib/auth-path";
+
+function errorText(error: unknown) {
+  return (error instanceof Error ? error.message : String(error)).toLowerCase();
+}
 
 export function validateEmail(email: string) {
   const trimmed = email.trim();
@@ -22,12 +32,33 @@ export function validatePassword(password: string) {
 }
 
 export function isUnconfirmedAuthError(error: unknown) {
-  const message =
-    error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  if (error instanceof Error && error.name === "AuthNeedsConfirmationError") {
+    return true;
+  }
+  const message = errorText(error);
   return (
-    message.includes("email not confirmed") ||
-    message.includes("not confirmed") ||
-    (error instanceof Error && error.name === "AuthNeedsConfirmationError")
+    message.includes("email not confirmed") || message.includes("not confirmed")
+  );
+}
+
+export function isExistingAccountError(error: unknown) {
+  if (error instanceof Error && error.name === "AuthAccountExistsError") {
+    return true;
+  }
+  if (isUnconfirmedAuthError(error)) return true;
+  const message = errorText(error);
+  return (
+    message.includes("already registered") ||
+    message.includes("already exists") ||
+    message.includes("user already") ||
+    (message.includes("already") && message.includes("account"))
+  );
+}
+
+export function isInvalidCredentialsError(error: unknown) {
+  const message = errorText(error);
+  return (
+    message.includes("invalid login") || message.includes("invalid credentials")
   );
 }
 
@@ -37,20 +68,19 @@ export function mapAuthError(error: unknown) {
   const lower = message.toLowerCase();
 
   if (isUnconfirmedAuthError(error)) {
-    return "This account exists but the email is not confirmed yet. We can send a new confirmation link.";
+    return "This account exists but the email is not confirmed yet. Resend the confirmation link, or sign in if you already activated it.";
+  }
+  if (error instanceof Error && error.name === "AuthAccountExistsError") {
+    return "An account with this email already exists. Sign in, or reset your password.";
   }
   if (lower.includes("already confirmed") || lower.includes("already been confirmed")) {
     return "This email is already confirmed. Sign in with your password.";
   }
-  if (lower.includes("invalid login")) {
-    return "Incorrect email or password. If you never received a confirmation email, create an account or resend confirmation.";
+  if (isInvalidCredentialsError(error)) {
+    return "Incorrect email or password. Reset your password if you forgot it, or resend confirmation if you never activated the account.";
   }
-  if (
-    lower.includes("already registered") ||
-    lower.includes("already exists") ||
-    lower.includes("user already")
-  ) {
-    return "An account with this email already exists. Sign in, or resend confirmation if you never activated it.";
+  if (isExistingAccountError(error)) {
+    return "An account with this email already exists. Sign in, or reset your password.";
   }
   if (lower.includes("signups not allowed") || lower.includes("signup is disabled")) {
     return "New accounts are not enabled yet. Try again shortly.";
@@ -59,6 +89,12 @@ export function mapAuthError(error: unknown) {
     return "Too many attempts. Wait a moment and try again.";
   }
   return message;
+}
+
+function namedError(name: string, message: string) {
+  const error = new Error(message);
+  error.name = name;
+  return error;
 }
 
 export async function resendConfirmationEmail(email: string) {
@@ -111,26 +147,33 @@ export async function signUpWithEmail(
     password,
     options: { emailRedirectTo },
   });
-  if (error) throw error;
+  if (error) {
+    if (isExistingAccountError(error)) {
+      throw namedError(
+        "AuthAccountExistsError",
+        "An account with this email already exists."
+      );
+    }
+    throw error;
+  }
 
   const identities = data.user?.identities ?? [];
   if (data.user && identities.length === 0) {
     try {
       await resendConfirmationEmail(normalizedEmail);
     } catch (resendError) {
-      const resendMessage =
-        resendError instanceof Error ? resendError.message.toLowerCase() : "";
+      const resendMessage = errorText(resendError);
       if (resendMessage.includes("already") && resendMessage.includes("confirm")) {
-        throw new Error(
-          "An account with this email already exists. Sign in instead."
+        throw namedError(
+          "AuthAccountExistsError",
+          "An account with this email already exists."
         );
       }
     }
-    const pending = new Error(
-      "This email is already registered. We sent a new confirmation link if the account is not activated yet. Otherwise, sign in."
+    throw namedError(
+      "AuthNeedsConfirmationError",
+      "This email is already registered but not confirmed yet."
     );
-    pending.name = "AuthNeedsConfirmationError";
-    throw pending;
   }
 
   if (data.user && data.session) {
