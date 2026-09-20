@@ -103,6 +103,12 @@ export type Database = {
           name: string;
           starting_balance: number;
           created_at: string;
+          mt5_login: string | null;
+          mt5_server: string | null;
+          mt5_webhook_token_hash: string | null;
+          mt5_balance: number | null;
+          mt5_equity: number | null;
+          mt5_synced_at: string | null;
         };
         Insert: {
           id?: string;
@@ -110,6 +116,12 @@ export type Database = {
           name: string;
           starting_balance?: number;
           created_at?: string;
+          mt5_login?: string | null;
+          mt5_server?: string | null;
+          mt5_webhook_token_hash?: string | null;
+          mt5_balance?: number | null;
+          mt5_equity?: number | null;
+          mt5_synced_at?: string | null;
         };
         Update: {
           id?: string;
@@ -117,6 +129,12 @@ export type Database = {
           name?: string;
           starting_balance?: number;
           created_at?: string;
+          mt5_login?: string | null;
+          mt5_server?: string | null;
+          mt5_webhook_token_hash?: string | null;
+          mt5_balance?: number | null;
+          mt5_equity?: number | null;
+          mt5_synced_at?: string | null;
         };
         Relationships: [];
       };
@@ -197,7 +215,16 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
-      [_ in never]: never;
+      apply_mt5_account_snapshot: {
+        Args: {
+          p_token: string;
+          p_login?: string;
+          p_server?: string;
+          p_balance: number;
+          p_equity?: number | null;
+        };
+        Returns: Json;
+      };
     };
     Enums: {
       trade_direction: "Long" | "Short";

@@ -11,6 +11,7 @@ function isPublicPath(pathname: string) {
     pathname.startsWith("/signup") ||
     pathname.startsWith("/forgot-password") ||
     pathname.startsWith("/auth") ||
+    pathname.startsWith("/api/mt5") ||
     pathname === "/robots.txt" ||
     pathname === "/sitemap.xml" ||
     pathname === "/manifest.json" ||
@@ -85,6 +86,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/mt5|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

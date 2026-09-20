@@ -14,6 +14,7 @@ import { fallbackAccountId } from "@/lib/trades/account-balance";
 import {
   MAX_TRADING_ACCOUNTS,
   type TradingAccount,
+  type TradingAccountMt5Patch,
 } from "@/lib/types/account";
 import {
   createContext,
@@ -37,6 +38,7 @@ type AccountContextValue = {
   }) => Promise<TradingAccount>;
   renameAccount: (id: string, name: string) => Promise<void>;
   updateStartingBalance: (id: string, startingBalance: number) => Promise<void>;
+  updateMt5Link: (id: string, patch: TradingAccountMt5Patch) => Promise<void>;
   deleteAccount: (id: string) => Promise<void>;
 };
 
@@ -97,6 +99,30 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
     };
   }, [selectAccount]);
 
+  const hasMt5Link = accounts.some((account) => account.mt5TokenSet);
+
+  useEffect(() => {
+    if (!hasMt5Link) return;
+
+    let cancelled = false;
+    const refresh = () => {
+      void loadTradingAccounts({ force: true })
+        .then((next) => {
+          if (!cancelled) setAccounts(next);
+        })
+        .catch(() => {});
+    };
+
+    const onFocus = () => refresh();
+    window.addEventListener("focus", onFocus);
+    const timer = window.setInterval(refresh, 45_000);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", onFocus);
+      window.clearInterval(timer);
+    };
+  }, [hasMt5Link]);
+
   const setActiveAccountId = useCallback(
     (id: string) => {
       selectAccount(id, accountsRef.current);
@@ -155,6 +181,23 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
+  const updateMt5Link = useCallback(
+    async (id: string, patch: TradingAccountMt5Patch) => {
+      try {
+        const updated = await updateTradingAccount(id, patch);
+        setAccounts((prev) =>
+          prev.map((account) => (account.id === id ? updated : account))
+        );
+        setError(null);
+      } catch (cause) {
+        const message = errorMessage(cause);
+        setError(message);
+        throw cause;
+      }
+    },
+    []
+  );
+
   const deleteAccount = useCallback(
     async (id: string) => {
       try {
@@ -199,6 +242,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       createAccount,
       renameAccount,
       updateStartingBalance,
+      updateMt5Link,
       deleteAccount,
     }),
     [
@@ -210,6 +254,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       createAccount,
       renameAccount,
       updateStartingBalance,
+      updateMt5Link,
       deleteAccount,
     ]
   );

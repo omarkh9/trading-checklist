@@ -7,7 +7,32 @@ export type TradingAccount = {
   name: string;
   startingBalance: number;
   createdAt: string;
+  mt5Login: string;
+  mt5Server: string;
+  mt5TokenSet: boolean;
+  mt5Balance: number | null;
+  mt5Equity: number | null;
+  mt5SyncedAt: string | null;
 };
+
+export type TradingAccountMt5Patch = {
+  mt5Login?: string;
+  mt5Server?: string;
+  mt5WebhookToken?: string;
+  unlinkMt5?: boolean;
+};
+
+export const emptyMt5Link = (): Pick<
+  TradingAccount,
+  "mt5Login" | "mt5Server" | "mt5TokenSet" | "mt5Balance" | "mt5Equity" | "mt5SyncedAt"
+> => ({
+  mt5Login: "",
+  mt5Server: "",
+  mt5TokenSet: false,
+  mt5Balance: null,
+  mt5Equity: null,
+  mt5SyncedAt: null,
+});
 
 export type AccountSettings = {
   startingBalance: number;

@@ -9,13 +9,16 @@ import {
   TRADE_ACCOUNTS_BACKFILL_STORAGE_KEY,
   TRADING_ACCOUNTS_STORAGE_KEY,
 } from "@/lib/storage/keys";
+import { hashMt5WebhookToken, isUsableMt5Token } from "@/lib/mt5/token";
 import {
   DEFAULT_ACCOUNT_NAME,
   DEFAULT_STARTING_BALANCE,
+  emptyMt5Link,
   MAX_TRADING_ACCOUNTS,
   nextAccountName,
   normalizeAccountName,
   type TradingAccount,
+  type TradingAccountMt5Patch,
 } from "@/lib/types/account";
 import {
   loadAccountSettings,
@@ -36,6 +39,36 @@ function isMissingAccountsTable(error: { message: string } | null) {
   );
 }
 
+function isMissingMt5Column(error: { message: string } | null) {
+  const message = error?.message.toLowerCase() ?? "";
+  return (
+    (message.includes("column") && message.includes("mt5")) ||
+    (message.includes("could not find") && message.includes("mt5")) ||
+    (message.includes("schema cache") && message.includes("mt5"))
+  );
+}
+
+function isDuplicateMt5Token(error: { message: string } | null) {
+  const message = error?.message.toLowerCase() ?? "";
+  return message.includes("mt5_webhook_token_hash");
+}
+
+function finiteOrNull(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function mt5FieldsFromUnknown(value: Partial<TradingAccount> | null | undefined) {
+  return {
+    mt5Login: typeof value?.mt5Login === "string" ? value.mt5Login : "",
+    mt5Server: typeof value?.mt5Server === "string" ? value.mt5Server : "",
+    mt5TokenSet: Boolean(value?.mt5TokenSet),
+    mt5Balance: finiteOrNull(value?.mt5Balance),
+    mt5Equity: finiteOrNull(value?.mt5Equity),
+    mt5SyncedAt:
+      typeof value?.mt5SyncedAt === "string" ? value.mt5SyncedAt : null,
+  };
+}
+
 async function requireUserId() {
   const supabase = createClient();
   const {
@@ -53,6 +86,12 @@ function accountFromRow(row: TradingAccountRow): TradingAccount {
     name: row.name,
     startingBalance: row.starting_balance,
     createdAt: row.created_at,
+    mt5Login: row.mt5_login ?? "",
+    mt5Server: row.mt5_server ?? "",
+    mt5TokenSet: Boolean(row.mt5_webhook_token_hash),
+    mt5Balance: finiteOrNull(row.mt5_balance),
+    mt5Equity: finiteOrNull(row.mt5_equity),
+    mt5SyncedAt: row.mt5_synced_at ?? null,
   };
 }
 
@@ -86,6 +125,7 @@ function readLocalAccounts(): TradingAccount[] {
             typeof account.createdAt === "string"
               ? account.createdAt
               : new Date().toISOString(),
+          ...mt5FieldsFromUnknown(account),
         }))
         .filter((account) => account.id && account.name)
     );
@@ -135,6 +175,7 @@ function defaultLocalAccount(): TradingAccount {
     name: DEFAULT_ACCOUNT_NAME,
     startingBalance: loadAccountSettings().startingBalance,
     createdAt: new Date().toISOString(),
+    ...emptyMt5Link(),
   };
 }
 
@@ -258,8 +299,12 @@ async function insertRemoteAccount(
   return data ? accountFromRow(data) : null;
 }
 
-export async function loadTradingAccounts(): Promise<TradingAccount[]> {
-  if (cachedAccounts && cachedAccounts.length > 0) return cachedAccounts;
+export async function loadTradingAccounts(options?: {
+  force?: boolean;
+}): Promise<TradingAccount[]> {
+  if (!options?.force && cachedAccounts && cachedAccounts.length > 0) {
+    return cachedAccounts;
+  }
   if (accountsInflight) return accountsInflight;
 
   accountsInflight = loadTradingAccountsFromNetwork().finally(() => {
@@ -348,6 +393,7 @@ export async function createTradingAccount(input?: {
     name,
     startingBalance,
     createdAt: new Date().toISOString(),
+    ...emptyMt5Link(),
   };
 
   const { supabase, userId } = await requireUserId();
@@ -357,9 +403,14 @@ export async function createTradingAccount(input?: {
   return created;
 }
 
+export type TradingAccountPatch = {
+  name?: string;
+  startingBalance?: number;
+} & TradingAccountMt5Patch;
+
 export async function updateTradingAccount(
   id: string,
-  patch: { name?: string; startingBalance?: number }
+  patch: TradingAccountPatch
 ): Promise<TradingAccount> {
   const existing = await getExistingAccounts();
   const current = existing.find((account) => account.id === id);
@@ -384,17 +435,65 @@ export async function updateTradingAccount(
       ? patch.startingBalance
       : current.startingBalance;
 
-  const next: TradingAccount = { ...current, name, startingBalance };
+  let next: TradingAccount = { ...current, name, startingBalance };
+  const payload: {
+    name: string;
+    starting_balance: number;
+    mt5_login?: string | null;
+    mt5_server?: string | null;
+    mt5_webhook_token_hash?: string | null;
+    mt5_balance?: number | null;
+    mt5_equity?: number | null;
+    mt5_synced_at?: string | null;
+  } = {
+    name: next.name,
+    starting_balance: next.startingBalance,
+  };
+
+  if (patch.unlinkMt5) {
+    next = { ...next, ...emptyMt5Link() };
+    payload.mt5_login = null;
+    payload.mt5_server = null;
+    payload.mt5_webhook_token_hash = null;
+    payload.mt5_balance = null;
+    payload.mt5_equity = null;
+    payload.mt5_synced_at = null;
+  } else {
+    if (patch.mt5Login !== undefined) {
+      const mt5Login = patch.mt5Login.trim().slice(0, 32);
+      next = { ...next, mt5Login };
+      payload.mt5_login = mt5Login || null;
+    }
+    if (patch.mt5Server !== undefined) {
+      const mt5Server = patch.mt5Server.trim().slice(0, 64);
+      next = { ...next, mt5Server };
+      payload.mt5_server = mt5Server || null;
+    }
+    if (patch.mt5WebhookToken !== undefined) {
+      const token = patch.mt5WebhookToken.trim();
+      if (!isUsableMt5Token(token)) {
+        throw new Error("MT5 webhook token must be at least 16 characters.");
+      }
+      payload.mt5_webhook_token_hash = await hashMt5WebhookToken(token);
+      next = { ...next, mt5TokenSet: true };
+    }
+  }
+
   const { supabase, userId } = await requireUserId();
   const { error } = await supabase
     .from("trading_accounts")
-    .update({
-      name: next.name,
-      starting_balance: next.startingBalance,
-    })
+    .update(payload)
     .eq("id", id)
     .eq("user_id", userId);
 
+  if (error && isDuplicateMt5Token(error)) {
+    throw new Error("This webhook token is already used by another account.");
+  }
+  if (error && isMissingMt5Column(error)) {
+    throw new Error(
+      "MT5 columns are missing. Run supabase/mt5.sql in the Supabase SQL editor."
+    );
+  }
   if (error && !isMissingAccountsTable(error)) throwIfError(error);
 
   const accounts = rememberAccounts(

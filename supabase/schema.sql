@@ -24,11 +24,23 @@ create table public.trading_accounts (
   name text not null,
   starting_balance double precision not null default 10000,
   created_at timestamptz not null default timezone('utc', now()),
+  mt5_login text,
+  mt5_server text,
+  mt5_webhook_token_hash text,
+  mt5_balance double precision,
+  mt5_equity double precision,
+  mt5_synced_at timestamptz,
   constraint trading_accounts_name_len check (
     char_length(trim(name)) between 1 and 48
   ),
   constraint trading_accounts_starting_balance_nonnegative check (
     starting_balance >= 0
+  ),
+  constraint trading_accounts_mt5_login_len check (
+    mt5_login is null or char_length(trim(mt5_login)) between 1 and 32
+  ),
+  constraint trading_accounts_mt5_server_len check (
+    mt5_server is null or char_length(trim(mt5_server)) between 1 and 64
   )
 );
 
@@ -37,6 +49,14 @@ create unique index trading_accounts_user_name_lower_idx
 
 create index trading_accounts_user_created_idx
   on public.trading_accounts (user_id, created_at);
+
+create unique index trading_accounts_mt5_webhook_token_hash_uidx
+  on public.trading_accounts (mt5_webhook_token_hash)
+  where mt5_webhook_token_hash is not null;
+
+create index trading_accounts_mt5_login_idx
+  on public.trading_accounts (mt5_login)
+  where mt5_login is not null;
 
 create table public.trades (
   id uuid primary key default gen_random_uuid(),
@@ -310,3 +330,79 @@ create policy "Users can delete own checklist sessions"
   for delete
   to authenticated
   using (auth.uid() = user_id);
+
+create extension if not exists pgcrypto with schema extensions;
+
+create or replace function public.apply_mt5_account_snapshot(
+  p_token text,
+  p_login text default '',
+  p_server text default '',
+  p_balance double precision default null,
+  p_equity double precision default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  v_hash text;
+  v_account public.trading_accounts%rowtype;
+  v_login text;
+  v_server text;
+begin
+  if p_token is null or char_length(trim(p_token)) < 16 then
+    return jsonb_build_object('ok', false, 'error', 'unauthorized');
+  end if;
+
+  if p_balance is null or p_balance != p_balance then
+    return jsonb_build_object('ok', false, 'error', 'invalid_payload');
+  end if;
+
+  v_hash := encode(digest(convert_to(trim(p_token), 'UTF8'), 'sha256'), 'hex');
+  v_login := nullif(trim(coalesce(p_login, '')), '');
+  v_server := nullif(trim(coalesce(p_server, '')), '');
+
+  select * into v_account
+  from public.trading_accounts
+  where mt5_webhook_token_hash = v_hash
+  limit 1;
+
+  if not found then
+    return jsonb_build_object('ok', false, 'error', 'unauthorized');
+  end if;
+
+  if v_account.mt5_login is not null
+     and v_login is not null
+     and v_account.mt5_login <> v_login then
+    return jsonb_build_object('ok', false, 'error', 'unauthorized');
+  end if;
+
+  if v_account.mt5_server is not null
+     and v_server is not null
+     and lower(v_account.mt5_server) <> lower(v_server) then
+    return jsonb_build_object('ok', false, 'error', 'unauthorized');
+  end if;
+
+  update public.trading_accounts
+  set
+    mt5_balance = p_balance,
+    mt5_equity = coalesce(p_equity, p_balance),
+    mt5_synced_at = timezone('utc', now()),
+    mt5_login = coalesce(v_account.mt5_login, v_login),
+    mt5_server = coalesce(v_account.mt5_server, v_server)
+  where id = v_account.id
+  returning * into v_account;
+
+  return jsonb_build_object(
+    'ok', true,
+    'accountId', v_account.id,
+    'balance', v_account.mt5_balance,
+    'equity', v_account.mt5_equity,
+    'syncedAt', v_account.mt5_synced_at
+  );
+end;
+$$;
+
+revoke all on function public.apply_mt5_account_snapshot(text, text, text, double precision, double precision) from public;
+grant execute on function public.apply_mt5_account_snapshot(text, text, text, double precision, double precision) to anon, authenticated;
