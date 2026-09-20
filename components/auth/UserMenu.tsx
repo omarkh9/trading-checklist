@@ -1,15 +1,9 @@
 "use client";
 
+import { useOwner } from "@/components/auth/useOwner";
 import { signOut } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/client";
 import { LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-
-type AuthUserInfo = {
-  label: string;
-  initial: string;
-};
 
 type UserMenuProps = {
   variant?: "header" | "sidebar";
@@ -17,43 +11,7 @@ type UserMenuProps = {
 
 export function UserMenu({ variant = "header" }: UserMenuProps) {
   const router = useRouter();
-  const [user, setUser] = useState<AuthUserInfo | null>(null);
-
-  useEffect(() => {
-    const supabase = createClient();
-    let cancelled = false;
-
-    const load = async () => {
-      const {
-        data: { user: authUser },
-      } = await supabase.auth.getUser();
-      if (cancelled || !authUser) {
-        if (!cancelled) setUser(null);
-        return;
-      }
-
-      const label = authUser.email ?? "Trader";
-      if (!cancelled) {
-        setUser({
-          label,
-          initial: label.slice(0, 1).toUpperCase(),
-        });
-      }
-    };
-
-    void load();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
-      void load();
-    });
-
-    return () => {
-      cancelled = true;
-      subscription.unsubscribe();
-    };
-  }, []);
+  const { loading, email, isOwner } = useOwner();
 
   const handleSignOut = async () => {
     await signOut();
@@ -61,7 +19,7 @@ export function UserMenu({ variant = "header" }: UserMenuProps) {
     router.refresh();
   };
 
-  if (!user) {
+  if (loading || !email) {
     return (
       <div
         className={
@@ -73,15 +31,24 @@ export function UserMenu({ variant = "header" }: UserMenuProps) {
     );
   }
 
+  const initial = email.slice(0, 1).toUpperCase();
+  const roleLabel = isOwner ? "Owner" : "Signed in";
+
   if (variant === "sidebar") {
     return (
       <div className="flex items-center gap-3 rounded-xl border border-white/5 bg-white/[0.02] px-2.5 py-2">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-sm font-semibold text-white shadow-[0_0_14px_rgba(99,102,241,0.28)] ring-1 ring-indigo-300/25">
-          {user.initial}
+          {initial}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-zinc-200">{user.label}</p>
-          <p className="text-[11px] text-zinc-500">Signed in</p>
+          <p className="truncate text-sm font-medium text-zinc-200">{email}</p>
+          <p
+            className={`text-[11px] ${
+              isOwner ? "font-medium text-indigo-300" : "text-zinc-500"
+            }`}
+          >
+            {roleLabel}
+          </p>
         </div>
         <button
           type="button"
@@ -98,11 +65,17 @@ export function UserMenu({ variant = "header" }: UserMenuProps) {
   return (
     <div className="flex items-center gap-2 sm:gap-3">
       <div className="hidden min-w-0 text-right sm:block">
-        <p className="truncate text-sm font-medium text-zinc-300">{user.label}</p>
-        <p className="text-xs text-zinc-500">Signed in</p>
+        <p className="truncate text-sm font-medium text-zinc-300">{email}</p>
+        <p
+          className={`text-xs ${
+            isOwner ? "font-medium text-indigo-300" : "text-zinc-500"
+          }`}
+        >
+          {roleLabel}
+        </p>
       </div>
       <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-sm font-semibold text-white shadow-[0_0_14px_rgba(99,102,241,0.28)] ring-1 ring-indigo-300/25">
-        {user.initial}
+        {initial}
       </div>
       <button
         type="button"

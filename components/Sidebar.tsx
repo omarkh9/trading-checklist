@@ -1,6 +1,7 @@
 "use client";
 
 import { UserMenu } from "@/components/auth/UserMenu";
+import { useOwner } from "@/components/auth/useOwner";
 import { SessionStatus } from "@/components/dashboard/SessionStatus";
 import { navItems } from "@/lib/navigation";
 import { Activity, X } from "lucide-react";
@@ -16,6 +17,7 @@ type SidebarPanelProps = {
 
 export function SidebarPanel({ onNavigate, onClose }: SidebarPanelProps) {
   const pathname = usePathname();
+  const { isOwner } = useOwner();
 
   return (
     <>
@@ -28,7 +30,7 @@ export function SidebarPanel({ onNavigate, onClose }: SidebarPanelProps) {
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-zinc-500">
-            Trading
+            {isOwner ? "Owner desk" : "Trading"}
           </p>
           <h1 className="text-lg font-bold tracking-[0.22em] text-gradient">
             EDGE LOG

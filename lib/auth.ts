@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/client";
 
+export { getOwnerEmail, isOwnerEmail, isOwnerUser } from "@/lib/owner";
+
 export function validatePassword(password: string) {
   if (password.length < 8) {
     return "Password must be at least 8 characters.";
