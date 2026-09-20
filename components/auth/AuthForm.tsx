@@ -2,12 +2,14 @@
 
 import {
   getAuthCallbackUrl,
+  getRedirectUrl,
   isUnconfirmedAuthError,
   mapAuthError,
   resendConfirmationEmail,
   safeNextPath,
   signInWithEmail,
   signUpWithEmail,
+  SITE_URL,
   validateEmail,
   validatePassword,
 } from "@/lib/auth";
@@ -27,7 +29,7 @@ type AuthFormProps = {
 
 function withNext(href: string, nextPath: string) {
   if (nextPath === "/") return href;
-  const url = new URL(href, "http://local.invalid");
+  const url = new URL(href, SITE_URL);
   url.searchParams.set("next", nextPath);
   return `${url.pathname}${url.search}`;
 }
@@ -132,7 +134,7 @@ export function AuthForm({ mode }: AuthFormProps) {
         await signInWithEmail(email, password);
       }
 
-      window.location.assign(nextPath);
+      window.location.assign(getRedirectUrl(nextPath));
     } catch (cause) {
       setError(mapAuthError(cause));
       const alreadyResent =

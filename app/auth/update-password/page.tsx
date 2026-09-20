@@ -1,6 +1,11 @@
 "use client";
 
-import { mapAuthError, updatePassword, validatePassword } from "@/lib/auth";
+import {
+  getRedirectUrl,
+  mapAuthError,
+  updatePassword,
+  validatePassword,
+} from "@/lib/auth";
 import { createClient } from "@/lib/supabase/client";
 import { Activity } from "lucide-react";
 import Link from "next/link";
@@ -51,7 +56,7 @@ export default function UpdatePasswordPage() {
     setIsSubmitting(true);
     try {
       await updatePassword(password);
-      window.location.assign("/");
+      window.location.assign(getRedirectUrl("/"));
     } catch (cause) {
       setError(mapAuthError(cause));
       setIsSubmitting(false);

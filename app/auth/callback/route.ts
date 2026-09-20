@@ -13,7 +13,7 @@ function loginUrl(params: Record<string, string>) {
 }
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
+  const { searchParams } = new URL(request.url, getSiteOrigin());
   const origin = getSiteOrigin();
   const code = searchParams.get("code");
   const tokenHash = searchParams.get("token_hash");

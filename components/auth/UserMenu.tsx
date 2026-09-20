@@ -1,22 +1,19 @@
 "use client";
 
 import { useOwner } from "@/components/auth/useOwner";
-import { signOut } from "@/lib/auth";
+import { getRedirectUrl, signOut } from "@/lib/auth";
 import { LogOut } from "lucide-react";
-import { useRouter } from "next/navigation";
 
 type UserMenuProps = {
   variant?: "header" | "sidebar";
 };
 
 export function UserMenu({ variant = "header" }: UserMenuProps) {
-  const router = useRouter();
   const { loading, email, isOwner } = useOwner();
 
   const handleSignOut = async () => {
     await signOut();
-    router.replace("/login");
-    router.refresh();
+    window.location.assign(getRedirectUrl("/login"));
   };
 
   if (loading || !email) {
