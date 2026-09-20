@@ -9,6 +9,7 @@ import {
   writeActiveAccountId,
 } from "@/lib/supabase/accounts";
 import { deleteTradesForAccount } from "@/lib/supabase/trades";
+import { prefetchDeskCaches } from "@/lib/desk/prefetch";
 import { fallbackAccountId } from "@/lib/trades/account-balance";
 import {
   MAX_TRADING_ACCOUNTS,
@@ -75,6 +76,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
 
     const load = async () => {
+      prefetchDeskCaches();
       try {
         const next = await loadTradingAccounts();
         if (cancelled) return;

@@ -2,6 +2,7 @@
 
 import { DeskCard } from "@/components/ui/DeskCard";
 import { desk } from "@/lib/ui/desk";
+import { memo } from "react";
 
 type ConfidenceMeterProps = {
   checklistProgress: number;
@@ -66,7 +67,7 @@ function ProgressRing({
   );
 }
 
-export function ConfidenceMeter({
+export const ConfidenceMeter = memo(function ConfidenceMeter({
   checklistProgress,
   executionConfidence,
   onConfidenceChange,
@@ -165,4 +166,4 @@ export function ConfidenceMeter({
       </div>
     </DeskCard>
   );
-}
+});

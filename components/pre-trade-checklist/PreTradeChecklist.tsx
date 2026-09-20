@@ -22,7 +22,7 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 
 const inputClass = desk.input;
 
@@ -75,7 +75,7 @@ function RuleComposer({
   );
 }
 
-function EmptyState({
+const EmptyState = memo(function EmptyState({
   newRuleLabel,
   setNewRuleLabel,
   onAdd,
@@ -128,14 +128,14 @@ function EmptyState({
       </div>
     </DeskCard>
   );
-}
+});
 
-function RuleRow({
+const RuleRow = memo(function RuleRow({
   rule,
-  index,
-  total,
   isEditing,
   editingLabel,
+  prevId,
+  nextId,
   onEditingLabelChange,
   onToggle,
   onStartEdit,
@@ -143,21 +143,19 @@ function RuleRow({
   onCancelEdit,
   onDelete,
   onMove,
-  onDropOn,
 }: {
   rule: ChecklistItem;
-  index: number;
-  total: number;
   isEditing: boolean;
   editingLabel: string;
+  prevId?: string;
+  nextId?: string;
   onEditingLabelChange: (value: string) => void;
-  onToggle: () => void;
-  onStartEdit: () => void;
+  onToggle: (id: string) => void;
+  onStartEdit: (rule: ChecklistItem) => void;
   onSaveEdit: () => void;
   onCancelEdit: () => void;
-  onDelete: () => void;
-  onMove: (direction: -1 | 1) => void;
-  onDropOn: (fromId: string) => void;
+  onDelete: (id: string) => void;
+  onMove: (fromId: string, toId: string) => void;
 }) {
   return (
     <li>
@@ -174,7 +172,7 @@ function RuleRow({
         onDrop={(event) => {
           event.preventDefault();
           const fromId = event.dataTransfer.getData("text/plain");
-          if (fromId) onDropOn(fromId);
+          if (fromId) onMove(fromId, rule.id);
         }}
         className={`group flex items-center gap-3 rounded-lg px-3 py-3 transition-all duration-300 sm:px-4 ${
           rule.checked && !isEditing
@@ -194,7 +192,7 @@ function RuleRow({
         {!isEditing && (
           <button
             type="button"
-            onClick={onToggle}
+            onClick={() => onToggle(rule.id)}
             className="shrink-0"
             aria-label={`${rule.checked ? "Uncheck" : "Check"} ${rule.label}`}
           >
@@ -242,7 +240,7 @@ function RuleRow({
           <>
             <button
               type="button"
-              onClick={onToggle}
+              onClick={() => onToggle(rule.id)}
               className={`flex-1 text-left text-sm transition-colors ${
                 rule.checked ? "text-zinc-400 line-through" : "text-zinc-200"
               }`}
@@ -253,8 +251,8 @@ function RuleRow({
             <div className="flex shrink-0 items-center gap-0.5">
               <button
                 type="button"
-                onClick={() => onMove(-1)}
-                disabled={index === 0}
+                onClick={() => prevId && onMove(rule.id, prevId)}
+                disabled={!prevId}
                 className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-500 transition-all duration-300 hover:bg-indigo-500/15 hover:text-indigo-200 disabled:opacity-30"
                 aria-label={`Move ${rule.label} up`}
               >
@@ -262,8 +260,8 @@ function RuleRow({
               </button>
               <button
                 type="button"
-                onClick={() => onMove(1)}
-                disabled={index === total - 1}
+                onClick={() => nextId && onMove(rule.id, nextId)}
+                disabled={!nextId}
                 className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-500 transition-all duration-300 hover:bg-indigo-500/15 hover:text-indigo-200 disabled:opacity-30"
                 aria-label={`Move ${rule.label} down`}
               >
@@ -271,7 +269,7 @@ function RuleRow({
               </button>
               <button
                 type="button"
-                onClick={onStartEdit}
+                onClick={() => onStartEdit(rule)}
                 className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-500 transition-all duration-300 hover:bg-indigo-500/15 hover:text-indigo-200"
                 aria-label={`Edit ${rule.label}`}
               >
@@ -279,7 +277,7 @@ function RuleRow({
               </button>
               <button
                 type="button"
-                onClick={onDelete}
+                onClick={() => onDelete(rule.id)}
                 className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-500 transition-all duration-300 hover:bg-rose-500/10 hover:text-rose-400"
                 aria-label={`Delete ${rule.label}`}
               >
@@ -291,9 +289,9 @@ function RuleRow({
       </div>
     </li>
   );
-}
+});
 
-export function PreTradeChecklist() {
+export const PreTradeChecklist = memo(function PreTradeChecklist() {
   const {
     rules,
     session,
@@ -315,13 +313,26 @@ export function PreTradeChecklist() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingLabel, setEditingLabel] = useState("");
 
-  const checkedCount = rules.filter((rule) => rule.checked).length;
-  const totalCount = rules.length;
-  const checklistProgress =
-    totalCount > 0 ? Math.round((checkedCount / totalCount) * 100) : 0;
-  const allRulesMet = totalCount > 0 && checkedCount === totalCount;
+  const { checkedCount, totalCount, checklistProgress, allRulesMet } = useMemo(() => {
+    const checked = rules.reduce(
+      (count, rule) => count + (rule.checked ? 1 : 0),
+      0
+    );
+    const total = rules.length;
+    return {
+      checkedCount: checked,
+      totalCount: total,
+      checklistProgress: total > 0 ? Math.round((checked / total) * 100) : 0,
+      allRulesMet: total > 0 && checked === total,
+    };
+  }, [rules]);
 
-  const submitNewRule = async () => {
+  const sessionLabel = useMemo(
+    () => sessionHeading(sessionDate),
+    [sessionDate]
+  );
+
+  const submitNewRule = useCallback(async () => {
     const label = newRuleLabel.trim();
     if (!label) return;
     try {
@@ -330,20 +341,51 @@ export function PreTradeChecklist() {
     } catch {
       // Error banner is set by the hook.
     }
-  };
+  }, [addRule, newRuleLabel]);
 
-  const startEdit = (rule: ChecklistItem) => {
+  const startEdit = useCallback((rule: ChecklistItem) => {
     setEditingId(rule.id);
     setEditingLabel(rule.label);
-  };
+  }, []);
 
-  const saveEdit = async () => {
+  const saveEdit = useCallback(async () => {
     const label = editingLabel.trim();
     if (!label || !editingId) return;
     await renameRule(editingId, label);
     setEditingId(null);
     setEditingLabel("");
-  };
+  }, [editingId, editingLabel, renameRule]);
+
+  const cancelEdit = useCallback(() => {
+    setEditingId(null);
+    setEditingLabel("");
+  }, []);
+
+  const handleToggle = useCallback(
+    (id: string) => {
+      if (editingId) return;
+      void toggleRule(id);
+    },
+    [editingId, toggleRule]
+  );
+
+  const handleDelete = useCallback(
+    (id: string) => {
+      void removeRule(id);
+    },
+    [removeRule]
+  );
+
+  const handleMove = useCallback(
+    (fromId: string, toId: string) => {
+      void moveRule(fromId, toId);
+    },
+    [moveRule]
+  );
+
+  const handleAddSuggested = useCallback(() => {
+    void addSuggestedRules([...SUGGESTED_RULES]);
+  }, [addSuggestedRules]);
 
   if (!isLoaded) {
     return (
@@ -367,7 +409,7 @@ export function PreTradeChecklist() {
           newRuleLabel={newRuleLabel}
           setNewRuleLabel={setNewRuleLabel}
           onAdd={submitNewRule}
-          onAddSuggested={() => addSuggestedRules([...SUGGESTED_RULES])}
+          onAddSuggested={handleAddSuggested}
           isSaving={isSaving}
         />
       ) : (
@@ -377,7 +419,7 @@ export function PreTradeChecklist() {
             executionConfidence={session.confidence}
             onConfidenceChange={setConfidence}
             allRulesMet={allRulesMet}
-            sessionLabel={sessionHeading(sessionDate)}
+            sessionLabel={sessionLabel}
           />
 
           <DeskCard>
@@ -424,7 +466,7 @@ export function PreTradeChecklist() {
                 <div>
                   <h3 className={desk.title}>Today&apos;s session</h3>
                   <p className={desk.subtitle}>
-                    Check off your rules for {sessionHeading(sessionDate)}. Drag
+                    Check off your rules for {sessionLabel}. Drag
                     or use arrows to reorder.
                   </p>
                 </div>
@@ -444,27 +486,17 @@ export function PreTradeChecklist() {
                 <RuleRow
                   key={rule.id}
                   rule={rule}
-                  index={index}
-                  total={totalCount}
+                  prevId={rules[index - 1]?.id}
+                  nextId={rules[index + 1]?.id}
                   isEditing={editingId === rule.id}
-                  editingLabel={editingLabel}
+                  editingLabel={editingId === rule.id ? editingLabel : ""}
                   onEditingLabelChange={setEditingLabel}
-                  onToggle={() => {
-                    if (editingId) return;
-                    void toggleRule(rule.id);
-                  }}
-                  onStartEdit={() => startEdit(rule)}
+                  onToggle={handleToggle}
+                  onStartEdit={startEdit}
                   onSaveEdit={saveEdit}
-                  onCancelEdit={() => {
-                    setEditingId(null);
-                    setEditingLabel("");
-                  }}
-                  onDelete={() => removeRule(rule.id)}
-                  onMove={(direction) => {
-                    const target = rules[index + direction];
-                    if (target) void moveRule(rule.id, target.id);
-                  }}
-                  onDropOn={(fromId) => void moveRule(fromId, rule.id)}
+                  onCancelEdit={cancelEdit}
+                  onDelete={handleDelete}
+                  onMove={handleMove}
                 />
               ))}
             </ul>
@@ -514,4 +546,4 @@ export function PreTradeChecklist() {
       )}
     </div>
   );
-}
+});

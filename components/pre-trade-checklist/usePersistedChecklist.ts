@@ -1,80 +1,48 @@
 "use client";
 
+import { useCachedChecklist } from "@/components/pre-trade-checklist/useCachedChecklist";
 import {
   deleteChecklistRule,
-  fetchChecklistSnapshot,
   insertChecklistRule,
   insertChecklistRules,
   reorderChecklistRules,
   saveChecklistSession,
   updateChecklistRule,
 } from "@/lib/supabase/checklist";
+import { patchChecklistCache } from "@/lib/checklist/checklist-cache";
 import {
   localDateKey,
   withDailyChecks,
-  type ChecklistItem,
   type ChecklistSession,
 } from "@/lib/types/checklist";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 export function usePersistedChecklist() {
-  const [sessionDate, setSessionDate] = useState(() => localDateKey());
-  const [rules, setRules] = useState<ChecklistItem[]>([]);
-  const [session, setSession] = useState<ChecklistSession>({
-    date: sessionDate,
-    checkedRuleIds: [],
-    confidence: 70,
-  });
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    rules: cachedRules,
+    session,
+    isLoaded,
+    error: loadError,
+  } = useCachedChecklist();
+  const [mutationError, setMutationError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const sessionRef = useRef(session);
+  const rulesRef = useRef(cachedRules);
+  sessionRef.current = session;
+  rulesRef.current = cachedRules;
 
-  useEffect(() => {
-    setSessionDate(localDateKey());
-  }, []);
-
-  useEffect(() => {
-    sessionRef.current = session;
-  }, [session]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const load = async () => {
-      try {
-        const snapshot = await fetchChecklistSnapshot(sessionDate);
-        if (cancelled) return;
-        setRules(withDailyChecks(snapshot.rules, snapshot.session));
-        setSession(snapshot.session);
-        setError(null);
-      } catch (loadError) {
-        if (!cancelled) {
-          setRules([]);
-          setError(
-            loadError instanceof Error
-              ? loadError.message
-              : "Could not load your checklist."
-          );
-        }
-      } finally {
-        if (!cancelled) setIsLoaded(true);
-      }
-    };
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [sessionDate]);
+  const rules = useMemo(
+    () => withDailyChecks(cachedRules, session),
+    [cachedRules, session]
+  );
 
   const persistSession = useCallback(async (next: ChecklistSession) => {
-    setSession(next);
+    patchChecklistCache({ session: next });
     try {
       await saveChecklistSession(next);
-      setError(null);
+      setMutationError(null);
     } catch (saveError) {
-      setError(
+      setMutationError(
         saveError instanceof Error
           ? saveError.message
           : "Could not save today's session."
@@ -87,12 +55,6 @@ export function usePersistedChecklist() {
       const checked = new Set(sessionRef.current.checkedRuleIds);
       if (checked.has(id)) checked.delete(id);
       else checked.add(id);
-
-      setRules((prev) =>
-        prev.map((rule) =>
-          rule.id === id ? { ...rule, checked: !rule.checked } : rule
-        )
-      );
       await persistSession({
         ...sessionRef.current,
         checkedRuleIds: Array.from(checked),
@@ -109,7 +71,6 @@ export function usePersistedChecklist() {
   );
 
   const resetChecks = useCallback(async () => {
-    setRules((prev) => prev.map((rule) => ({ ...rule, checked: false })));
     await persistSession({
       ...sessionRef.current,
       checkedRuleIds: [],
@@ -119,11 +80,10 @@ export function usePersistedChecklist() {
   const addRule = useCallback(async (label: string) => {
     setIsSaving(true);
     try {
-      const created = await insertChecklistRule(label);
-      setRules((prev) => [...prev, { ...created, checked: false }]);
-      setError(null);
+      await insertChecklistRule(label);
+      setMutationError(null);
     } catch (saveError) {
-      setError(
+      setMutationError(
         saveError instanceof Error ? saveError.message : "Could not add rule."
       );
       throw saveError;
@@ -135,14 +95,10 @@ export function usePersistedChecklist() {
   const addSuggestedRules = useCallback(async (labels: string[]) => {
     setIsSaving(true);
     try {
-      const created = await insertChecklistRules(labels);
-      setRules((prev) => [
-        ...prev,
-        ...created.map((rule) => ({ ...rule, checked: false })),
-      ]);
-      setError(null);
+      await insertChecklistRules(labels);
+      setMutationError(null);
     } catch (saveError) {
-      setError(
+      setMutationError(
         saveError instanceof Error
           ? saveError.message
           : "Could not add suggested rules."
@@ -154,85 +110,80 @@ export function usePersistedChecklist() {
   }, []);
 
   const renameRule = useCallback(async (id: string, label: string) => {
-    const previous = rules;
-    setRules((prev) =>
-      prev.map((rule) => (rule.id === id ? { ...rule, label } : rule))
-    );
+    const previous = rulesRef.current;
+    patchChecklistCache({
+      rules: previous.map((rule) => (rule.id === id ? { ...rule, label } : rule)),
+    });
     try {
       await updateChecklistRule(id, label);
-      setError(null);
+      setMutationError(null);
     } catch (saveError) {
-      setRules(previous);
-      setError(
+      patchChecklistCache({ rules: previous });
+      setMutationError(
         saveError instanceof Error ? saveError.message : "Could not update rule."
       );
     }
-  }, [rules]);
+  }, []);
 
-  const removeRule = useCallback(
-    async (id: string) => {
-      const previousRules = rules;
-      const previousSession = sessionRef.current;
-      setRules((prev) => prev.filter((rule) => rule.id !== id));
+  const removeRule = useCallback(async (id: string) => {
+    const previousRules = rulesRef.current;
+    const previousSession = sessionRef.current;
+    try {
+      await deleteChecklistRule(id);
       const nextSession = {
-        ...previousSession,
-        checkedRuleIds: previousSession.checkedRuleIds.filter(
+        ...sessionRef.current,
+        checkedRuleIds: sessionRef.current.checkedRuleIds.filter(
           (ruleId) => ruleId !== id
         ),
       };
-      setSession(nextSession);
-      try {
-        await deleteChecklistRule(id);
-        await saveChecklistSession(nextSession);
-        setError(null);
-      } catch (saveError) {
-        setRules(previousRules);
-        setSession(previousSession);
-        setError(
-          saveError instanceof Error
-            ? saveError.message
-            : "Could not delete rule."
-        );
-      }
-    },
-    [rules]
-  );
+      await saveChecklistSession(nextSession);
+      setMutationError(null);
+    } catch (saveError) {
+      patchChecklistCache({
+        rules: previousRules,
+        session: previousSession,
+      });
+      setMutationError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Could not delete rule."
+      );
+    }
+  }, []);
 
-  const moveRule = useCallback(
-    async (fromId: string, toId: string) => {
-      if (fromId === toId) return;
-      const fromIndex = rules.findIndex((rule) => rule.id === fromId);
-      const toIndex = rules.findIndex((rule) => rule.id === toId);
-      if (fromIndex < 0 || toIndex < 0) return;
+  const moveRule = useCallback(async (fromId: string, toId: string) => {
+    if (fromId === toId) return;
+    const current = rulesRef.current;
+    const fromIndex = current.findIndex((rule) => rule.id === fromId);
+    const toIndex = current.findIndex((rule) => rule.id === toId);
+    if (fromIndex < 0 || toIndex < 0) return;
 
-      const next = [...rules];
-      const [moved] = next.splice(fromIndex, 1);
-      next.splice(toIndex, 0, moved);
-      const ordered = next.map((rule, index) => ({ ...rule, sortOrder: index }));
-      setRules(ordered);
+    const next = [...current];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+    const ordered = next.map((rule, index) => ({ ...rule, sortOrder: index }));
+    patchChecklistCache({ rules: ordered });
 
-      try {
-        await reorderChecklistRules(ordered.map((rule) => rule.id));
-        setError(null);
-      } catch (saveError) {
-        setRules(rules);
-        setError(
-          saveError instanceof Error
-            ? saveError.message
-            : "Could not reorder rules."
-        );
-      }
-    },
-    [rules]
-  );
+    try {
+      await reorderChecklistRules(ordered.map((rule) => rule.id));
+      setMutationError(null);
+    } catch (saveError) {
+      patchChecklistCache({ rules: current });
+      setMutationError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Could not reorder rules."
+      );
+    }
+  }, []);
 
   return {
     rules,
     session,
-    sessionDate,
+    sessionDate: session.date || localDateKey(),
     isLoaded,
     isSaving,
-    error,
+    error: mutationError ?? loadError,
     toggleRule,
     setConfidence,
     resetChecks,

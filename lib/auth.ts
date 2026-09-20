@@ -188,10 +188,13 @@ export async function signOut() {
   const supabase = createClient();
   const { error } = await supabase.auth.signOut();
   if (error) throw error;
-  const [{ clearAccountsCache }, { clearTradesCache }] = await Promise.all([
-    import("@/lib/supabase/accounts"),
-    import("@/lib/trades/trades-cache"),
-  ]);
+  const [{ clearAccountsCache }, { clearTradesCache }, { clearChecklistCache }] =
+    await Promise.all([
+      import("@/lib/supabase/accounts"),
+      import("@/lib/trades/trades-cache"),
+      import("@/lib/checklist/checklist-cache"),
+    ]);
   clearAccountsCache();
   clearTradesCache();
+  clearChecklistCache();
 }

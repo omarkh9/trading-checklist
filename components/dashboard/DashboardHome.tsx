@@ -1,9 +1,9 @@
 "use client";
 
 import { useAccounts } from "@/components/accounts/AccountProvider";
+import { useCachedChecklist } from "@/components/pre-trade-checklist/useCachedChecklist";
 import { useCachedTrades } from "@/components/trade-journal/useCachedTrades";
 import type { Outcome, Trade } from "@/lib/types/trade";
-import { fetchChecklistSnapshot } from "@/lib/supabase/checklist";
 import { withDailyChecks, type ChecklistItem } from "@/lib/types/checklist";
 import {
   formatLocalDate,
@@ -20,7 +20,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { memo, useMemo } from "react";
 
 function computeRiskReward(trade: Trade): number | null {
   const entry = parseFloat(trade.entryPrice);
@@ -114,7 +114,7 @@ type StatCardProps = {
   isEmpty?: boolean;
 };
 
-function StatCard({
+const StatCard = memo(function StatCard({
   label,
   value,
   hint,
@@ -154,7 +154,7 @@ function StatCard({
       <p className="relative mt-2 text-sm text-zinc-500">{hint}</p>
     </div>
   );
-}
+});
 
 const outcomeRowClass: Record<Outcome, string> = {
   Win: "border-emerald-400/25 bg-emerald-500/[0.07] hover:border-emerald-400/40",
@@ -189,88 +189,75 @@ function rrAccent(avgRr: number | null): Accent {
   return "rose";
 }
 
-export function DashboardHome() {
+function computeDashboardMetrics(trades: Trade[], checklistRules: ChecklistItem[]) {
+  const weekStartMs = startOfLocalWeek(new Date()).getTime();
+  let tradesThisWeek = 0;
+  let wins = 0;
+  let rrSum = 0;
+  let rrCount = 0;
+
+  for (const trade of trades) {
+    if (timestampMs(trade.createdAt) >= weekStartMs) tradesThisWeek += 1;
+    if (trade.outcome === "Win") wins += 1;
+    const rr = computeRiskReward(trade);
+    if (rr != null) {
+      rrSum += rr;
+      rrCount += 1;
+    }
+  }
+
+  const checked = checklistRules.reduce(
+    (count, rule) => count + (rule.checked ? 1 : 0),
+    0
+  );
+  const checklistTotal = checklistRules.length;
+
+  return {
+    tradesThisWeek,
+    winRate: trades.length > 0 ? Math.round((wins / trades.length) * 100) : null,
+    wins,
+    avgRr: rrCount > 0 ? rrSum / rrCount : null,
+    checklistScore:
+      checklistTotal > 0 ? Math.round((checked / checklistTotal) * 100) : null,
+    checklistTotal,
+    checked,
+    recentTrades: trades.slice(0, 5),
+  };
+}
+
+export const DashboardHome = memo(function DashboardHome() {
   const { accounts, activeAccount, isLoaded: accountsLoaded } = useAccounts();
   const { trades: allTrades, isLoaded: tradesLoaded } = useCachedTrades();
-  const [checklistRules, setChecklistRules] = useState<ChecklistItem[]>([]);
-  const [checklistLoaded, setChecklistLoaded] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const load = async () => {
-      try {
-        const snapshot = await fetchChecklistSnapshot();
-        if (cancelled) return;
-        setChecklistRules(withDailyChecks(snapshot.rules, snapshot.session));
-      } catch {
-        if (!cancelled) setChecklistRules([]);
-      } finally {
-        if (!cancelled) setChecklistLoaded(true);
-      }
-    };
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const {
+    rules: checklistRules,
+    session: checklistSession,
+    isLoaded: checklistLoaded,
+  } = useCachedChecklist();
 
   const fallbackId = accounts[0]?.id ?? "";
   const trades = useMemo(
-    () =>
-      tradesForAccount(allTrades, activeAccount?.id ?? "", fallbackId),
+    () => tradesForAccount(allTrades, activeAccount?.id ?? "", fallbackId),
     [allTrades, activeAccount?.id, fallbackId]
   );
 
-  const metrics = useMemo(() => {
-    const weekStart = startOfLocalWeek(new Date());
-    const tradesThisWeek = trades.filter(
-      (t) => timestampMs(t.createdAt) >= weekStart.getTime()
-    );
-    const wins = trades.filter((t) => t.outcome === "Win").length;
-    const winRate =
-      trades.length > 0 ? Math.round((wins / trades.length) * 100) : null;
+  const checklistItems = useMemo(
+    () =>
+      checklistLoaded
+        ? withDailyChecks(checklistRules, checklistSession)
+        : [],
+    [checklistLoaded, checklistRules, checklistSession]
+  );
 
-    const rrValues = trades
-      .map(computeRiskReward)
-      .filter((v): v is number => v !== null);
-    const avgRr =
-      rrValues.length > 0
-        ? rrValues.reduce((a, b) => a + b, 0) / rrValues.length
-        : null;
-
-    const checked = checklistRules.filter((r) => r.checked).length;
-    const checklistTotal = checklistRules.length;
-    const checklistScore =
-      checklistTotal > 0
-        ? Math.round((checked / checklistTotal) * 100)
-        : null;
-
-    const recentTrades = [...trades]
-      .sort(
-        (a, b) =>
-          timestampMs(b.createdAt) - timestampMs(a.createdAt)
-      )
-      .slice(0, 5);
-
-    return {
-      tradesThisWeek: tradesThisWeek.length,
-      winRate,
-      wins,
-      avgRr,
-      checklistScore,
-      checklistTotal,
-      checked,
-      recentTrades,
-    };
-  }, [trades, checklistRules]);
+  const metrics = useMemo(
+    () => computeDashboardMetrics(trades, checklistItems),
+    [trades, checklistItems]
+  );
 
   const hasTrades = trades.length > 0;
   const hasChecklistActivity =
     metrics.checklistScore !== null && metrics.checked > 0;
 
-  if (!tradesLoaded || !checklistLoaded || !accountsLoaded) {
+  if (!tradesLoaded || !accountsLoaded) {
     return (
       <div className="animate-pulse space-y-8">
         <div className="h-36 rounded-2xl bg-[#12121a]" />
@@ -471,7 +458,9 @@ export function DashboardHome() {
               Today&apos;s readiness score
             </p>
 
-            {!hasChecklistActivity ? (
+            {!checklistLoaded ? (
+              <div className="mt-6 h-44 animate-pulse rounded-xl bg-white/[0.03]" />
+            ) : !hasChecklistActivity ? (
               <div className="mt-6 flex flex-col items-center rounded-xl border border-dashed border-white/10 bg-white/[0.02] px-6 py-10 text-center">
                 <div className="relative flex h-28 w-28 items-center justify-center">
                   <svg
@@ -577,4 +566,4 @@ export function DashboardHome() {
       </div>
     </div>
   );
-}
+});

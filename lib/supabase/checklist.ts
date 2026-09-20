@@ -1,5 +1,10 @@
 import { createClient } from "@/lib/supabase/client";
 import type { Database } from "@/lib/supabase/database.types";
+import {
+  getCachedChecklistSnapshot,
+  loadChecklistCache,
+  patchChecklistCache,
+} from "@/lib/checklist/checklist-cache";
 import { CHECKLIST_RULES_STORAGE_KEY } from "@/lib/storage/keys";
 import {
   emptyChecklistSession,
@@ -95,7 +100,17 @@ function clearLegacyRules() {
 }
 
 export async function fetchChecklistRules(): Promise<ChecklistRule[]> {
+  const cached = getCachedChecklistSnapshot();
+  if (cached && !cached.error) return cached.rules;
+
   const { supabase, userId } = await requireUserId();
+  return loadChecklistRules(supabase, userId);
+}
+
+async function loadChecklistRules(
+  supabase: ReturnType<typeof createClient>,
+  userId: string
+): Promise<ChecklistRule[]> {
   const { data, error } = await supabase
     .from("checklist_rules")
     .select("*")
@@ -109,7 +124,20 @@ export async function fetchChecklistRules(): Promise<ChecklistRule[]> {
 export async function fetchChecklistSession(
   date = localDateKey()
 ): Promise<ChecklistSession> {
+  const cached = getCachedChecklistSnapshot();
+  if (cached && !cached.error && cached.session.date === date) {
+    return cached.session;
+  }
+
   const { supabase, userId } = await requireUserId();
+  return loadChecklistSession(supabase, userId, date);
+}
+
+async function loadChecklistSession(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  date: string
+): Promise<ChecklistSession> {
   const { data, error } = await supabase
     .from("checklist_sessions")
     .select("*")
@@ -144,12 +172,25 @@ async function migrateLegacyRulesIfNeeded(
 export async function fetchChecklistSnapshot(
   date = localDateKey()
 ): Promise<ChecklistSnapshot> {
+  return loadChecklistCache(() => fetchChecklistSnapshotFromNetwork(date), date);
+}
+
+async function fetchChecklistSnapshotFromNetwork(
+  date: string
+): Promise<ChecklistSnapshot> {
+  const { supabase, userId } = await requireUserId();
   const [rules, session] = await Promise.all([
-    fetchChecklistRules(),
-    fetchChecklistSession(date),
+    loadChecklistRules(supabase, userId),
+    loadChecklistSession(supabase, userId, date),
   ]);
   const migrated = await migrateLegacyRulesIfNeeded(rules);
   return { rules: migrated, session };
+}
+
+async function nextSortOrder() {
+  const cached = getCachedChecklistSnapshot();
+  if (cached && !cached.error) return cached.rules.length;
+  return (await fetchChecklistRules()).length;
 }
 
 export async function insertChecklistRule(label: string): Promise<ChecklistRule> {
@@ -157,19 +198,24 @@ export async function insertChecklistRule(label: string): Promise<ChecklistRule>
   if (!trimmed) throw new Error("Enter a rule before adding it.");
 
   const { supabase, userId } = await requireUserId();
-  const current = await fetchChecklistRules();
+  const sortOrder = await nextSortOrder();
   const { data, error } = await supabase
     .from("checklist_rules")
     .insert({
       user_id: userId,
       label: trimmed,
-      sort_order: current.length,
+      sort_order: sortOrder,
     })
     .select("*")
     .single();
   throwIfError(error);
   if (!data) throw new Error("Could not save the new rule.");
-  return ruleFromRow(data);
+  const created = ruleFromRow(data);
+  const cached = getCachedChecklistSnapshot();
+  patchChecklistCache({
+    rules: [...(cached?.rules ?? []), created],
+  });
+  return created;
 }
 
 export async function insertChecklistRules(
@@ -179,20 +225,25 @@ export async function insertChecklistRules(
   if (trimmed.length === 0) return [];
 
   const { supabase, userId } = await requireUserId();
-  const current = await fetchChecklistRules();
+  const sortOrder = await nextSortOrder();
   const { data, error } = await supabase
     .from("checklist_rules")
     .insert(
       trimmed.map((label, index) => ({
         user_id: userId,
         label,
-        sort_order: current.length + index,
+        sort_order: sortOrder + index,
       }))
     )
     .select("*")
     .order("sort_order", { ascending: true });
   throwIfError(error);
-  return (data ?? []).map(ruleFromRow);
+  const created = (data ?? []).map(ruleFromRow);
+  const cached = getCachedChecklistSnapshot();
+  patchChecklistCache({
+    rules: [...(cached?.rules ?? []), ...created],
+  });
+  return created;
 }
 
 export async function updateChecklistRule(
@@ -209,6 +260,14 @@ export async function updateChecklistRule(
     .eq("id", id)
     .eq("user_id", userId);
   throwIfError(error);
+  const cached = getCachedChecklistSnapshot();
+  if (cached) {
+    patchChecklistCache({
+      rules: cached.rules.map((rule) =>
+        rule.id === id ? { ...rule, label: trimmed } : rule
+      ),
+    });
+  }
 }
 
 export async function deleteChecklistRule(id: string): Promise<void> {
@@ -219,6 +278,18 @@ export async function deleteChecklistRule(id: string): Promise<void> {
     .eq("id", id)
     .eq("user_id", userId);
   throwIfError(error);
+  const cached = getCachedChecklistSnapshot();
+  if (cached) {
+    patchChecklistCache({
+      rules: cached.rules.filter((rule) => rule.id !== id),
+      session: {
+        ...cached.session,
+        checkedRuleIds: cached.session.checkedRuleIds.filter(
+          (ruleId) => ruleId !== id
+        ),
+      },
+    });
+  }
 }
 
 export async function reorderChecklistRules(orderedIds: string[]): Promise<void> {
@@ -233,6 +304,18 @@ export async function reorderChecklistRules(orderedIds: string[]): Promise<void>
     )
   );
   results.forEach((result) => throwIfError(result.error));
+  const cached = getCachedChecklistSnapshot();
+  if (cached) {
+    const byId = new Map(cached.rules.map((rule) => [rule.id, rule]));
+    patchChecklistCache({
+      rules: orderedIds
+        .map((id, sortOrder) => {
+          const rule = byId.get(id);
+          return rule ? { ...rule, sortOrder } : null;
+        })
+        .filter((rule): rule is ChecklistRule => rule != null),
+    });
+  }
 }
 
 export async function saveChecklistSession(
@@ -250,4 +333,5 @@ export async function saveChecklistSession(
     { onConflict: "user_id,session_date" }
   );
   throwIfError(error);
+  patchChecklistCache({ session });
 }
