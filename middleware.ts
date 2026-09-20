@@ -7,6 +7,7 @@ function isPublicPath(pathname: string) {
   return (
     pathname.startsWith("/login") ||
     pathname.startsWith("/signup") ||
+    pathname.startsWith("/forgot-password") ||
     pathname.startsWith("/auth") ||
     pathname === "/robots.txt" ||
     pathname === "/sitemap.xml" ||
@@ -68,7 +69,12 @@ export async function middleware(request: NextRequest) {
     return copySessionCookies(supabaseResponse, NextResponse.redirect(url));
   }
 
-  if (user && (pathname.startsWith("/login") || pathname.startsWith("/signup"))) {
+  if (
+    user &&
+    (pathname.startsWith("/login") ||
+      pathname.startsWith("/signup") ||
+      pathname.startsWith("/forgot-password"))
+  ) {
     const url = request.nextUrl.clone();
     url.pathname = "/";
     url.search = "";

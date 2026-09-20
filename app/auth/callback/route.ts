@@ -64,13 +64,7 @@ export async function GET(request: Request) {
   }
 
   if (isRecovery) {
-    return NextResponse.redirect(
-      loginUrl({
-        error: "auth",
-        error_description:
-          "That password reset link could not be completed. Request a new one from the sign-in page.",
-      })
-    );
+    return NextResponse.redirect(new URL(getRedirectUrl("/forgot-password")));
   }
 
   if (sessionError) {

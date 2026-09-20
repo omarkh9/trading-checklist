@@ -7,5 +7,22 @@
   NEXT_PUBLIC_OWNER_EMAIL = "Omar.khallil@outlook.com"
   NEXT_PUBLIC_SITE_URL = "https://edge-log-11.netlify.app"
 
+[context.production.environment]
+  NEXT_PUBLIC_SITE_URL = "https://edge-log-11.netlify.app"
+
+[context.deploy-preview.environment]
+  NEXT_PUBLIC_SITE_URL = "https://edge-log-11.netlify.app"
+
+[context.branch-deploy.environment]
+  NEXT_PUBLIC_SITE_URL = "https://edge-log-11.netlify.app"
+
+[context.dev.environment]
+  NEXT_PUBLIC_SITE_URL = "https://edge-log-11.netlify.app"
+
+[dev]
+  command = "npm run dev"
+  targetPort = 3001
+  framework = "next"
+
 [[plugins]]
   package = "@netlify/plugin-nextjs"

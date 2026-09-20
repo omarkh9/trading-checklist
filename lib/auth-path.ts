@@ -1,5 +1,4 @@
 import { SITE_URL } from "@/lib/site";
-import { resolveSiteUrl } from "@/lib/supabase/public-config.mjs";
 
 export { SITE_URL } from "@/lib/site";
 
@@ -9,7 +8,7 @@ export function safeNextPath(value: string | null | undefined) {
 }
 
 export function getSiteOrigin() {
-  return (resolveSiteUrl() || SITE_URL).replace(/\/$/, "");
+  return SITE_URL.replace(/\/$/, "");
 }
 
 export function getRedirectUrl(path = "") {

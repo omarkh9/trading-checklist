@@ -80,13 +80,13 @@ export default function UpdatePasswordPage() {
           ) : !hasSession ? (
             <div>
               <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
-                This reset link is invalid or expired. Request a new one from the sign-in page.
+                This reset link is invalid or expired. Request a new one from the forgot password page.
               </p>
               <Link
-                href="/login"
+                href="/forgot-password"
                 className="mt-4 inline-flex text-sm text-accent-hover hover:text-white"
               >
-                Back to sign in
+                Request a new reset link
               </Link>
             </div>
           ) : (
