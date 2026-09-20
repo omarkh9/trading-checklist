@@ -8,7 +8,13 @@
 
 create extension if not exists pgcrypto with schema extensions;
 
+-- Existing projects may have been created from an older accounts.sql that used
+-- `balance` instead of `starting_balance`. Add every column the journal writes
+-- so PostgREST stops returning schema-cache errors on insert/update.
 alter table public.trading_accounts
+  add column if not exists name text,
+  add column if not exists starting_balance double precision not null default 10000,
+  add column if not exists created_at timestamptz not null default timezone('utc', now()),
   add column if not exists mt5_login text,
   add column if not exists mt5_server text,
   add column if not exists mt5_webhook_token_hash text,
@@ -17,11 +23,39 @@ alter table public.trading_accounts
   add column if not exists mt5_equity double precision,
   add column if not exists mt5_synced_at timestamptz;
 
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'trading_accounts'
+      and column_name = 'balance'
+  ) then
+    update public.trading_accounts
+    set starting_balance = balance::double precision
+    where starting_balance is distinct from balance::double precision
+      and balance is not null;
+  end if;
+end $$;
+
 alter table public.trades
+  add column if not exists account_id uuid references public.trading_accounts (id) on delete set null,
   add column if not exists mt5_ticket text;
 
 do $$
 begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'trading_accounts_starting_balance_nonnegative'
+  ) then
+    alter table public.trading_accounts
+      add constraint trading_accounts_starting_balance_nonnegative check (
+        starting_balance >= 0
+      );
+  end if;
+
   if not exists (
     select 1
     from pg_constraint
@@ -44,6 +78,10 @@ begin
       );
   end if;
 end $$;
+
+-- Reload PostgREST so starting_balance / mt5_* appear in the schema cache
+-- even if a later statement in this script fails.
+notify pgrst, 'reload schema';
 
 create unique index if not exists trading_accounts_mt5_webhook_token_hash_uidx
   on public.trading_accounts (mt5_webhook_token_hash)
@@ -255,4 +293,5 @@ $$;
 revoke all on function public.ingest_mt5_closed_trades(text, jsonb) from public;
 grant execute on function public.ingest_mt5_closed_trades(text, jsonb) to anon, authenticated;
 
+-- Final cache reload after RPCs and indexes are in place.
 notify pgrst, 'reload schema';
