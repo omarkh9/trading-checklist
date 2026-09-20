@@ -7,6 +7,11 @@ import {
 } from "@/lib/mt5/gateway";
 import { generateMt5WebhookToken, hashMt5WebhookToken } from "@/lib/mt5/token";
 import { getMt5WebhookUrl } from "@/lib/mt5/webhook";
+import type {
+  TradingAccountInsert,
+  TradingAccountRow,
+  TradingAccountUpdate,
+} from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 import {
   DEFAULT_STARTING_BALANCE,
@@ -23,6 +28,9 @@ type AccountRef = {
   mt5_connection_id: string | null;
 };
 
+type ListedAccount = Pick<TradingAccountRow, "id" | "name"> &
+  Partial<TradingAccountRow>;
+
 function json(body: Record<string, unknown>, status = 200) {
   return NextResponse.json(body, {
     status,
@@ -36,13 +44,33 @@ function isUuid(value: string) {
   );
 }
 
-function isMissingMt5Schema(message: string) {
+function asText(value: unknown) {
+  return typeof value === "string" ? value : "";
+}
+
+function isUnknownMt5Column(message: string) {
   const normalized = message.toLowerCase();
+  const mentionsMt5 = /\bmt5_[a-z0-9_]+/.test(normalized);
+  if (!mentionsMt5) return false;
   return (
-    (normalized.includes("column") && normalized.includes("mt5")) ||
     normalized.includes("schema cache") ||
-    normalized.includes("does not exist")
+    normalized.includes("could not find") ||
+    normalized.includes("does not exist") ||
+    normalized.includes("column")
   );
+}
+
+function stripUnknownMt5Fields(
+  fields: Record<string, unknown>,
+  message: string
+) {
+  const next = { ...fields };
+  const matches = message.toLowerCase().match(/mt5_[a-z0-9_]+/g) ?? [];
+  for (const column of matches) {
+    delete next[column];
+  }
+  if ("mt5_connection_id" in next) delete next.mt5_connection_id;
+  return next;
 }
 
 function uniqueMt5AccountName(login: string, existingNames: string[]) {
@@ -85,30 +113,27 @@ export async function POST(request: Request) {
   });
   if (!parsed.ok) return json({ ok: false, error: parsed.error }, 400);
 
-  const { data: existingRows, error: listError } = await supabase
+  const listed = await supabase
     .from("trading_accounts")
-    .select("id, name, mt5_login, mt5_connection_id")
+    .select("*")
     .eq("user_id", user.id);
 
-  if (listError) {
-    if (isMissingMt5Schema(listError.message)) {
-      return json(
-        {
-          ok: false,
-          error:
-            "MT5 columns are missing. Run supabase/mt5.sql in the Supabase SQL editor.",
-        },
-        503
-      );
+  let rows: ListedAccount[] = listed.data ?? [];
+  if (listed.error) {
+    const fallback = await supabase
+      .from("trading_accounts")
+      .select("id, name, starting_balance, created_at")
+      .eq("user_id", user.id);
+    if (fallback.error) {
+      return json({ ok: false, error: listed.error.message }, 400);
     }
-    return json({ ok: false, error: listError.message }, 400);
+    rows = fallback.data ?? [];
   }
 
-  const rows = existingRows ?? [];
   const byId = requestedAccountId
     ? rows.find((row) => row.id === requestedAccountId)
     : undefined;
-  const byLogin = rows.find((row) => row.mt5_login === parsed.login);
+  const byLogin = rows.find((row) => asText(row.mt5_login) === parsed.login);
 
   if (byId && byLogin && byId.id !== byLogin.id) {
     return json(
@@ -127,12 +152,12 @@ export async function POST(request: Request) {
   if (byLogin) {
     target = {
       id: byLogin.id,
-      mt5_connection_id: byLogin.mt5_connection_id,
+      mt5_connection_id: byLogin.mt5_connection_id ?? null,
     };
   } else if (byId) {
     target = {
       id: byId.id,
-      mt5_connection_id: byId.mt5_connection_id,
+      mt5_connection_id: byId.mt5_connection_id ?? null,
     };
   } else {
     if (rows.length >= MAX_TRADING_ACCOUNTS) {
@@ -206,38 +231,72 @@ export async function POST(request: Request) {
       ? provisioned.balance
       : DEFAULT_STARTING_BALANCE;
 
-  const persistError = created
-    ? (
-        await supabase
+  const persistPayloads: Record<string, unknown>[] = [mt5Fields];
+  if ("mt5_connection_id" in mt5Fields) {
+    const { mt5_connection_id: _connectionId, ...withoutConnection } = mt5Fields;
+    persistPayloads.push(withoutConnection);
+  }
+  persistPayloads.push({
+    mt5_login: parsed.login,
+    mt5_server: parsed.server,
+    mt5_webhook_token_hash: tokenHash,
+  });
+
+  let persistError: { message: string } | null = null;
+  for (let index = 0; index < persistPayloads.length; index += 1) {
+    let fields = persistPayloads[index];
+    if (persistError) {
+      fields = stripUnknownMt5Fields(fields, persistError.message);
+    }
+
+    const payload = {
+      id: target.id,
+      user_id: user.id,
+      name: createdName,
+      starting_balance: startingBalance,
+      ...fields,
+    } as TradingAccountInsert;
+    const result = created
+      ? await supabase.from("trading_accounts").insert(payload)
+      : await supabase
           .from("trading_accounts")
-          .insert({
-            id: target.id,
-            user_id: user.id,
-            name: createdName,
-            starting_balance: startingBalance,
-            ...mt5Fields,
-          })
-      ).error
-    : (
-        await supabase
-          .from("trading_accounts")
-          .update(mt5Fields)
+          .update(fields as TradingAccountUpdate)
           .eq("id", target.id)
-          .eq("user_id", user.id)
-      ).error;
+          .eq("user_id", user.id);
+
+    persistError = result.error;
+    if (!persistError) break;
+    if (!isUnknownMt5Column(persistError.message)) break;
+  }
+
+  if (persistError && created) {
+    const coreInsert = await supabase.from("trading_accounts").insert({
+      id: target.id,
+      user_id: user.id,
+      name: createdName,
+      starting_balance: startingBalance,
+    });
+    if (!coreInsert.error) {
+      const retry = await supabase
+        .from("trading_accounts")
+          .update(mt5Fields as TradingAccountUpdate)
+        .eq("id", target.id)
+        .eq("user_id", user.id);
+      persistError = retry.error;
+      if (persistError && isUnknownMt5Column(persistError.message)) {
+        const reduced = stripUnknownMt5Fields(mt5Fields, persistError.message);
+        const reducedUpdate = await supabase
+          .from("trading_accounts")
+          .update(reduced as TradingAccountUpdate)
+          .eq("id", target.id)
+          .eq("user_id", user.id);
+        persistError = reducedUpdate.error;
+      }
+    }
+  }
 
   if (persistError) {
     await disconnectMt5Connection(provisioned.connectionId);
-    if (isMissingMt5Schema(persistError.message)) {
-      return json(
-        {
-          ok: false,
-          error:
-            "MT5 columns are missing. Run supabase/mt5.sql in the Supabase SQL editor.",
-        },
-        503
-      );
-    }
     return json({ ok: false, error: persistError.message }, 400);
   }
 
@@ -267,13 +326,35 @@ export async function DELETE(request: Request) {
 
   const { data: account, error: accountError } = await supabase
     .from("trading_accounts")
-    .select("id, mt5_connection_id")
+    .select("*")
     .eq("id", accountId)
     .eq("user_id", user.id)
     .maybeSingle();
 
   if (accountError || !account) {
-    return json({ ok: false, error: "Trading account not found." }, 404);
+    const fallback = await supabase
+      .from("trading_accounts")
+      .select("id, name")
+      .eq("id", accountId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (fallback.error || !fallback.data) {
+      return json({ ok: false, error: "Trading account not found." }, 404);
+    }
+    await supabase
+      .from("trading_accounts")
+      .update({
+        mt5_login: null,
+        mt5_server: null,
+        mt5_webhook_token_hash: null,
+        mt5_connection_id: null,
+        mt5_balance: null,
+        mt5_equity: null,
+        mt5_synced_at: null,
+      })
+      .eq("id", accountId)
+      .eq("user_id", user.id);
+    return json({ ok: true, accountId, ...emptyMt5Link() });
   }
 
   if (account.mt5_connection_id) {
@@ -294,15 +375,26 @@ export async function DELETE(request: Request) {
     .eq("id", accountId)
     .eq("user_id", user.id);
 
-  if (updateError && isMissingMt5Schema(updateError.message)) {
-    return json(
+  if (updateError && isUnknownMt5Column(updateError.message)) {
+    const reduced = stripUnknownMt5Fields(
       {
-        ok: false,
-        error:
-          "MT5 columns are missing. Run supabase/mt5.sql in the Supabase SQL editor.",
+        mt5_login: null,
+        mt5_server: null,
+        mt5_webhook_token_hash: null,
+        mt5_connection_id: null,
+        mt5_balance: null,
+        mt5_equity: null,
+        mt5_synced_at: null,
       },
-      503
+      updateError.message
     );
+    const retry = await supabase
+      .from("trading_accounts")
+      .update(reduced as TradingAccountUpdate)
+      .eq("id", accountId)
+      .eq("user_id", user.id);
+    if (retry.error) return json({ ok: false, error: retry.error.message }, 400);
+    return json({ ok: true, accountId, ...emptyMt5Link() });
   }
   if (updateError) return json({ ok: false, error: updateError.message }, 400);
 

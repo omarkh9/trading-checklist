@@ -254,3 +254,5 @@ $$;
 
 revoke all on function public.ingest_mt5_closed_trades(text, jsonb) from public;
 grant execute on function public.ingest_mt5_closed_trades(text, jsonb) to anon, authenticated;
+
+notify pgrst, 'reload schema';
