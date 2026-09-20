@@ -2,11 +2,13 @@
 -- SQL Editor: https://supabase.com/dashboard/project/agfzhwyhrrcbadbzvmpy/sql/new
 --
 -- Also in Authentication → URL Configuration, set:
---   Site URL = your Netlify URL
+--   Site URL = your production Netlify URL (NOT localhost)
 --   Redirect URLs:
+--     https://<your-netlify-site>/**
 --     https://<your-netlify-site>/auth/callback
 --     http://localhost:3000/auth/callback
 --     http://localhost:3001/auth/callback
+-- If Site URL stays on localhost, confirmation emails send phones to 127.0.0.1.
 -- Authentication → Providers → Email: enable Email and allow new users.
 
 drop policy if exists "Users can insert own profile" on public.profiles;

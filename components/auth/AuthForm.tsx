@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  getAuthCallbackUrl,
   mapAuthError,
   safeNextPath,
   signInWithEmail,
@@ -86,12 +87,12 @@ export function AuthForm({ mode }: AuthFormProps) {
         const data = await signUpWithEmail(
           email,
           password,
-          `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`
+          getAuthCallbackUrl(nextPath)
         );
 
         if (!data.session) {
           setInfo(
-            "Account created. Check your email to confirm, then sign in. Open the link on this device."
+            "Account created. Check your email and open the confirmation link to finish signing in."
           );
           setPassword("");
           setConfirmPassword("");

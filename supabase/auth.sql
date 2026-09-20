@@ -4,11 +4,13 @@
 -- Auth dashboard (required for live sign-up):
 -- Authentication → Providers → Email: enable Email, allow new users to sign up.
 -- Authentication → URL Configuration:
---   Site URL = your Netlify URL
+--   Site URL = your production Netlify URL (NOT localhost)
 --   Redirect URLs include:
+--     https://<your-netlify-site>/**
 --     https://<your-netlify-site>/auth/callback
 --     http://localhost:3000/auth/callback
 --     http://localhost:3001/auth/callback
+-- If Site URL is localhost, confirmation emails open 127.0.0.1 on mobile.
 --
 -- Also turn off email confirmation while testing locally:
 -- Authentication → Providers → Email → Confirm email (disable).

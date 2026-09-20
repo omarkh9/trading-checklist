@@ -5,6 +5,7 @@
   NEXT_PUBLIC_SUPABASE_URL = "https://agfzhwyhrrcbadbzvmpy.supabase.co"
   NEXT_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFnZnpod3locnJjYmFkYnp2bXB5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk4MzU3ODUsImV4cCI6MjEwNTQxMTc4NX0.WhUxOHsGYOHkad86--jDbiD6EmBNnoh8pDXHQwbQOpE"
   NEXT_PUBLIC_OWNER_EMAIL = "Omar.khallil@outlook.com"
+  # Netlify also injects URL at build time; next.config copies it to NEXT_PUBLIC_SITE_URL.
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"

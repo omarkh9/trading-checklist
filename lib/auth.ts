@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/client";
 import { ensureUserProfile } from "@/lib/supabase/profile";
 
 export { getOwnerEmail, isOwnerEmail, isOwnerUser } from "@/lib/owner";
-export { safeNextPath } from "@/lib/auth-path";
+export { getAuthCallbackUrl, safeNextPath } from "@/lib/auth-path";
 
 export function validateEmail(email: string) {
   const trimmed = email.trim();
