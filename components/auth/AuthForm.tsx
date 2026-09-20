@@ -1,10 +1,17 @@
 "use client";
 
-import { signInWithEmail, signUpWithEmail, validatePassword } from "@/lib/auth";
+import {
+  mapAuthError,
+  safeNextPath,
+  signInWithEmail,
+  signUpWithEmail,
+  validateEmail,
+  validatePassword,
+} from "@/lib/auth";
 import { Activity } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 const inputClass =
   "w-full rounded-lg border border-border bg-surface-overlay px-3 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none transition-colors focus:border-accent/50 focus:ring-1 focus:ring-accent/30";
@@ -15,9 +22,11 @@ type AuthFormProps = {
   mode: "login" | "signup";
 };
 
-function safeNextPath(value: string | null) {
-  if (!value || !value.startsWith("/") || value.startsWith("//")) return "/";
-  return value;
+function withNext(href: string, nextPath: string) {
+  if (nextPath === "/") return href;
+  const url = new URL(href, "http://local.invalid");
+  url.searchParams.set("next", nextPath);
+  return `${url.pathname}${url.search}`;
 }
 
 export function AuthForm({ mode }: AuthFormProps) {
@@ -26,20 +35,47 @@ export function AuthForm({ mode }: AuthFormProps) {
   const nextPath = safeNextPath(searchParams.get("next"));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isSignup = mode === "signup";
 
+  const queryError = useMemo(() => {
+    const description = searchParams.get("error_description");
+    const code = searchParams.get("error");
+    if (description) return description.replace(/\+/g, " ");
+    if (code === "auth") {
+      return "Could not confirm that email link. Request a new one or sign in.";
+    }
+    return null;
+  }, [searchParams]);
+
+  const queryInfo =
+    searchParams.get("confirmed") === "1"
+      ? "Email confirmed. Sign in to continue."
+      : null;
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
     setInfo(null);
 
+    const emailError = validateEmail(email);
+    if (emailError) {
+      setError(emailError);
+      return;
+    }
+
     const passwordError = validatePassword(password);
     if (passwordError) {
       setError(passwordError);
+      return;
+    }
+
+    if (isSignup && password !== confirmPassword) {
+      setError("Passwords do not match.");
       return;
     }
 
@@ -48,25 +84,27 @@ export function AuthForm({ mode }: AuthFormProps) {
     try {
       if (isSignup) {
         const data = await signUpWithEmail(
-          email.trim(),
+          email,
           password,
-          `${window.location.origin}/auth/callback`
+          `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`
         );
 
         if (!data.session) {
-          setInfo("Check your email to confirm your account, then sign in.");
+          setInfo(
+            "Account created. Check your email to confirm, then sign in. Open the link on this device."
+          );
+          setPassword("");
+          setConfirmPassword("");
           return;
         }
       } else {
-        await signInWithEmail(email.trim(), password);
+        await signInWithEmail(email, password);
       }
 
       router.replace(nextPath);
       router.refresh();
     } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : "Authentication failed."
-      );
+      setError(mapAuthError(cause));
     } finally {
       setIsSubmitting(false);
     }
@@ -87,7 +125,7 @@ export function AuthForm({ mode }: AuthFormProps) {
           </h1>
           <p className="mt-2 text-sm text-zinc-400">
             {isSignup
-              ? "Create an account to start logging trades."
+              ? "Create an account to start logging your own trades."
               : "Sign in to view and log your trades."}
           </p>
         </div>
@@ -96,14 +134,14 @@ export function AuthForm({ mode }: AuthFormProps) {
           onSubmit={handleSubmit}
           className="rounded-xl border border-border bg-surface-raised p-6"
         >
-          {error && (
+          {(error || queryError) && (
             <p className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
-              {error}
+              {error ?? queryError}
             </p>
           )}
-          {info && (
+          {(info || (!error && !queryError && queryInfo)) && (
             <p className="mb-4 rounded-lg border border-accent/30 bg-accent/10 px-3 py-2 text-sm text-accent-hover">
-              {info}
+              {info ?? queryInfo}
             </p>
           )}
 
@@ -140,6 +178,25 @@ export function AuthForm({ mode }: AuthFormProps) {
             />
           </div>
 
+          {isSignup && (
+            <div className="mt-4">
+              <label htmlFor="confirmPassword" className={labelClass}>
+                Confirm password
+              </label>
+              <input
+                id="confirmPassword"
+                type="password"
+                autoComplete="new-password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Re-enter your password"
+                className={inputClass}
+                required
+                minLength={8}
+              />
+            </div>
+          )}
+
           <button
             type="submit"
             disabled={isSubmitting}
@@ -158,7 +215,10 @@ export function AuthForm({ mode }: AuthFormProps) {
             {isSignup ? (
               <>
                 Already have an account?{" "}
-                <Link href="/login" className="text-accent-hover hover:text-white">
+                <Link
+                  href={withNext("/login", nextPath)}
+                  className="text-accent-hover hover:text-white"
+                >
                   Sign in
                 </Link>
               </>
@@ -166,7 +226,7 @@ export function AuthForm({ mode }: AuthFormProps) {
               <>
                 New here?{" "}
                 <Link
-                  href="/signup"
+                  href={withNext("/signup", nextPath)}
                   className="text-accent-hover hover:text-white"
                 >
                   Create an account
