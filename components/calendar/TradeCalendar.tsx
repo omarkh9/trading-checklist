@@ -1,9 +1,8 @@
 "use client";
 
-import { useAccounts } from "@/components/accounts/AccountProvider";
-import { useCachedTrades } from "@/components/trade-journal/useCachedTrades";
 import { TradeDetailCard } from "@/components/trade-journal/TradeDetailCard";
-import { tradesForAccount } from "@/lib/trades/account-balance";
+import { TradeForm } from "@/components/trade-journal/TradeForm";
+import { usePersistedTrades } from "@/components/trade-journal/usePersistedTrades";
 import {
   buildStartingEquityByDay,
   computeDayStats,
@@ -20,10 +19,10 @@ import {
 } from "@/lib/trades/day-stats";
 import { formatCalendarDateLabel, formatLocalMonthYear } from "@/lib/time";
 import { dateKeyFromDate } from "@/lib/trades/load-trades";
-import type { Trade } from "@/lib/types/trade";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
-import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import type { TradingAccount } from "@/lib/types/account";
+import type { Trade, TradeFormData } from "@/lib/types/trade";
+import { ChevronLeft, ChevronRight, NotebookPen, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 
@@ -150,6 +149,11 @@ type DayDetailModalProps = {
   trades: Trade[];
   stats: DayStats | null;
   metric: CalendarDisplayMetric;
+  accounts: TradingAccount[];
+  accountBalances: Record<string, number>;
+  defaultAccountId: string;
+  error: string | null;
+  onSubmit: (data: TradeFormData) => void | Promise<void>;
   onClose: () => void;
 };
 
@@ -158,6 +162,11 @@ function DayDetailModal({
   trades,
   stats,
   metric,
+  accounts,
+  accountBalances,
+  defaultAccountId,
+  error,
+  onSubmit,
   onClose,
 }: DayDetailModalProps) {
   useEffect(() => {
@@ -176,7 +185,7 @@ function DayDetailModal({
     <>
       <button
         type="button"
-        aria-label="Close day details"
+        aria-label="Close day journal"
         className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm"
         onClick={onClose}
       />
@@ -193,8 +202,8 @@ function DayDetailModal({
             </h3>
             <p className="mt-1 text-sm text-zinc-500">
               {trades.length === 0
-                ? "No trades logged on this day."
-                : `${formatTradeCount(trades.length)} logged`}
+                ? "Journal trades for this calendar day. The entry date is set automatically."
+                : `${formatTradeCount(trades.length)} logged — add another below if you are catching up.`}
             </p>
           </div>
           <button
@@ -208,27 +217,36 @@ function DayDetailModal({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5">
+          {error && (
+            <p className="mb-4 rounded-xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">
+              {error}
+            </p>
+          )}
+
           {stats && (
             <div className="mb-5">
               <DaySummaryCards stats={stats} metric={metric} />
             </div>
           )}
 
+          <TradeForm
+            key={dateKey}
+            embedded
+            entryDateKey={dateKey}
+            accounts={accounts}
+            accountBalances={accountBalances}
+            defaultAccountId={defaultAccountId}
+            submitLabel="Save to this day"
+            onSubmit={onSubmit}
+          />
+
           {trades.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-white/10 bg-white/[0.02] px-6 py-12 text-center">
-              <p className="text-sm text-zinc-400">
-                Log a trade in the journal to see it on your calendar.
-              </p>
-              <Link
-                href="/trade-journal"
-                onClick={onClose}
-                className="mt-4 inline-flex text-sm font-medium text-indigo-300 transition-colors hover:text-white"
-              >
-                Go to Trade Journal →
-              </Link>
-            </div>
+            <p className="mt-5 pb-2 text-center text-sm text-zinc-500">
+              No trades on this day yet. Save one above and it will land on this
+              calendar box.
+            </p>
           ) : (
-            <ul className="space-y-5 pb-2">
+            <ul className="mt-6 space-y-5 border-t border-white/10 pt-5 pb-2">
               {trades.map((trade, index) => (
                 <li key={trade.id}>
                   {trades.length > 1 && (
@@ -248,8 +266,15 @@ function DayDetailModal({
 }
 
 export function TradeCalendar() {
-  const { accounts, activeAccount, isLoaded: accountsLoaded } = useAccounts();
-  const { trades: allTrades, isLoaded: tradesLoaded } = useCachedTrades();
+  const {
+    trades,
+    accounts,
+    activeAccount,
+    accountBalances,
+    isLoaded,
+    error,
+    handleSubmit,
+  } = usePersistedTrades();
   const [viewDate, setViewDate] = useState(() => new Date());
   const [modalDateKey, setModalDateKey] = useState<string | null>(null);
   const [metric, setMetric] = useState<CalendarDisplayMetric>("dollar");
@@ -258,11 +283,7 @@ export function TradeCalendar() {
     setMetric(loadCalendarDisplayMetric());
   }, []);
 
-  const fallbackId = accounts[0]?.id ?? "";
-  const trades = useMemo(
-    () => tradesForAccount(allTrades, activeAccount?.id ?? "", fallbackId),
-    [allTrades, activeAccount?.id, fallbackId]
-  );
+  const closeModal = useCallback(() => setModalDateKey(null), []);
   const startingBalance = activeAccount?.startingBalance ?? 0;
 
   const tradesByDay = useMemo(() => groupTradesByDay(trades), [trades]);
@@ -316,7 +337,7 @@ export function TradeCalendar() {
     saveCalendarDisplayMetric(next);
   };
 
-  if (!tradesLoaded || !accountsLoaded) {
+  if (!isLoaded) {
     return (
       <div className="animate-pulse space-y-4">
         <div className="h-12 rounded-2xl bg-[#0c0c16]/80" />
@@ -339,8 +360,8 @@ export function TradeCalendar() {
               </h3>
               <p className="mt-1 text-sm text-zinc-500">
                 {activeAccount
-                  ? `${activeAccount.name} — days are colored by net P/L. Click a date for full details.`
-                  : "Days are colored by net P/L. Click a date for full details."}
+                  ? `${activeAccount.name} — click any date to journal trades for that day.`
+                  : "Click any date to journal trades for that day."}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -425,8 +446,8 @@ export function TradeCalendar() {
 
               const metricLabel = stats ? formatDayMetric(stats, metric) : "";
               const ariaLabel = stats
-                ? `${date.getDate()}, ${metricLabel}, ${formatTradeCount(stats.tradeCount)}, ${formatWinRate(stats.winRate)} win rate`
-                : `${date.getDate()}, no trades`;
+                ? `${date.getDate()}, ${metricLabel}, ${formatTradeCount(stats.tradeCount)}, ${formatWinRate(stats.winRate)} win rate. Click to journal trades for this day.`
+                : `${date.getDate()}, no trades. Click to journal trades for this day.`;
 
               return (
                 <button
@@ -444,7 +465,7 @@ export function TradeCalendar() {
                     {date.getDate()}
                   </span>
 
-                  {stats && (
+                  {stats ? (
                     <div className="mt-auto space-y-0.5 sm:space-y-1">
                       <p
                         className={`truncate font-mono text-[11px] font-semibold leading-tight tabular-nums sm:text-sm ${dayToneMetricClass[stats.tone]}`}
@@ -458,6 +479,11 @@ export function TradeCalendar() {
                         {formatWinRate(stats.winRate)}
                       </p>
                     </div>
+                  ) : (
+                    <span className="mt-auto inline-flex items-center gap-1 text-[10px] font-medium text-zinc-500 sm:text-xs">
+                      <NotebookPen className="h-3 w-3" />
+                      Log
+                    </span>
                   )}
                 </button>
               );
@@ -488,7 +514,12 @@ export function TradeCalendar() {
           trades={modalTrades}
           stats={modalStats}
           metric={metric}
-          onClose={() => setModalDateKey(null)}
+          accounts={accounts}
+          accountBalances={accountBalances}
+          defaultAccountId={activeAccount?.id ?? accounts[0]?.id ?? ""}
+          error={error}
+          onSubmit={handleSubmit}
+          onClose={closeModal}
         />
       )}
     </>

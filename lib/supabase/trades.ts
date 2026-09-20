@@ -155,6 +155,7 @@ export function tradeFormToInsert(
     notes: data.notes,
     before_chart: data.beforeChart,
     after_chart: data.afterChart,
+    ...(data.createdAt ? { created_at: data.createdAt } : {}),
   };
 }
 

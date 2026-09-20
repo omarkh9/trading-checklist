@@ -31,7 +31,9 @@ export type Trade = {
   createdAt: string;
 };
 
-export type TradeFormData = Omit<Trade, "id" | "createdAt">;
+export type TradeFormData = Omit<Trade, "id" | "createdAt"> & {
+  createdAt?: string;
+};
 
 export const emptyTradeForm = (): TradeFormData => ({
   pair: "",

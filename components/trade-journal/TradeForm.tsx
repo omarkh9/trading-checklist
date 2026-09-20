@@ -23,6 +23,7 @@ import {
 import type { TradingAccount } from "@/lib/types/account";
 import { DeskCard } from "@/components/ui/DeskCard";
 import { desk } from "@/lib/ui/desk";
+import { formatCalendarDateLabel, isoTimestampForDateKey } from "@/lib/time";
 import { ChevronDown, Save } from "lucide-react";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 
@@ -35,6 +36,7 @@ type TradeFormProps = {
   onCancel?: () => void;
   submitLabel?: string;
   embedded?: boolean;
+  entryDateKey?: string;
 };
 
 const KNOWN_SYMBOLS = listKnownSymbols();
@@ -168,6 +170,7 @@ export const TradeForm = memo(function TradeForm({
   onCancel,
   submitLabel = "Save Trade",
   embedded = false,
+  entryDateKey,
 }: TradeFormProps) {
   const [form, setForm] = useState<TradeFormData>(() => ({
     ...(initialData ?? emptyTradeForm()),
@@ -271,6 +274,9 @@ export const TradeForm = memo(function TradeForm({
         lotSize: displayLotSize === "—" ? "" : displayLotSize,
         accountBalanceAtEntry: currentBalance,
         accountId: form.accountId || defaultAccountId,
+        createdAt: entryDateKey
+          ? isoTimestampForDateKey(entryDateKey)
+          : form.createdAt,
       });
       if (!initialData) {
         setForm({
@@ -289,10 +295,15 @@ export const TradeForm = memo(function TradeForm({
 
   const formBody = (
     <>
-      <h3 className={desk.title}>Log New Trade</h3>
+      <h3 className={desk.title}>
+        {entryDateKey
+          ? `Log trade for ${formatCalendarDateLabel(entryDateKey)}`
+          : "Log New Trade"}
+      </h3>
       <p className={desk.subtitle}>
-        Attach chart screenshots for each timeframe, then capture execution,
-        risk, and outcome details below.
+        {entryDateKey
+          ? "This entry is dated to the calendar day you selected, so weekend batch logging lands on the right box."
+          : "Attach chart screenshots for each timeframe, then capture execution, risk, and outcome details below."}
       </p>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

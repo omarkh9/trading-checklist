@@ -125,6 +125,12 @@ export function formatCalendarDateLabel(dateKey: string): string {
   });
 }
 
+export function isoTimestampForDateKey(dateKey: string): string {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  if (!year || !month || !day) return new Date().toISOString();
+  return new Date(year, month - 1, day, 12, 0, 0, 0).toISOString();
+}
+
 export function startOfLocalWeek(date: Date = new Date()): Date {
   const [year, month, day] = localDateKey(date).split("-").map(Number);
   const start = new Date(year, month - 1, day, 0, 0, 0, 0);
