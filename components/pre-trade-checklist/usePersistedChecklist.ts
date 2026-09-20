@@ -15,10 +15,10 @@ import {
   type ChecklistItem,
   type ChecklistSession,
 } from "@/lib/types/checklist";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export function usePersistedChecklist() {
-  const sessionDate = useMemo(() => localDateKey(), []);
+  const [sessionDate, setSessionDate] = useState(() => localDateKey());
   const [rules, setRules] = useState<ChecklistItem[]>([]);
   const [session, setSession] = useState<ChecklistSession>({
     date: sessionDate,
@@ -29,6 +29,10 @@ export function usePersistedChecklist() {
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const sessionRef = useRef(session);
+
+  useEffect(() => {
+    setSessionDate(localDateKey());
+  }, []);
 
   useEffect(() => {
     sessionRef.current = session;

@@ -3,6 +3,7 @@
 import { ConfidenceMeter } from "@/components/pre-trade-checklist/ConfidenceMeter";
 import { usePersistedChecklist } from "@/components/pre-trade-checklist/usePersistedChecklist";
 import { DeskCard } from "@/components/ui/DeskCard";
+import { formatCalendarDateLabel } from "@/lib/time";
 import { SUGGESTED_RULES, type ChecklistItem } from "@/lib/types/checklist";
 import { desk } from "@/lib/ui/desk";
 import {
@@ -26,12 +27,7 @@ import { useState } from "react";
 const inputClass = desk.input;
 
 function sessionHeading(dateKey: string) {
-  const [year, month, day] = dateKey.split("-").map(Number);
-  return new Date(year, month - 1, day).toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  });
+  return formatCalendarDateLabel(dateKey);
 }
 
 function RuleComposer({

@@ -1,3 +1,5 @@
+export { localDateKey } from "@/lib/time";
+
 export type ChecklistRule = {
   id: string;
   label: string;
@@ -43,11 +45,4 @@ export function withDailyChecks(
     ...rule,
     checked: checked.has(rule.id),
   }));
-}
-
-export function localDateKey(date = new Date()) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
 }

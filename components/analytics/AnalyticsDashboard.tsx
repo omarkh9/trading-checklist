@@ -12,6 +12,7 @@ import {
   type EquityPoint,
   type StrategyPerformance,
 } from "@/lib/trades/analytics";
+import { formatLocalDateTime } from "@/lib/time";
 import { formatCompactPnl, formatWinRate } from "@/lib/trades/day-stats";
 import { formatPnlDollars } from "@/lib/trades/pnl";
 import type { Trade } from "@/lib/types/trade";
@@ -121,7 +122,9 @@ function EquityTooltip({
       <p className="font-medium text-zinc-100">
         {point.pair} · Trade {point.tradeNumber}
       </p>
-      <p className="mt-1 text-zinc-400">{point.label}</p>
+      <p className="mt-1 text-zinc-400">
+        {point.at ? formatLocalDateTime(point.at) : point.label}
+      </p>
       <p className="mt-1">Trade P/L {formatPnlDollars(point.pnl)}</p>
       <p>Cumulative {formatPnlDollars(point.cumulative)}</p>
     </div>

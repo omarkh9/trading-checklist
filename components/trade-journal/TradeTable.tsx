@@ -2,6 +2,7 @@
 
 import { TradeDetailCard } from "@/components/trade-journal/TradeDetailCard";
 import { ASSET_CLASS_LABELS, resolveAsset } from "@/lib/trades/assets";
+import { formatLocalDateTime } from "@/lib/time";
 import { formatPnlDollars } from "@/lib/trades/pnl";
 import type { Direction, Outcome, Trade } from "@/lib/types/trade";
 import { assetClassBadgeClass } from "@/lib/ui/desk";
@@ -25,13 +26,7 @@ const directionStyles: Record<Direction, string> = {
 };
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatLocalDateTime(iso);
 }
 
 export function TradeTable({ trades, onDelete }: TradeTableProps) {

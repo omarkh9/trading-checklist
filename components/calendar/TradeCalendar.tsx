@@ -16,6 +16,7 @@ import {
   type DayStats,
   type DayTone,
 } from "@/lib/trades/day-stats";
+import { formatCalendarDateLabel, formatLocalMonthYear } from "@/lib/time";
 import { dateKeyFromDate } from "@/lib/trades/load-trades";
 import { fetchTrades } from "@/lib/supabase/trades";
 import type { Trade } from "@/lib/types/trade";
@@ -59,17 +60,11 @@ function buildCalendarDays(year: number, month: number): (Date | null)[] {
 }
 
 function formatMonthLabel(date: Date) {
-  return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  return formatLocalMonthYear(date);
 }
 
 function formatSelectedLabel(dateKey: string) {
-  const [y, m, d] = dateKey.split("-").map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
+  return formatCalendarDateLabel(dateKey);
 }
 
 function MetricToggle({

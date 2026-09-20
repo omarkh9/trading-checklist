@@ -1,4 +1,5 @@
 import { CALENDAR_METRIC_STORAGE_KEY } from "@/lib/storage/keys";
+import { timestampMs } from "@/lib/time";
 import { sumTradePnl } from "@/lib/trades/pnl";
 import { tradeDateKey } from "@/lib/trades/load-trades";
 import type { Trade } from "@/lib/types/trade";
@@ -36,7 +37,7 @@ export function computeDayStats(
   if (!(basis > 0) && tradeCount > 0) {
     const first = [...dayTrades].sort(
       (a, b) =>
-        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        timestampMs(a.createdAt) - timestampMs(b.createdAt)
     )[0];
     basis = first.accountBalanceAtEntry;
   }
@@ -79,7 +80,7 @@ export function startingEquityForDay(
   if (dayTrades.length > 0) {
     const first = [...dayTrades].sort(
       (a, b) =>
-        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        timestampMs(a.createdAt) - timestampMs(b.createdAt)
     )[0];
     if (first.accountBalanceAtEntry > 0) return first.accountBalanceAtEntry;
   }
@@ -152,7 +153,7 @@ export function groupTradesByDay(trades: Trade[]): Map<string, Trade[]> {
   for (const list of map.values()) {
     list.sort(
       (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        timestampMs(b.createdAt) - timestampMs(a.createdAt)
     );
   }
   return map;

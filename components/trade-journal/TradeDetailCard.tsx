@@ -1,5 +1,6 @@
 "use client";
 
+import { formatLocalDateTime } from "@/lib/time";
 import { ASSET_CLASS_LABELS, resolveAsset } from "@/lib/trades/assets";
 import { formatPnlDollars } from "@/lib/trades/pnl";
 import type { Direction, Outcome, Trade } from "@/lib/types/trade";
@@ -17,14 +18,7 @@ const directionBadgeClass: Record<Direction, string> = {
 };
 
 function formatTradeDateTime(iso: string) {
-  return new Date(iso).toLocaleDateString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatLocalDateTime(iso);
 }
 
 function formatPnlSummary(trade: Trade) {

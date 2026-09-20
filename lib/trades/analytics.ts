@@ -1,4 +1,5 @@
 import { formatCompactPnl } from "@/lib/trades/day-stats";
+import { formatLocalDateShort, timestampMs } from "@/lib/time";
 import { sumTradePnl } from "@/lib/trades/pnl";
 import type { Trade } from "@/lib/types/trade";
 
@@ -40,7 +41,7 @@ const UNTAGGED = "Untagged";
 function chronologicalTrades(trades: Trade[]): Trade[] {
   return [...trades].sort((a, b) => {
     const delta =
-      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      timestampMs(a.createdAt) - timestampMs(b.createdAt);
     return delta !== 0 ? delta : a.id.localeCompare(b.id);
   });
 }
@@ -78,10 +79,7 @@ export function buildEquityCurve(trades: Trade[]): EquityPoint[] {
       tradeId: trade.id,
       pair: trade.pair,
       at: trade.createdAt,
-      label: new Date(trade.createdAt).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-      }),
+      label: formatLocalDateShort(trade.createdAt),
       tradeNumber: index + 1,
       pnl: trade.pnlDollars ?? 0,
       cumulative,

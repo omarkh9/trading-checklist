@@ -1,3 +1,5 @@
+import { getUserTimeZone } from "@/lib/time";
+
 export type SessionId = "sydney" | "tokyo" | "london" | "newyork";
 
 export type MarketSession = {
@@ -156,8 +158,8 @@ function addDays(year: number, month: number, day: number, delta: number) {
   };
 }
 
-export function detectUserTimeZone(): string {
-  return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+export function detectUserTimeZone() {
+  return getUserTimeZone();
 }
 
 export function formatTimeZoneShort(date: Date, timeZone: string): string {

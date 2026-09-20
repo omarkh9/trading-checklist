@@ -4,6 +4,7 @@ import { TradeDetailModal } from "@/components/trade-journal/TradeDetailModal";
 import { TradeEditModal } from "@/components/trade-journal/TradeEditModal";
 import { computeCurrentBalance } from "@/lib/trades/account-balance";
 import { ASSET_CLASS_LABELS, resolveAsset } from "@/lib/trades/assets";
+import { formatLocalDateTime, timestampMs } from "@/lib/time";
 import { formatPnlDollars } from "@/lib/trades/pnl";
 import type { Direction, Outcome, Trade, TradeFormData } from "@/lib/types/trade";
 import { assetClassBadgeClass } from "@/lib/ui/desk";
@@ -35,13 +36,7 @@ const directionBadgeClass: Record<Direction, string> = {
 const FILTER_TABS: FilterTab[] = ["All", "Win", "Loss", "Breakeven"];
 
 function formatCardDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatLocalDateTime(iso);
 }
 
 export function TradeHistoryGrid({
@@ -60,7 +55,7 @@ export function TradeHistoryGrid({
     () =>
       [...trades].sort(
         (a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          timestampMs(b.createdAt) - timestampMs(a.createdAt)
       ),
     [trades]
   );

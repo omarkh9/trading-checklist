@@ -4,6 +4,11 @@ import type { Outcome, Trade } from "@/lib/types/trade";
 import { fetchChecklistSnapshot } from "@/lib/supabase/checklist";
 import { fetchTrades } from "@/lib/supabase/trades";
 import { withDailyChecks, type ChecklistItem } from "@/lib/types/checklist";
+import {
+  formatLocalDate,
+  startOfLocalWeek,
+  timestampMs,
+} from "@/lib/time";
 import { formatPnlDollars } from "@/lib/trades/pnl";
 import {
   ArrowRight,
@@ -14,15 +19,6 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-
-function startOfWeek(date: Date): Date {
-  const d = new Date(date);
-  const day = d.getDay();
-  const diff = day === 0 ? 6 : day - 1;
-  d.setDate(d.getDate() - diff);
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
 
 function computeRiskReward(trade: Trade): number | null {
   const entry = parseFloat(trade.entryPrice);
@@ -227,9 +223,9 @@ export function DashboardHome() {
   }, []);
 
   const metrics = useMemo(() => {
-    const weekStart = startOfWeek(new Date());
+    const weekStart = startOfLocalWeek(new Date());
     const tradesThisWeek = trades.filter(
-      (t) => new Date(t.createdAt) >= weekStart
+      (t) => timestampMs(t.createdAt) >= weekStart.getTime()
     );
     const wins = trades.filter((t) => t.outcome === "Win").length;
     const winRate =
@@ -253,7 +249,7 @@ export function DashboardHome() {
     const recentTrades = [...trades]
       .sort(
         (a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          timestampMs(b.createdAt) - timestampMs(a.createdAt)
       )
       .slice(0, 5);
 
@@ -451,7 +447,7 @@ export function DashboardHome() {
                           {formatPnlDollars(pnl)}
                         </p>
                         <p className="mt-0.5 text-[11px] text-zinc-500">
-                          {new Date(trade.createdAt).toLocaleDateString()}
+                          {formatLocalDate(trade.createdAt)}
                         </p>
                       </div>
                     </div>
