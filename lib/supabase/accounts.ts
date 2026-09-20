@@ -31,10 +31,34 @@ function throwIfError(error: { message: string } | null) {
 
 function isMissingAccountsTable(error: { message: string } | null) {
   const message = error?.message.toLowerCase() ?? "";
+  if (
+    message.includes("trades_account_id_fkey") ||
+    message.includes("foreign key")
+  ) {
+    return false;
+  }
   return (
-    message.includes("schema cache") ||
-    message.includes("trading_accounts") ||
-    (message.includes("does not exist") && message.includes("account"))
+    (message.includes("could not find the table") &&
+      message.includes("trading_accounts")) ||
+    (message.includes("schema cache") &&
+      message.includes("trading_accounts") &&
+      message.includes("table"))
+  );
+}
+
+function isAccountNameTaken(error: { message: string } | null) {
+  const message = error?.message.toLowerCase() ?? "";
+  return (
+    message.includes("trading_accounts_user_name") ||
+    (message.includes("duplicate") && message.includes("name"))
+  );
+}
+
+function isAccountIdTaken(error: { message: string } | null) {
+  const message = error?.message.toLowerCase() ?? "";
+  return (
+    message.includes("trading_accounts_pkey") ||
+    (message.includes("duplicate key") && message.includes("(id)"))
   );
 }
 
@@ -212,7 +236,14 @@ async function syncMappedTradeAccounts(
     byAccount.set(accountId, list);
   }
 
+  const { data: remoteRows } = await supabase
+    .from("trading_accounts")
+    .select("id")
+    .eq("user_id", userId);
+  const remoteIds = new Set((remoteRows ?? []).map((row) => row.id));
+
   for (const [accountId, tradeIds] of byAccount) {
+    if (!remoteIds.has(accountId)) continue;
     const { error } = await supabase
       .from("trades")
       .update({ account_id: accountId })
@@ -221,6 +252,12 @@ async function syncMappedTradeAccounts(
     if (error && isMissingAccountsTable(error)) return;
     if (error) {
       const message = error.message.toLowerCase();
+      if (
+        message.includes("trades_account_id_fkey") ||
+        message.includes("foreign key")
+      ) {
+        continue;
+      }
       if (!message.includes("account_id")) throwIfError(error);
       return;
     }
@@ -233,6 +270,13 @@ async function backfillTradeAccounts(
   accountId: string
 ) {
   if (!accountId) return;
+  const { data: exists } = await supabase
+    .from("trading_accounts")
+    .select("id")
+    .eq("id", accountId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (!exists) return;
   const { error } = await supabase
     .from("trades")
     .update({ account_id: accountId })
@@ -279,6 +323,36 @@ function remapTradeAccounts(fromId: string, toId: string) {
   if (readActiveAccountId() === fromId) writeActiveAccountId(toId);
 }
 
+async function findRemoteAccountById(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  accountId: string
+) {
+  const { data, error } = await supabase
+    .from("trading_accounts")
+    .select("*")
+    .eq("id", accountId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error || !data) return null;
+  return accountFromRow(data);
+}
+
+async function findRemoteAccountByName(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  name: string
+) {
+  const { data, error } = await supabase
+    .from("trading_accounts")
+    .select("*")
+    .eq("user_id", userId)
+    .ilike("name", name)
+    .maybeSingle();
+  if (error || !data) return null;
+  return accountFromRow(data);
+}
+
 async function insertRemoteAccount(
   supabase: ReturnType<typeof createClient>,
   userId: string,
@@ -297,8 +371,38 @@ async function insertRemoteAccount(
     .select()
     .single();
   if (isMissingAccountsTable(error)) return null;
+  if (isAccountIdTaken(error)) {
+    return findRemoteAccountById(supabase, userId, account.id);
+  }
+  if (isAccountNameTaken(error)) {
+    const existing = await findRemoteAccountByName(supabase, userId, account.name);
+    if (existing) {
+      if (existing.id !== account.id) remapTradeAccounts(account.id, existing.id);
+      return existing;
+    }
+  }
   throwIfError(error);
   return data ? accountFromRow(data) : null;
+}
+
+export async function ensureTradingAccountPersisted(accountId: string) {
+  if (!accountId) return "";
+  const { supabase, userId } = await requireUserId();
+  const existing = await findRemoteAccountById(supabase, userId, accountId);
+  if (existing) return existing.id;
+
+  const local =
+    cachedAccounts?.find((account) => account.id === accountId) ??
+    readLocalAccounts().find((account) => account.id === accountId);
+  if (!local) return "";
+
+  const row = await insertRemoteAccount(supabase, userId, local);
+  if (row && cachedAccounts) {
+    rememberAccounts(
+      cachedAccounts.map((account) => (account.id === accountId ? row : account))
+    );
+  }
+  return row?.id ?? "";
 }
 
 export async function loadTradingAccounts(options?: {
@@ -370,7 +474,7 @@ export async function createTradingAccount(input?: {
   name?: string;
   startingBalance?: number;
 }): Promise<TradingAccount> {
-  const existing = await getExistingAccounts();
+  const existing = await loadTradingAccounts({ force: true });
   if (existing.length >= MAX_TRADING_ACCOUNTS) {
     throw new Error(`You can keep up to ${MAX_TRADING_ACCOUNTS} trading accounts.`);
   }
@@ -399,9 +503,16 @@ export async function createTradingAccount(input?: {
   };
 
   const { supabase, userId } = await requireUserId();
-  const remote = await insertRemoteAccount(supabase, userId, draft);
-  const created = remote ?? draft;
-  rememberAccounts([...existing, created]);
+  const created = await insertRemoteAccount(supabase, userId, draft);
+  if (!created) {
+    throw new Error("Could not save the trading account. Try again.");
+  }
+  rememberAccounts(
+    existing.some((account) => account.id === created.id)
+      ? existing.map((account) => (account.id === created.id ? created : account))
+      : [...existing, created]
+  );
+  writeActiveAccountId(created.id);
   return created;
 }
 

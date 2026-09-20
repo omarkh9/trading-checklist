@@ -1,3 +1,4 @@
+import { ensureTradingAccountPersisted } from "@/lib/supabase/accounts";
 import { createClient } from "@/lib/supabase/client";
 import type { TradeInsert, TradeRow, TradeUpdate } from "@/lib/supabase/database.types";
 import {
@@ -25,9 +26,23 @@ function isMissingStrategyColumn(error: { message: string } | null) {
 
 function isMissingAccountColumn(error: { message: string } | null) {
   const message = error?.message.toLowerCase() ?? "";
+  if (
+    message.includes("trades_account_id_fkey") ||
+    message.includes("foreign key")
+  ) {
+    return false;
+  }
   return (
-    message.includes("account_id") ||
-    message.includes("trading_accounts")
+    (message.includes("column") && message.includes("account_id")) ||
+    (message.includes("schema cache") && message.includes("account_id"))
+  );
+}
+
+function isAccountForeignKeyViolation(error: { message: string } | null) {
+  const message = error?.message.toLowerCase() ?? "";
+  return (
+    message.includes("trades_account_id_fkey") ||
+    (message.includes("foreign key") && message.includes("account_id"))
   );
 }
 
@@ -207,14 +222,38 @@ export async function fetchTrades(options?: { force?: boolean }): Promise<Trade[
   return loadTradesCache(fetchTradesFromNetwork, options?.force);
 }
 
+async function attachPersistedAccountId<
+  T extends { account_id?: string | null },
+>(payload: T, accountId: string | null | undefined): Promise<T> {
+  const requested = accountId?.trim() || payload.account_id || "";
+  if (!requested) return withoutAccountId(payload) as T;
+  const persisted = await ensureTradingAccountPersisted(requested);
+  if (!persisted) return withoutAccountId(payload) as T;
+  return { ...payload, account_id: persisted };
+}
+
 export async function insertTrade(data: TradeFormData): Promise<Trade> {
   const { supabase, userId } = await requireUserId();
-  let payload: TradeInsert = tradeFormToInsert(data, userId);
+  let payload: TradeInsert = await attachPersistedAccountId(
+    tradeFormToInsert(data, userId),
+    data.accountId
+  );
   let { data: row, error } = await supabase
     .from("trades")
     .insert(payload)
     .select()
     .single();
+
+  if (isAccountForeignKeyViolation(error) && payload.account_id) {
+    payload = await attachPersistedAccountId(payload, payload.account_id);
+    const retry = await supabase
+      .from("trades")
+      .insert(payload)
+      .select()
+      .single();
+    row = retry.data;
+    error = retry.error;
+  }
 
   if (isMissingAccountColumn(error)) {
     payload = withoutAccountId(payload);
@@ -243,7 +282,8 @@ export async function insertTrade(data: TradeFormData): Promise<Trade> {
 
   throwIfError(error);
   if (!row) throw new Error("Trade was not saved.");
-  if (data.accountId) writeTradeAccountMapEntry(row.id, data.accountId);
+  const accountId = payload.account_id || data.accountId;
+  if (accountId) writeTradeAccountMapEntry(row.id, accountId);
   const created = applyAccountFallback(
     normalizeTrade(tradeFromRow(row)),
     readTradeAccountMap()
@@ -257,7 +297,10 @@ export async function updateTrade(
   data: TradeFormData
 ): Promise<Trade> {
   const { supabase, userId } = await requireUserId();
-  let payload: TradeUpdate = tradeFormToUpdate(data);
+  let payload: TradeUpdate = await attachPersistedAccountId(
+    tradeFormToUpdate(data),
+    data.accountId
+  );
   let { data: row, error } = await supabase
     .from("trades")
     .update(payload)
@@ -265,6 +308,19 @@ export async function updateTrade(
     .eq("user_id", userId)
     .select()
     .single();
+
+  if (isAccountForeignKeyViolation(error) && payload.account_id) {
+    payload = await attachPersistedAccountId(payload, payload.account_id);
+    const retry = await supabase
+      .from("trades")
+      .update(payload)
+      .eq("id", id)
+      .eq("user_id", userId)
+      .select()
+      .single();
+    row = retry.data;
+    error = retry.error;
+  }
 
   if (isMissingAccountColumn(error)) {
     payload = withoutAccountId(payload);
@@ -297,7 +353,8 @@ export async function updateTrade(
 
   throwIfError(error);
   if (!row) throw new Error("Trade was not updated.");
-  if (data.accountId) writeTradeAccountMapEntry(id, data.accountId);
+  const accountId = payload.account_id || data.accountId;
+  if (accountId) writeTradeAccountMapEntry(id, accountId);
   const updated = applyAccountFallback(
     normalizeTrade(tradeFromRow(row)),
     readTradeAccountMap()

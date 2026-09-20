@@ -3,6 +3,7 @@
 import {
   createTradingAccount,
   deleteTradingAccount,
+  ensureTradingAccountPersisted,
   linkMt5Account,
   loadTradingAccounts,
   readActiveAccountId,
@@ -89,7 +90,8 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
         const next = await loadTradingAccounts();
         if (cancelled) return;
         setAccounts(next);
-        selectAccount(readActiveAccountId(), next);
+        const resolved = selectAccount(readActiveAccountId(), next);
+        if (resolved) void ensureTradingAccountPersisted(resolved);
         setError(null);
       } catch (cause) {
         if (cancelled) return;
@@ -132,7 +134,8 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
 
   const setActiveAccountId = useCallback(
     (id: string) => {
-      selectAccount(id, accountsRef.current);
+      const resolved = selectAccount(id, accountsRef.current);
+      if (resolved) void ensureTradingAccountPersisted(resolved);
     },
     [selectAccount]
   );
@@ -142,7 +145,9 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       try {
         const created = await createTradingAccount(input);
         setAccounts((prev) => {
-          const next = [...prev, created];
+          const next = prev.some((account) => account.id === created.id)
+            ? prev.map((account) => (account.id === created.id ? created : account))
+            : [...prev, created];
           selectAccount(created.id, next);
           return next;
         });
