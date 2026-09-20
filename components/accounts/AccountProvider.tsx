@@ -191,8 +191,9 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
   const connectMt5Account = useCallback(
     async (id: string, credentials: TradingAccountMt5Credentials) => {
       try {
-        const next = await linkMt5Account(id, credentials);
-        setAccounts(next);
+        const result = await linkMt5Account(id, credentials);
+        setAccounts(result.accounts);
+        selectAccount(result.accountId, result.accounts);
         setError(null);
       } catch (cause) {
         const message = errorMessage(cause);
@@ -200,7 +201,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
         throw cause;
       }
     },
-    []
+    [selectAccount]
   );
 
   const disconnectMt5Account = useCallback(async (id: string) => {

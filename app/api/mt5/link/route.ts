@@ -8,16 +8,32 @@ import {
 import { generateMt5WebhookToken, hashMt5WebhookToken } from "@/lib/mt5/token";
 import { getMt5WebhookUrl } from "@/lib/mt5/webhook";
 import { createClient } from "@/lib/supabase/server";
-import { emptyMt5Link } from "@/lib/types/account";
+import {
+  DEFAULT_STARTING_BALANCE,
+  emptyMt5Link,
+  MAX_TRADING_ACCOUNTS,
+  normalizeAccountName,
+} from "@/lib/types/account";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+type AccountRef = {
+  id: string;
+  mt5_connection_id: string | null;
+};
 
 function json(body: Record<string, unknown>, status = 200) {
   return NextResponse.json(body, {
     status,
     headers: { "Cache-Control": "no-store" },
   });
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value
+  );
 }
 
 function isMissingMt5Schema(message: string) {
@@ -27,6 +43,17 @@ function isMissingMt5Schema(message: string) {
     normalized.includes("schema cache") ||
     normalized.includes("does not exist")
   );
+}
+
+function uniqueMt5AccountName(login: string, existingNames: string[]) {
+  const taken = new Set(existingNames.map((name) => name.toLowerCase()));
+  const base = normalizeAccountName(`MT5 ${login}`);
+  if (!taken.has(base.toLowerCase())) return base;
+  for (let index = 2; index <= MAX_TRADING_ACCOUNTS + 2; index += 1) {
+    const candidate = normalizeAccountName(`${base} ${index}`);
+    if (!taken.has(candidate.toLowerCase())) return candidate;
+  }
+  return normalizeAccountName(`${base} ${Date.now().toString().slice(-4)}`);
 }
 
 export async function POST(request: Request) {
@@ -43,10 +70,8 @@ export async function POST(request: Request) {
     return json({ ok: false, error: "invalid_json" }, 400);
   }
 
-  const accountId = typeof body.accountId === "string" ? body.accountId : "";
-  if (!accountId) {
-    return json({ ok: false, error: "Account is required." }, 400);
-  }
+  const requestedAccountId =
+    typeof body.accountId === "string" ? body.accountId.trim() : "";
 
   const parsed = validateMt5LinkInput({
     login: typeof body.login === "string" ? body.login : "",
@@ -60,26 +85,32 @@ export async function POST(request: Request) {
   });
   if (!parsed.ok) return json({ ok: false, error: parsed.error }, 400);
 
-  const { data: account, error: accountError } = await supabase
+  const { data: existingRows, error: listError } = await supabase
     .from("trading_accounts")
-    .select("id, mt5_connection_id")
-    .eq("id", accountId)
-    .eq("user_id", user.id)
-    .maybeSingle();
+    .select("id, name, mt5_login, mt5_connection_id")
+    .eq("user_id", user.id);
 
-  if (accountError || !account) {
-    return json({ ok: false, error: "Trading account not found." }, 404);
+  if (listError) {
+    if (isMissingMt5Schema(listError.message)) {
+      return json(
+        {
+          ok: false,
+          error:
+            "MT5 columns are missing. Run supabase/mt5.sql in the Supabase SQL editor.",
+        },
+        503
+      );
+    }
+    return json({ ok: false, error: listError.message }, 400);
   }
 
-  const { data: taken } = await supabase
-    .from("trading_accounts")
-    .select("id")
-    .eq("user_id", user.id)
-    .eq("mt5_login", parsed.login)
-    .neq("id", accountId)
-    .maybeSingle();
+  const rows = existingRows ?? [];
+  const byId = requestedAccountId
+    ? rows.find((row) => row.id === requestedAccountId)
+    : undefined;
+  const byLogin = rows.find((row) => row.mt5_login === parsed.login);
 
-  if (taken) {
+  if (byId && byLogin && byId.id !== byLogin.id) {
     return json(
       {
         ok: false,
@@ -87,6 +118,41 @@ export async function POST(request: Request) {
       },
       409
     );
+  }
+
+  let target: AccountRef;
+  let created = false;
+  let createdName = "";
+
+  if (byLogin) {
+    target = {
+      id: byLogin.id,
+      mt5_connection_id: byLogin.mt5_connection_id,
+    };
+  } else if (byId) {
+    target = {
+      id: byId.id,
+      mt5_connection_id: byId.mt5_connection_id,
+    };
+  } else {
+    if (rows.length >= MAX_TRADING_ACCOUNTS) {
+      return json(
+        {
+          ok: false,
+          error: `You can keep up to ${MAX_TRADING_ACCOUNTS} trading accounts.`,
+        },
+        409
+      );
+    }
+    created = true;
+    createdName = uniqueMt5AccountName(
+      parsed.login,
+      rows.map((row) => row.name)
+    );
+    target = {
+      id: isUuid(requestedAccountId) ? requestedAccountId : crypto.randomUUID(),
+      mt5_connection_id: null,
+    };
   }
 
   const webhookToken = generateMt5WebhookToken();
@@ -98,7 +164,7 @@ export async function POST(request: Request) {
       login: parsed.login,
       investorPassword: parsed.investorPassword,
       server: parsed.server,
-      accountId,
+      accountId: target.id,
       userId: user.id,
       webhookUrl: getMt5WebhookUrl(),
       webhookToken,
@@ -108,31 +174,61 @@ export async function POST(request: Request) {
       cause instanceof Mt5GatewayError
         ? cause.message
         : "Could not validate those MT5 credentials.";
-    const status = cause instanceof Mt5GatewayError && cause.code === "unavailable" ? 503 : 422;
+    const status =
+      cause instanceof Mt5GatewayError && cause.code === "unavailable"
+        ? 503
+        : 422;
     return json({ ok: false, error: message }, status);
   }
 
-  if (account.mt5_connection_id && account.mt5_connection_id !== provisioned.connectionId) {
-    await disconnectMt5Connection(account.mt5_connection_id);
+  if (
+    target.mt5_connection_id &&
+    target.mt5_connection_id !== provisioned.connectionId
+  ) {
+    await disconnectMt5Connection(target.mt5_connection_id);
   }
 
-  const { error: updateError } = await supabase
-    .from("trading_accounts")
-    .update({
-      mt5_login: parsed.login,
-      mt5_server: parsed.server,
-      mt5_webhook_token_hash: tokenHash,
-      mt5_connection_id: provisioned.connectionId,
-      mt5_balance: provisioned.balance,
-      mt5_equity: provisioned.equity,
-      mt5_synced_at: provisioned.balance != null ? new Date().toISOString() : null,
-    })
-    .eq("id", accountId)
-    .eq("user_id", user.id);
+  const mt5Fields = {
+    mt5_login: parsed.login,
+    mt5_server: parsed.server,
+    mt5_webhook_token_hash: tokenHash,
+    mt5_connection_id: provisioned.connectionId,
+    mt5_balance: provisioned.balance,
+    mt5_equity: provisioned.equity,
+    mt5_synced_at:
+      provisioned.balance != null ? new Date().toISOString() : null,
+  };
 
-  if (updateError) {
+  const startingBalance =
+    provisioned.balance != null &&
+    Number.isFinite(provisioned.balance) &&
+    provisioned.balance >= 0
+      ? provisioned.balance
+      : DEFAULT_STARTING_BALANCE;
+
+  const persistError = created
+    ? (
+        await supabase
+          .from("trading_accounts")
+          .insert({
+            id: target.id,
+            user_id: user.id,
+            name: createdName,
+            starting_balance: startingBalance,
+            ...mt5Fields,
+          })
+      ).error
+    : (
+        await supabase
+          .from("trading_accounts")
+          .update(mt5Fields)
+          .eq("id", target.id)
+          .eq("user_id", user.id)
+      ).error;
+
+  if (persistError) {
     await disconnectMt5Connection(provisioned.connectionId);
-    if (isMissingMt5Schema(updateError.message)) {
+    if (isMissingMt5Schema(persistError.message)) {
       return json(
         {
           ok: false,
@@ -142,12 +238,13 @@ export async function POST(request: Request) {
         503
       );
     }
-    return json({ ok: false, error: updateError.message }, 400);
+    return json({ ok: false, error: persistError.message }, 400);
   }
 
   return json({
     ok: true,
-    accountId,
+    created,
+    accountId: target.id,
     login: parsed.login,
     server: parsed.server,
     connectionId: provisioned.connectionId,

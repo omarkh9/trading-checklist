@@ -86,8 +86,8 @@ export function Mt5LinkModal({
               Link MetaTrader 5
             </h3>
             <p className="mt-1 text-sm text-zinc-500">
-              Connect {accountName} with your investor login. Edge Log validates
-              the account and maps live trades into this journal.
+              Connect {accountName} with a valid investor login. If this MT5
+              account is not in your journal yet, Edge Log provisions it.
             </p>
           </div>
           <button

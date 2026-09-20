@@ -531,7 +531,11 @@ export async function linkMt5Account(
     investorPassword: string;
     server: string;
   }
-): Promise<TradingAccount[]> {
+): Promise<{
+  accounts: TradingAccount[];
+  accountId: string;
+  created: boolean;
+}> {
   const response = await fetch("/api/mt5/link", {
     method: "POST",
     credentials: "same-origin",
@@ -543,10 +547,29 @@ export async function linkMt5Account(
       server: credentials.server,
     }),
   });
-  if (!response.ok) {
-    throw new Error(await readApiError(response, "Could not link that MT5 account."));
+  let payload: { ok?: boolean; error?: string; accountId?: string; created?: boolean } =
+    {};
+  try {
+    payload = (await response.json()) as typeof payload;
+  } catch {
+    payload = {};
   }
-  return loadTradingAccounts({ force: true });
+  if (!response.ok || payload.ok === false) {
+    throw new Error(
+      typeof payload.error === "string" && payload.error.trim()
+        ? payload.error
+        : "Could not link that MT5 account."
+    );
+  }
+  const accounts = await loadTradingAccounts({ force: true });
+  return {
+    accounts,
+    accountId:
+      typeof payload.accountId === "string" && payload.accountId
+        ? payload.accountId
+        : accountId,
+    created: payload.created === true,
+  };
 }
 
 export async function unlinkMt5Account(accountId: string): Promise<TradingAccount[]> {
