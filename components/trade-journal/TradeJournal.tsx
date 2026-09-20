@@ -37,7 +37,10 @@ export function TradeJournal() {
         onStartingBalanceChange={setStartingBalance}
       />
 
-      <TradeForm currentBalance={currentBalance} onSubmit={handleSubmit} />
+      <TradeForm
+        currentBalance={currentBalance}
+        onSubmit={handleSubmit}
+      />
 
       <DeskCard>
         <div className="mb-6">
