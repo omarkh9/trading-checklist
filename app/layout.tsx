@@ -33,6 +33,9 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
+  verification: {
+    google: "WWEWrMixmoLtK5QWwy7J2-0kB80FdgjCNgG462mM7pQ",
+  },
   icons: {
     icon: [
       { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
@@ -100,6 +103,10 @@ export default function RootLayout({
     <html lang="en" className="dark">
       <head>
         <link rel="manifest" href="/manifest.json" />
+        <meta
+          name="google-site-verification"
+          content="WWEWrMixmoLtK5QWwy7J2-0kB80FdgjCNgG462mM7pQ"
+        />
       </head>
       <body className={`${inter.variable} font-sans`}>
         <script
