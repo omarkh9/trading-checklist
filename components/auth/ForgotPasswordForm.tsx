@@ -41,19 +41,25 @@ export function ForgotPasswordForm() {
     <div className="flex min-h-screen items-center justify-center bg-surface px-4 py-10">
       <div className="w-full max-w-md">
         <div className="mb-8 flex flex-col items-center text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-accent/20 ring-1 ring-accent/30">
+          <Link
+            href="/"
+            className="flex h-12 w-12 items-center justify-center rounded-xl bg-accent/20 ring-1 ring-accent/30"
+            aria-label="Back to Edge Log"
+          >
             {sentTo ? (
               <Mail className="h-6 w-6 text-accent" />
             ) : (
               <Activity className="h-6 w-6 text-accent" />
             )}
-          </div>
+          </Link>
           <p className="mt-4 text-xs font-medium uppercase tracking-[0.2em] text-zinc-500">
             Trading
           </p>
-          <h1 className="mt-1 text-2xl font-bold tracking-tight text-gradient">
-            EDGE LOG
-          </h1>
+          <Link href="/">
+            <h1 className="mt-1 text-2xl font-bold tracking-tight text-gradient">
+              EDGE LOG
+            </h1>
+          </Link>
           <p className="mt-2 text-sm text-zinc-400">
             {sentTo
               ? "Check your inbox for reset instructions."

@@ -5,6 +5,7 @@ import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase/env";
 
 function isPublicPath(pathname: string) {
   return (
+    pathname === "/" ||
     pathname.startsWith("/login") ||
     pathname.startsWith("/signup") ||
     pathname.startsWith("/forgot-password") ||
