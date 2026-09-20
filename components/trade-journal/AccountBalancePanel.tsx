@@ -2,8 +2,7 @@
 
 import { useAccounts } from "@/components/accounts/AccountProvider";
 import { DeskCard } from "@/components/ui/DeskCard";
-import { generateMt5WebhookToken, isUsableMt5Token } from "@/lib/mt5/token";
-import { getMt5WebhookUrl } from "@/lib/mt5/webhook";
+import { Mt5LinkModal } from "@/components/trade-journal/Mt5LinkModal";
 import { formatBalance } from "@/lib/trades/account-balance";
 import {
   MAX_TRADING_ACCOUNTS,
@@ -11,7 +10,7 @@ import {
 } from "@/lib/types/account";
 import { desk } from "@/lib/ui/desk";
 import { parseNumericInput } from "@/lib/trades/pnl";
-import { Check, Copy, KeyRound, Plus, Trash2, Unlink } from "lucide-react";
+import { Plus, Trash2, Unlink } from "lucide-react";
 import { memo, useEffect, useState } from "react";
 
 function toBalanceDraft(value: number) {
@@ -44,15 +43,6 @@ function formatSyncedAt(value: string | null) {
   return date.toLocaleString();
 }
 
-async function copyText(value: string) {
-  try {
-    await navigator.clipboard.writeText(value);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 type AccountBalancePanelProps = {
   currentBalance: number;
 };
@@ -67,7 +57,8 @@ export const AccountBalancePanel = memo(function AccountBalancePanel({
     createAccount,
     renameAccount,
     updateStartingBalance,
-    updateMt5Link,
+    linkMt5Account,
+    unlinkMt5Account,
     deleteAccount,
   } = useAccounts();
 
@@ -75,10 +66,7 @@ export const AccountBalancePanel = memo(function AccountBalancePanel({
   const [startingBalanceDraft, setStartingBalanceDraft] = useState(
     toBalanceDraft(activeAccount?.startingBalance ?? 0)
   );
-  const [mt5Login, setMt5Login] = useState(activeAccount?.mt5Login ?? "");
-  const [mt5Server, setMt5Server] = useState(activeAccount?.mt5Server ?? "");
-  const [mt5Token, setMt5Token] = useState("");
-  const [copied, setCopied] = useState<"url" | "token" | null>(null);
+  const [mt5Open, setMt5Open] = useState(false);
   const [mt5Busy, setMt5Busy] = useState(false);
   const [newName, setNewName] = useState("");
   const [newBalance, setNewBalance] = useState(10_000);
@@ -88,26 +76,12 @@ export const AccountBalancePanel = memo(function AccountBalancePanel({
   useEffect(() => {
     setName(activeAccount?.name ?? "");
     setStartingBalanceDraft(toBalanceDraft(activeAccount?.startingBalance ?? 0));
-    setMt5Login(activeAccount?.mt5Login ?? "");
-    setMt5Server(activeAccount?.mt5Server ?? "");
-    setMt5Token("");
-  }, [
-    activeAccount?.id,
-    activeAccount?.name,
-    activeAccount?.startingBalance,
-    activeAccount?.mt5Login,
-    activeAccount?.mt5Server,
-  ]);
+  }, [activeAccount?.id, activeAccount?.name, activeAccount?.startingBalance]);
 
   const startingBalance = parseBalanceDraft(startingBalanceDraft);
   const netPnl = currentBalance - startingBalance;
   const canAdd = accounts.length < MAX_TRADING_ACCOUNTS;
-  const webhookUrl = getMt5WebhookUrl();
   const mt5Linked = Boolean(activeAccount?.mt5TokenSet);
-  const mt5Ready =
-    mt5Login.trim().length > 0 &&
-    mt5Server.trim().length > 0 &&
-    (mt5Linked || isUsableMt5Token(mt5Token));
 
   const persistName = async () => {
     if (!activeAccount) return;
@@ -135,18 +109,16 @@ export const AccountBalancePanel = memo(function AccountBalancePanel({
     }
   };
 
-  const persistMt5Link = async () => {
-    if (!activeAccount || !mt5Ready || mt5Busy) return;
+  const persistMt5Link = async (credentials: {
+    login: string;
+    investorPassword: string;
+    server: string;
+  }) => {
+    if (!activeAccount || mt5Busy) return;
     setMt5Busy(true);
     try {
-      await updateMt5Link(activeAccount.id, {
-        mt5Login,
-        mt5Server,
-        ...(mt5Token.trim() ? { mt5WebhookToken: mt5Token.trim() } : {}),
-      });
-      setMt5Token("");
-    } catch {
-      // Surface via AccountProvider error on the journal.
+      await linkMt5Account(activeAccount.id, credentials);
+      setMt5Open(false);
     } finally {
       setMt5Busy(false);
     }
@@ -155,28 +127,17 @@ export const AccountBalancePanel = memo(function AccountBalancePanel({
   const unlinkMt5 = async () => {
     if (!activeAccount || !mt5Linked || mt5Busy) return;
     const confirmed = window.confirm(
-      "Unlink this MT5 account? Incoming balance updates will stop until you save a new token."
+      "Unlink this MT5 account? Live balance and trade sync will stop."
     );
     if (!confirmed) return;
     setMt5Busy(true);
     try {
-      await updateMt5Link(activeAccount.id, { unlinkMt5: true });
-      setMt5Login("");
-      setMt5Server("");
-      setMt5Token("");
+      await unlinkMt5Account(activeAccount.id);
     } catch {
       // Surface via AccountProvider error on the journal.
     } finally {
       setMt5Busy(false);
     }
-  };
-
-  const handleCopy = async (kind: "url" | "token", value: string) => {
-    if (!value) return;
-    const ok = await copyText(value);
-    if (!ok) return;
-    setCopied(kind);
-    window.setTimeout(() => setCopied((current) => (current === kind ? null : current)), 1600);
   };
 
   const handleCreate = async () => {
@@ -291,8 +252,8 @@ export const AccountBalancePanel = memo(function AccountBalancePanel({
             <div>
               <p className={desk.label}>MetaTrader 5</p>
               <p className="mt-1 text-sm text-zinc-400">
-                Link this journal account to an MT5 login. Your EA posts live
-                balance and equity to the webhook below.
+                Connect with your account number, investor password, and broker
+                server. Live closed trades land in this journal automatically.
               </p>
             </div>
             <span
@@ -307,148 +268,46 @@ export const AccountBalancePanel = memo(function AccountBalancePanel({
           </div>
 
           {mt5Linked && (
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
-                <p className={desk.label}>MT5 Balance</p>
-                <p className="mt-1 text-xl font-semibold text-zinc-100">
-                  {activeAccount?.mt5Balance != null
-                    ? formatBalance(activeAccount.mt5Balance)
-                    : "—"}
-                </p>
+            <>
+              <p className="mt-4 text-sm text-zinc-300">
+                {activeAccount?.mt5Login}
+                {activeAccount?.mt5Server ? ` · ${activeAccount.mt5Server}` : ""}
+              </p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
+                  <p className={desk.label}>MT5 Balance</p>
+                  <p className="mt-1 text-xl font-semibold text-zinc-100">
+                    {activeAccount?.mt5Balance != null
+                      ? formatBalance(activeAccount.mt5Balance)
+                      : "—"}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
+                  <p className={desk.label}>MT5 Equity</p>
+                  <p className="mt-1 text-xl font-semibold text-zinc-100">
+                    {activeAccount?.mt5Equity != null
+                      ? formatBalance(activeAccount.mt5Equity)
+                      : "—"}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
+                  <p className={desk.label}>Last sync</p>
+                  <p className="mt-1 text-sm text-zinc-300">
+                    {formatSyncedAt(activeAccount?.mt5SyncedAt ?? null)}
+                  </p>
+                </div>
               </div>
-              <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
-                <p className={desk.label}>MT5 Equity</p>
-                <p className="mt-1 text-xl font-semibold text-zinc-100">
-                  {activeAccount?.mt5Equity != null
-                    ? formatBalance(activeAccount.mt5Equity)
-                    : "—"}
-                </p>
-              </div>
-              <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
-                <p className={desk.label}>Last sync</p>
-                <p className="mt-1 text-sm text-zinc-300">
-                  {formatSyncedAt(activeAccount?.mt5SyncedAt ?? null)}
-                </p>
-              </div>
-            </div>
+            </>
           )}
-
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <div>
-              <label htmlFor="mt5-login" className={desk.label}>
-                MT5 account number
-              </label>
-              <input
-                id="mt5-login"
-                type="text"
-                inputMode="numeric"
-                maxLength={32}
-                placeholder="12345678"
-                value={mt5Login}
-                onChange={(e) => setMt5Login(e.target.value.replace(/[^\d]/g, ""))}
-                className={desk.input}
-              />
-            </div>
-            <div>
-              <label htmlFor="mt5-server" className={desk.label}>
-                Broker server
-              </label>
-              <input
-                id="mt5-server"
-                type="text"
-                maxLength={64}
-                placeholder="ICMarkets-Demo"
-                value={mt5Server}
-                onChange={(e) => setMt5Server(e.target.value)}
-                className={desk.input}
-              />
-            </div>
-          </div>
-
-          <div className="mt-4">
-            <label htmlFor="mt5-webhook" className={desk.label}>
-              Webhook endpoint
-            </label>
-            <div className="flex gap-2">
-              <input
-                id="mt5-webhook"
-                type="text"
-                readOnly
-                value={webhookUrl}
-                className={`${desk.input} font-mono text-xs`}
-              />
-              <button
-                type="button"
-                onClick={() => void handleCopy("url", webhookUrl)}
-                className={desk.btnGhost}
-              >
-                {copied === "url" ? (
-                  <Check className="h-4 w-4" />
-                ) : (
-                  <Copy className="h-4 w-4" />
-                )}
-                {copied === "url" ? "Copied" : "Copy"}
-              </button>
-            </div>
-          </div>
-
-          <div className="mt-4">
-            <label htmlFor="mt5-token" className={desk.label}>
-              API token
-            </label>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <input
-                id="mt5-token"
-                type="password"
-                autoComplete="off"
-                spellCheck={false}
-                placeholder={
-                  mt5Linked
-                    ? "Token saved — paste a new one to rotate"
-                    : "Generate or paste a secret token"
-                }
-                value={mt5Token}
-                onChange={(e) => setMt5Token(e.target.value)}
-                className={`${desk.input} font-mono`}
-              />
-              <button
-                type="button"
-                onClick={() => setMt5Token(generateMt5WebhookToken())}
-                className={desk.btnGhost}
-              >
-                <KeyRound className="h-4 w-4" />
-                Generate
-              </button>
-              <button
-                type="button"
-                disabled={!mt5Token}
-                onClick={() => void handleCopy("token", mt5Token)}
-                className={desk.btnGhost}
-              >
-                {copied === "token" ? (
-                  <Check className="h-4 w-4" />
-                ) : (
-                  <Copy className="h-4 w-4" />
-                )}
-                {copied === "token" ? "Copied" : "Copy"}
-              </button>
-            </div>
-            <p className="mt-2 text-[11px] text-zinc-500">
-              POST JSON <code className="text-zinc-400">balance</code> and{" "}
-              <code className="text-zinc-400">equity</code> with{" "}
-              <code className="text-zinc-400">Authorization: Bearer &lt;token&gt;</code>.
-              Edge Log stores a hash of the token, not the raw secret.
-            </p>
-          </div>
 
           <div className="mt-4 flex flex-wrap gap-2">
             <button
               type="button"
-              disabled={!mt5Ready || mt5Busy}
-              onClick={() => void persistMt5Link()}
+              disabled={!activeAccount || mt5Busy}
+              onClick={() => setMt5Open(true)}
               className={desk.btnPrimary}
             >
-              {mt5Linked ? "Save MT5 link" : "Link MT5 account"}
+              {mt5Linked ? "Reconnect MT5" : "Link MT5 account"}
             </button>
             {mt5Linked && (
               <button
@@ -464,6 +323,19 @@ export const AccountBalancePanel = memo(function AccountBalancePanel({
           </div>
         </div>
       </div>
+
+      {mt5Open && activeAccount && (
+        <Mt5LinkModal
+          accountName={activeAccount.name}
+          defaultLogin={activeAccount.mt5Login}
+          defaultServer={activeAccount.mt5Server}
+          busy={mt5Busy}
+          onClose={() => {
+            if (!mt5Busy) setMt5Open(false);
+          }}
+          onSubmit={persistMt5Link}
+        />
+      )}
 
       <div className="mt-6">
         <div className="mb-3 flex items-center justify-between gap-3">

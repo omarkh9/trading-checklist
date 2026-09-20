@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import type { Database, Json } from "@/lib/supabase/database.types";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase/env";
+import { parseMt5ClosedTrades } from "@/lib/mt5/trades";
 import { isUsableMt5Token } from "@/lib/mt5/token";
 import {
   parseMt5WebhookPayload,
@@ -39,7 +40,7 @@ async function readJsonBody(request: Request): Promise<unknown> {
   }
 }
 
-function snapshotResult(value: Json | null) {
+function asResult(value: Json | null) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return { ok: false, error: "invalid_payload" as const };
   }
@@ -50,8 +51,19 @@ function snapshotResult(value: Json | null) {
     accountId: typeof record.accountId === "string" ? record.accountId : undefined,
     balance: typeof record.balance === "number" ? record.balance : undefined,
     equity: typeof record.equity === "number" ? record.equity : undefined,
+    ingested: typeof record.ingested === "number" ? record.ingested : undefined,
     syncedAt: typeof record.syncedAt === "string" ? record.syncedAt : undefined,
   };
+}
+
+function isMissingRpc(message: string) {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("schema cache") ||
+    normalized.includes("does not exist") ||
+    normalized.includes("apply_mt5_account_snapshot") ||
+    normalized.includes("ingest_mt5_closed_trades")
+  );
 }
 
 export function OPTIONS() {
@@ -77,43 +89,69 @@ export async function POST(request: Request) {
     return json({ ok: false, error: "unauthorized" }, 401);
   }
 
-  const payload = parseMt5WebhookPayload(body);
-  if (payload.balance == null) {
+  const snapshot = parseMt5WebhookPayload(body);
+  const trades = parseMt5ClosedTrades(body, snapshot.balance);
+  if (snapshot.balance == null && trades.length === 0) {
     return json({ ok: false, error: "invalid_payload" }, 400);
   }
 
   const supabase = createAnonClient();
-  const { data, error } = await supabase.rpc("apply_mt5_account_snapshot", {
-    p_token: token,
-    p_login: payload.login,
-    p_server: payload.server,
-    p_balance: payload.balance,
-    p_equity: payload.equity,
-  });
+  let accountId: string | undefined;
+  let balance = snapshot.balance ?? undefined;
+  let equity = snapshot.equity ?? undefined;
+  let ingested = 0;
+  let syncedAt: string | undefined;
 
-  if (error) {
-    const message = error.message.toLowerCase();
-    if (
-      message.includes("apply_mt5_account_snapshot") ||
-      message.includes("schema cache") ||
-      message.includes("does not exist")
-    ) {
-      return json({ ok: false, error: "mt5_not_configured" }, 503);
+  if (snapshot.balance != null) {
+    const { data, error } = await supabase.rpc("apply_mt5_account_snapshot", {
+      p_token: token,
+      p_login: snapshot.login,
+      p_server: snapshot.server,
+      p_balance: snapshot.balance,
+      p_equity: snapshot.equity,
+    });
+    if (error) {
+      return json(
+        { ok: false, error: isMissingRpc(error.message) ? "mt5_not_configured" : "unauthorized" },
+        isMissingRpc(error.message) ? 503 : 401
+      );
     }
-    return json({ ok: false, error: "unauthorized" }, 401);
+    const result = asResult(data);
+    if (!result.ok) {
+      return json({ ok: false, error: result.error }, result.error === "invalid_payload" ? 400 : 401);
+    }
+    accountId = result.accountId;
+    balance = result.balance;
+    equity = result.equity;
+    syncedAt = result.syncedAt;
   }
 
-  const result = snapshotResult(data);
-  if (!result.ok) {
-    const status = result.error === "invalid_payload" ? 400 : 401;
-    return json({ ok: false, error: result.error }, status);
+  if (trades.length > 0) {
+    const { data, error } = await supabase.rpc("ingest_mt5_closed_trades", {
+      p_token: token,
+      p_trades: trades as unknown as Json,
+    });
+    if (error) {
+      return json(
+        { ok: false, error: isMissingRpc(error.message) ? "mt5_not_configured" : "unauthorized" },
+        isMissingRpc(error.message) ? 503 : 401
+      );
+    }
+    const result = asResult(data);
+    if (!result.ok) {
+      return json({ ok: false, error: result.error }, 401);
+    }
+    accountId = result.accountId ?? accountId;
+    ingested = result.ingested ?? trades.length;
+    syncedAt = result.syncedAt ?? syncedAt;
   }
 
   return json({
     ok: true,
-    accountId: result.accountId,
-    balance: result.balance,
-    equity: result.equity,
-    syncedAt: result.syncedAt,
+    accountId,
+    balance,
+    equity,
+    ingested,
+    syncedAt,
   });
 }

@@ -3,18 +3,20 @@
 import {
   createTradingAccount,
   deleteTradingAccount,
+  linkMt5Account,
   loadTradingAccounts,
   readActiveAccountId,
+  unlinkMt5Account,
   updateTradingAccount,
   writeActiveAccountId,
 } from "@/lib/supabase/accounts";
-import { deleteTradesForAccount } from "@/lib/supabase/trades";
+import { deleteTradesForAccount, fetchTrades } from "@/lib/supabase/trades";
 import { prefetchDeskCaches } from "@/lib/desk/prefetch";
 import { fallbackAccountId } from "@/lib/trades/account-balance";
 import {
   MAX_TRADING_ACCOUNTS,
   type TradingAccount,
-  type TradingAccountMt5Patch,
+  type TradingAccountMt5Credentials,
 } from "@/lib/types/account";
 import {
   createContext,
@@ -38,7 +40,11 @@ type AccountContextValue = {
   }) => Promise<TradingAccount>;
   renameAccount: (id: string, name: string) => Promise<void>;
   updateStartingBalance: (id: string, startingBalance: number) => Promise<void>;
-  updateMt5Link: (id: string, patch: TradingAccountMt5Patch) => Promise<void>;
+  linkMt5Account: (
+    id: string,
+    credentials: TradingAccountMt5Credentials
+  ) => Promise<void>;
+  unlinkMt5Account: (id: string) => Promise<void>;
   deleteAccount: (id: string) => Promise<void>;
 };
 
@@ -106,11 +112,12 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
 
     let cancelled = false;
     const refresh = () => {
-      void loadTradingAccounts({ force: true })
-        .then((next) => {
+      void Promise.all([
+        loadTradingAccounts({ force: true }).then((next) => {
           if (!cancelled) setAccounts(next);
-        })
-        .catch(() => {});
+        }),
+        fetchTrades({ force: true }),
+      ]).catch(() => {});
     };
 
     const onFocus = () => refresh();
@@ -181,13 +188,11 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
-  const updateMt5Link = useCallback(
-    async (id: string, patch: TradingAccountMt5Patch) => {
+  const connectMt5Account = useCallback(
+    async (id: string, credentials: TradingAccountMt5Credentials) => {
       try {
-        const updated = await updateTradingAccount(id, patch);
-        setAccounts((prev) =>
-          prev.map((account) => (account.id === id ? updated : account))
-        );
+        const next = await linkMt5Account(id, credentials);
+        setAccounts(next);
         setError(null);
       } catch (cause) {
         const message = errorMessage(cause);
@@ -197,6 +202,18 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
     },
     []
   );
+
+  const disconnectMt5Account = useCallback(async (id: string) => {
+    try {
+      const next = await unlinkMt5Account(id);
+      setAccounts(next);
+      setError(null);
+    } catch (cause) {
+      const message = errorMessage(cause);
+      setError(message);
+      throw cause;
+    }
+  }, []);
 
   const deleteAccount = useCallback(
     async (id: string) => {
@@ -242,7 +259,8 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       createAccount,
       renameAccount,
       updateStartingBalance,
-      updateMt5Link,
+      linkMt5Account: connectMt5Account,
+      unlinkMt5Account: disconnectMt5Account,
       deleteAccount,
     }),
     [
@@ -254,7 +272,8 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       createAccount,
       renameAccount,
       updateStartingBalance,
-      updateMt5Link,
+      connectMt5Account,
+      disconnectMt5Account,
       deleteAccount,
     ]
   );

@@ -9,7 +9,6 @@ import {
   TRADE_ACCOUNTS_BACKFILL_STORAGE_KEY,
   TRADING_ACCOUNTS_STORAGE_KEY,
 } from "@/lib/storage/keys";
-import { hashMt5WebhookToken, isUsableMt5Token } from "@/lib/mt5/token";
 import {
   DEFAULT_ACCOUNT_NAME,
   DEFAULT_STARTING_BALANCE,
@@ -62,6 +61,8 @@ function mt5FieldsFromUnknown(value: Partial<TradingAccount> | null | undefined)
     mt5Login: typeof value?.mt5Login === "string" ? value.mt5Login : "",
     mt5Server: typeof value?.mt5Server === "string" ? value.mt5Server : "",
     mt5TokenSet: Boolean(value?.mt5TokenSet),
+    mt5ConnectionId:
+      typeof value?.mt5ConnectionId === "string" ? value.mt5ConnectionId : "",
     mt5Balance: finiteOrNull(value?.mt5Balance),
     mt5Equity: finiteOrNull(value?.mt5Equity),
     mt5SyncedAt:
@@ -88,7 +89,8 @@ function accountFromRow(row: TradingAccountRow): TradingAccount {
     createdAt: row.created_at,
     mt5Login: row.mt5_login ?? "",
     mt5Server: row.mt5_server ?? "",
-    mt5TokenSet: Boolean(row.mt5_webhook_token_hash),
+    mt5TokenSet: Boolean(row.mt5_webhook_token_hash || row.mt5_connection_id),
+    mt5ConnectionId: row.mt5_connection_id ?? "",
     mt5Balance: finiteOrNull(row.mt5_balance),
     mt5Equity: finiteOrNull(row.mt5_equity),
     mt5SyncedAt: row.mt5_synced_at ?? null,
@@ -442,6 +444,7 @@ export async function updateTradingAccount(
     mt5_login?: string | null;
     mt5_server?: string | null;
     mt5_webhook_token_hash?: string | null;
+    mt5_connection_id?: string | null;
     mt5_balance?: number | null;
     mt5_equity?: number | null;
     mt5_synced_at?: string | null;
@@ -455,28 +458,10 @@ export async function updateTradingAccount(
     payload.mt5_login = null;
     payload.mt5_server = null;
     payload.mt5_webhook_token_hash = null;
+    payload.mt5_connection_id = null;
     payload.mt5_balance = null;
     payload.mt5_equity = null;
     payload.mt5_synced_at = null;
-  } else {
-    if (patch.mt5Login !== undefined) {
-      const mt5Login = patch.mt5Login.trim().slice(0, 32);
-      next = { ...next, mt5Login };
-      payload.mt5_login = mt5Login || null;
-    }
-    if (patch.mt5Server !== undefined) {
-      const mt5Server = patch.mt5Server.trim().slice(0, 64);
-      next = { ...next, mt5Server };
-      payload.mt5_server = mt5Server || null;
-    }
-    if (patch.mt5WebhookToken !== undefined) {
-      const token = patch.mt5WebhookToken.trim();
-      if (!isUsableMt5Token(token)) {
-        throw new Error("MT5 webhook token must be at least 16 characters.");
-      }
-      payload.mt5_webhook_token_hash = await hashMt5WebhookToken(token);
-      next = { ...next, mt5TokenSet: true };
-    }
   }
 
   const { supabase, userId } = await requireUserId();
@@ -527,4 +512,50 @@ export async function deleteTradingAccount(id: string): Promise<TradingAccount[]
   if (error && !isMissingAccountsTable(error)) throwIfError(error);
 
   return rememberAccounts(existing.filter((account) => account.id !== id));
+}
+
+async function readApiError(response: Response, fallback: string) {
+  try {
+    const body = (await response.json()) as { error?: string };
+    if (typeof body.error === "string" && body.error.trim()) return body.error;
+  } catch {
+    // Use the fallback message when the route did not return JSON.
+  }
+  return fallback;
+}
+
+export async function linkMt5Account(
+  accountId: string,
+  credentials: {
+    login: string;
+    investorPassword: string;
+    server: string;
+  }
+): Promise<TradingAccount[]> {
+  const response = await fetch("/api/mt5/link", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      accountId,
+      login: credentials.login,
+      investorPassword: credentials.investorPassword,
+      server: credentials.server,
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(await readApiError(response, "Could not link that MT5 account."));
+  }
+  return loadTradingAccounts({ force: true });
+}
+
+export async function unlinkMt5Account(accountId: string): Promise<TradingAccount[]> {
+  const response = await fetch(
+    `/api/mt5/link?accountId=${encodeURIComponent(accountId)}`,
+    { method: "DELETE", credentials: "same-origin" }
+  );
+  if (!response.ok) {
+    throw new Error(await readApiError(response, "Could not unlink that MT5 account."));
+  }
+  return loadTradingAccounts({ force: true });
 }

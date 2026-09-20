@@ -11,7 +11,7 @@ function isPublicPath(pathname: string) {
     pathname.startsWith("/signup") ||
     pathname.startsWith("/forgot-password") ||
     pathname.startsWith("/auth") ||
-    pathname.startsWith("/api/mt5") ||
+    pathname.startsWith("/api/mt5/webhook") ||
     pathname === "/robots.txt" ||
     pathname === "/sitemap.xml" ||
     pathname === "/manifest.json" ||
@@ -65,6 +65,12 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (!user && !isPublicPath(pathname)) {
+    if (pathname.startsWith("/api/")) {
+      return copySessionCookies(
+        supabaseResponse,
+        NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 })
+      );
+    }
     const url = new URL(getAuthPageUrl("/login", { next: pathname }));
     return copySessionCookies(supabaseResponse, NextResponse.redirect(url));
   }
@@ -86,6 +92,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|api/mt5|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/mt5/webhook|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

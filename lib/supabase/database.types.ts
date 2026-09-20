@@ -37,6 +37,7 @@ export type Database = {
           after_chart: string | null;
           created_at: string;
           account_id: string | null;
+          mt5_ticket: string | null;
         };
         Insert: {
           id?: string;
@@ -65,6 +66,7 @@ export type Database = {
           after_chart?: string | null;
           created_at?: string;
           account_id?: string | null;
+          mt5_ticket?: string | null;
         };
         Update: {
           id?: string;
@@ -93,6 +95,7 @@ export type Database = {
           after_chart?: string | null;
           created_at?: string;
           account_id?: string | null;
+          mt5_ticket?: string | null;
         };
         Relationships: [];
       };
@@ -106,6 +109,7 @@ export type Database = {
           mt5_login: string | null;
           mt5_server: string | null;
           mt5_webhook_token_hash: string | null;
+          mt5_connection_id: string | null;
           mt5_balance: number | null;
           mt5_equity: number | null;
           mt5_synced_at: string | null;
@@ -119,6 +123,7 @@ export type Database = {
           mt5_login?: string | null;
           mt5_server?: string | null;
           mt5_webhook_token_hash?: string | null;
+          mt5_connection_id?: string | null;
           mt5_balance?: number | null;
           mt5_equity?: number | null;
           mt5_synced_at?: string | null;
@@ -132,6 +137,7 @@ export type Database = {
           mt5_login?: string | null;
           mt5_server?: string | null;
           mt5_webhook_token_hash?: string | null;
+          mt5_connection_id?: string | null;
           mt5_balance?: number | null;
           mt5_equity?: number | null;
           mt5_synced_at?: string | null;
@@ -222,6 +228,13 @@ export type Database = {
           p_server?: string;
           p_balance: number;
           p_equity?: number | null;
+        };
+        Returns: Json;
+      };
+      ingest_mt5_closed_trades: {
+        Args: {
+          p_token: string;
+          p_trades?: Json;
         };
         Returns: Json;
       };
