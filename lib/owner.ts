@@ -1,8 +1,7 @@
-const DEFAULT_OWNER_EMAIL = "Omar.khallil@outlook.com";
+import { resolveOwnerEmail } from "@/lib/supabase/public-config.mjs";
 
 export function getOwnerEmail() {
-  const fromEnv = process.env.NEXT_PUBLIC_OWNER_EMAIL?.trim();
-  return fromEnv || DEFAULT_OWNER_EMAIL;
+  return resolveOwnerEmail();
 }
 
 export function normalizeEmail(email: string | null | undefined) {
