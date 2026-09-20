@@ -16,16 +16,14 @@ import { calculateLotSize, formatLotSize } from "@/lib/trades/lot-size";
 import { formatPnlDollars, parseNumericInput, resolvePnlDollars } from "@/lib/trades/pnl";
 import {
   emptyTradeForm,
-  type Direction,
-  type Outcome,
   type PnlMode,
   type RiskSizeMode,
   type TradeFormData,
 } from "@/lib/types/trade";
 import { DeskCard } from "@/components/ui/DeskCard";
 import { desk } from "@/lib/ui/desk";
-import { Save } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { ChevronDown, Save } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type TradeFormProps = {
   currentBalance: number;
@@ -40,6 +38,94 @@ const KNOWN_SYMBOLS = listKnownSymbols();
 
 const inputClass = desk.input;
 const labelClass = desk.label;
+
+function DeskSelect<T extends string>({
+  id,
+  value,
+  options,
+  onChange,
+}: {
+  id: string;
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (value: T) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const selected = options.find((option) => option.value === value);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      setOpen(false);
+    };
+
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown, true);
+    };
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className={`relative ${open ? "z-30" : ""}`}>
+      <button
+        id={id}
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((isOpen) => !isOpen)}
+        className={`${inputClass} flex items-center justify-between gap-2 text-left`}
+      >
+        <span>{selected?.label}</span>
+        <ChevronDown
+          className={`h-4 w-4 shrink-0 text-zinc-500 transition-transform ${
+            open ? "rotate-180" : ""
+          }`}
+        />
+      </button>
+      {open && (
+        <ul
+          role="listbox"
+          aria-labelledby={id}
+          className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-indigo-400/20 bg-[#0c0c16] py-1 shadow-[0_12px_32px_rgba(0,0,0,0.55)]"
+        >
+          {options.map((option) => {
+            const isSelected = option.value === value;
+            return (
+              <li key={option.value} role="option" aria-selected={isSelected}>
+                <button
+                  type="button"
+                  className={`w-full px-3 py-2 text-left text-sm transition-colors ${
+                    isSelected
+                      ? "bg-indigo-500/20 text-indigo-200"
+                      : "text-zinc-200 hover:bg-white/[0.06] hover:text-zinc-50"
+                  }`}
+                  onClick={() => {
+                    onChange(option.value);
+                    setOpen(false);
+                  }}
+                >
+                  {option.label}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 function ToggleGroup<T extends string>({
   value,
@@ -280,31 +366,31 @@ export function TradeForm({
           <label htmlFor="direction" className={labelClass}>
             Direction
           </label>
-          <select
+          <DeskSelect
             id="direction"
             value={form.direction}
-            onChange={(e) => update("direction", e.target.value as Direction)}
-            className={inputClass}
-          >
-            <option value="Long">Long</option>
-            <option value="Short">Short</option>
-          </select>
+            onChange={(value) => update("direction", value)}
+            options={[
+              { value: "Long", label: "Long" },
+              { value: "Short", label: "Short" },
+            ]}
+          />
         </div>
 
         <div>
           <label htmlFor="outcome" className={labelClass}>
             Outcome
           </label>
-          <select
+          <DeskSelect
             id="outcome"
             value={form.outcome}
-            onChange={(e) => update("outcome", e.target.value as Outcome)}
-            className={inputClass}
-          >
-            <option value="Win">Win</option>
-            <option value="Loss">Loss</option>
-            <option value="Breakeven">Breakeven</option>
-          </select>
+            onChange={(value) => update("outcome", value)}
+            options={[
+              { value: "Win", label: "Win" },
+              { value: "Loss", label: "Loss" },
+              { value: "Breakeven", label: "Breakeven" },
+            ]}
+          />
         </div>
 
         <div>
