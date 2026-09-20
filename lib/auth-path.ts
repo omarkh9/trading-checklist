@@ -1,6 +1,7 @@
+import { SITE_URL } from "@/lib/site";
 import { resolveSiteUrl } from "@/lib/supabase/public-config.mjs";
 
-export const SITE_URL = "https://edge-log-11.netlify.app";
+export { SITE_URL } from "@/lib/site";
 
 export function safeNextPath(value: string | null | undefined) {
   if (!value || !value.startsWith("/") || value.startsWith("//")) return "/";

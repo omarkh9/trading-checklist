@@ -3,11 +3,15 @@ import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "@/lib/supabase/database.types";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase/env";
 
-function isPublicAuthPath(pathname: string) {
+function isPublicPath(pathname: string) {
   return (
     pathname.startsWith("/login") ||
     pathname.startsWith("/signup") ||
-    pathname.startsWith("/auth")
+    pathname.startsWith("/auth") ||
+    pathname === "/robots.txt" ||
+    pathname === "/sitemap.xml" ||
+    pathname === "/manifest.json" ||
+    pathname === "/sw.js"
   );
 }
 
@@ -56,7 +60,7 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  if (!user && !isPublicAuthPath(pathname)) {
+  if (!user && !isPublicPath(pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.search = "";

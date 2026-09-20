@@ -1,5 +1,13 @@
 import { AuthForm } from "@/components/auth/AuthForm";
+import { pageMetadata } from "@/lib/site";
 import { Suspense } from "react";
+
+export const metadata = pageMetadata({
+  title: "Sign in",
+  description:
+    "Sign in to Edge Log by Omar to journal trades, run checklists, and review analytics.",
+  path: "/login",
+});
 
 export default function LoginPage() {
   return (
