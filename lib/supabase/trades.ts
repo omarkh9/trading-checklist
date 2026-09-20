@@ -118,7 +118,7 @@ export function tradeFormToInsert(
     fixed_lot_size: data.fixedLotSize,
     lot_size: data.lotSize,
     account_balance_at_entry: data.accountBalanceAtEntry,
-    strategy: data.strategy,
+    strategy: (data.strategy ?? "").trim(),
     notes: data.notes,
     before_chart: data.beforeChart,
     after_chart: data.afterChart,

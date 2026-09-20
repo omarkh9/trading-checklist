@@ -248,6 +248,7 @@ export function TradeForm({
     try {
       await onSubmit({
         ...form,
+        strategy: form.strategy.trim(),
         pnlDollars: resolvedPnl,
         lotSize: displayLotSize === "—" ? "" : displayLotSize,
         accountBalanceAtEntry: currentBalance,
@@ -339,27 +340,12 @@ export function TradeForm({
           <input
             id="strategy"
             type="text"
-            placeholder="e.g. Breakout, FVG, Scalp"
+            autoComplete="off"
+            spellCheck={false}
             value={form.strategy}
             onChange={(e) => update("strategy", e.target.value)}
             className={inputClass}
-            list="known-strategies"
           />
-          <datalist id="known-strategies">
-            {[
-              "Breakout",
-              "Pullback",
-              "Reversal",
-              "Scalp",
-              "Order Block",
-              "FVG",
-              "Supply Demand",
-              "Trend",
-              "News",
-            ].map((setup) => (
-              <option key={setup} value={setup} />
-            ))}
-          </datalist>
         </div>
 
         <div>
