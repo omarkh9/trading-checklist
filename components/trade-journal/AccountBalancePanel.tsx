@@ -8,8 +8,32 @@ import {
   nextAccountName,
 } from "@/lib/types/account";
 import { desk } from "@/lib/ui/desk";
+import { parseNumericInput } from "@/lib/trades/pnl";
 import { Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
+
+function toBalanceDraft(value: number) {
+  return Number.isFinite(value) ? String(value) : "";
+}
+
+function normalizeBalanceDraft(value: string) {
+  const cleaned = value.replace(/[^\d.]/g, "");
+  if (!cleaned) return "";
+
+  const dot = cleaned.indexOf(".");
+  const wholeRaw = dot === -1 ? cleaned : cleaned.slice(0, dot);
+  const fraction = dot === -1 ? "" : cleaned.slice(dot + 1).replace(/\./g, "");
+  const whole = wholeRaw.replace(/^0+(?=\d)/, "");
+
+  if (dot === -1) return whole;
+  return `${whole || "0"}.${fraction}`;
+}
+
+function parseBalanceDraft(value: string) {
+  if (!value.trim()) return 0;
+  const parsed = parseNumericInput(value);
+  return parsed != null && parsed >= 0 ? parsed : 0;
+}
 
 type AccountBalancePanelProps = {
   currentBalance: number;
@@ -29,8 +53,8 @@ export function AccountBalancePanel({
   } = useAccounts();
 
   const [name, setName] = useState(activeAccount?.name ?? "");
-  const [startingBalance, setStartingBalance] = useState(
-    activeAccount?.startingBalance ?? 0
+  const [startingBalanceDraft, setStartingBalanceDraft] = useState(
+    toBalanceDraft(activeAccount?.startingBalance ?? 0)
   );
   const [newName, setNewName] = useState("");
   const [newBalance, setNewBalance] = useState(10_000);
@@ -39,9 +63,10 @@ export function AccountBalancePanel({
 
   useEffect(() => {
     setName(activeAccount?.name ?? "");
-    setStartingBalance(activeAccount?.startingBalance ?? 0);
+    setStartingBalanceDraft(toBalanceDraft(activeAccount?.startingBalance ?? 0));
   }, [activeAccount?.id, activeAccount?.name, activeAccount?.startingBalance]);
 
+  const startingBalance = parseBalanceDraft(startingBalanceDraft);
   const netPnl = currentBalance - startingBalance;
   const canAdd = accounts.length < MAX_TRADING_ACCOUNTS;
 
@@ -61,16 +86,13 @@ export function AccountBalancePanel({
 
   const persistStartingBalance = async () => {
     if (!activeAccount) return;
-    const next =
-      Number.isFinite(startingBalance) && startingBalance >= 0
-        ? startingBalance
-        : 0;
-    setStartingBalance(next);
+    const next = parseBalanceDraft(startingBalanceDraft);
+    setStartingBalanceDraft(toBalanceDraft(next));
     if (next === activeAccount.startingBalance) return;
     try {
       await updateStartingBalance(activeAccount.id, next);
     } catch {
-      setStartingBalance(activeAccount.startingBalance);
+      setStartingBalanceDraft(toBalanceDraft(activeAccount.startingBalance));
     }
   };
 
@@ -139,16 +161,13 @@ export function AccountBalancePanel({
           </label>
           <input
             id="starting-balance"
-            type="number"
-            min={0}
-            step="0.01"
-            value={Number.isFinite(startingBalance) ? startingBalance : 0}
-            onChange={(e) => {
-              const next = parseFloat(e.target.value);
-              setStartingBalance(
-                Number.isFinite(next) && next >= 0 ? next : 0
-              );
-            }}
+            type="text"
+            inputMode="decimal"
+            placeholder="0"
+            value={startingBalanceDraft}
+            onChange={(e) =>
+              setStartingBalanceDraft(normalizeBalanceDraft(e.target.value))
+            }
             onBlur={() => void persistStartingBalance()}
             className={desk.input}
           />
