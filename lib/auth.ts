@@ -1,8 +1,9 @@
 import { createClient } from "@/lib/supabase/client";
+import { getAuthCallbackUrl } from "@/lib/auth-path";
 import { ensureUserProfile } from "@/lib/supabase/profile";
 
 export { getOwnerEmail, isOwnerEmail, isOwnerUser } from "@/lib/owner";
-export { getAuthCallbackUrl, safeNextPath } from "@/lib/auth-path";
+export { getAuthCallbackUrl, getRedirectUrl, safeNextPath, SITE_URL } from "@/lib/auth-path";
 
 export function validateEmail(email: string) {
   const trimmed = email.trim();
@@ -20,23 +21,36 @@ export function validatePassword(password: string) {
   return null;
 }
 
+export function isUnconfirmedAuthError(error: unknown) {
+  const message =
+    error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  return (
+    message.includes("email not confirmed") ||
+    message.includes("not confirmed") ||
+    (error instanceof Error && error.name === "AuthNeedsConfirmationError")
+  );
+}
+
 export function mapAuthError(error: unknown) {
   const message =
     error instanceof Error ? error.message : "Authentication failed.";
   const lower = message.toLowerCase();
 
-  if (lower.includes("invalid login")) {
-    return "Incorrect email or password.";
+  if (isUnconfirmedAuthError(error)) {
+    return "This account exists but the email is not confirmed yet. We can send a new confirmation link.";
   }
-  if (lower.includes("email not confirmed")) {
-    return "Confirm your email before signing in. Check your inbox for the link.";
+  if (lower.includes("already confirmed") || lower.includes("already been confirmed")) {
+    return "This email is already confirmed. Sign in with your password.";
+  }
+  if (lower.includes("invalid login")) {
+    return "Incorrect email or password. If you never received a confirmation email, create an account or resend confirmation.";
   }
   if (
     lower.includes("already registered") ||
     lower.includes("already exists") ||
     lower.includes("user already")
   ) {
-    return "An account with this email already exists. Sign in instead.";
+    return "An account with this email already exists. Sign in, or resend confirmation if you never activated it.";
   }
   if (lower.includes("signups not allowed") || lower.includes("signup is disabled")) {
     return "New accounts are not enabled yet. Try again shortly.";
@@ -45,6 +59,31 @@ export function mapAuthError(error: unknown) {
     return "Too many attempts. Wait a moment and try again.";
   }
   return message;
+}
+
+export async function resendConfirmationEmail(email: string) {
+  const supabase = createClient();
+  const { error } = await supabase.auth.resend({
+    type: "signup",
+    email: email.trim().toLowerCase(),
+    options: { emailRedirectTo: getAuthCallbackUrl() },
+  });
+  if (error) throw error;
+}
+
+export async function requestPasswordReset(email: string) {
+  const supabase = createClient();
+  const { error } = await supabase.auth.resetPasswordForEmail(
+    email.trim().toLowerCase(),
+    { redirectTo: getAuthCallbackUrl("/auth/update-password") }
+  );
+  if (error) throw error;
+}
+
+export async function updatePassword(password: string) {
+  const supabase = createClient();
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) throw error;
 }
 
 export async function signInWithEmail(email: string, password: string) {
@@ -76,9 +115,22 @@ export async function signUpWithEmail(
 
   const identities = data.user?.identities ?? [];
   if (data.user && identities.length === 0) {
-    throw new Error(
-      "An account with this email already exists. Sign in instead."
+    try {
+      await resendConfirmationEmail(normalizedEmail);
+    } catch (resendError) {
+      const resendMessage =
+        resendError instanceof Error ? resendError.message.toLowerCase() : "";
+      if (resendMessage.includes("already") && resendMessage.includes("confirm")) {
+        throw new Error(
+          "An account with this email already exists. Sign in instead."
+        );
+      }
+    }
+    const pending = new Error(
+      "This email is already registered. We sent a new confirmation link if the account is not activated yet. Otherwise, sign in."
     );
+    pending.name = "AuthNeedsConfirmationError";
+    throw pending;
   }
 
   if (data.user && data.session) {

@@ -2,13 +2,11 @@
 -- SQL Editor: https://supabase.com/dashboard/project/agfzhwyhrrcbadbzvmpy/sql/new
 --
 -- Also in Authentication → URL Configuration, set:
---   Site URL = your production Netlify URL (NOT localhost)
+--   Site URL = https://edge-log-11.netlify.app
 --   Redirect URLs:
---     https://<your-netlify-site>/**
---     https://<your-netlify-site>/auth/callback
---     http://localhost:3000/auth/callback
---     http://localhost:3001/auth/callback
--- If Site URL stays on localhost, confirmation emails send phones to 127.0.0.1.
+--     https://edge-log-11.netlify.app/**
+--     https://edge-log-11.netlify.app/auth/callback
+--     https://edge-log-11.netlify.app/auth/update-password
 -- Authentication → Providers → Email: enable Email and allow new users.
 
 drop policy if exists "Users can insert own profile" on public.profiles;

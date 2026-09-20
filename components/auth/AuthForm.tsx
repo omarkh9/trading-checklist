@@ -2,7 +2,10 @@
 
 import {
   getAuthCallbackUrl,
+  isUnconfirmedAuthError,
   mapAuthError,
+  requestPasswordReset,
+  resendConfirmationEmail,
   safeNextPath,
   signInWithEmail,
   signUpWithEmail,
@@ -11,7 +14,7 @@ import {
 } from "@/lib/auth";
 import { Activity } from "lucide-react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 
 const inputClass =
@@ -31,7 +34,6 @@ function withNext(href: string, nextPath: string) {
 }
 
 export function AuthForm({ mode }: AuthFormProps) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const nextPath = safeNextPath(searchParams.get("next"));
   const [email, setEmail] = useState("");
@@ -40,6 +42,8 @@ export function AuthForm({ mode }: AuthFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isForgot, setIsForgot] = useState(false);
+  const [needsConfirmation, setNeedsConfirmation] = useState(false);
 
   const isSignup = mode === "signup";
 
@@ -55,13 +59,63 @@ export function AuthForm({ mode }: AuthFormProps) {
 
   const queryInfo =
     searchParams.get("confirmed") === "1"
-      ? "Email confirmed. Sign in to continue."
+      ? "Your email is confirmed. Sign in with your password to continue."
       : null;
+
+  const resetMessages = () => {
+    setError(null);
+    setInfo(null);
+  };
+
+  const handleResend = async () => {
+    const emailError = validateEmail(email);
+    if (emailError) {
+      setError(emailError);
+      return;
+    }
+
+    setIsSubmitting(true);
+    resetMessages();
+    try {
+      await resendConfirmationEmail(email);
+      setNeedsConfirmation(true);
+      setInfo(
+        "If this account still needs to be activated, we sent a new confirmation link. Open it on this device, then sign in."
+      );
+    } catch (cause) {
+      setError(mapAuthError(cause));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleForgot = async (event: React.FormEvent) => {
+    event.preventDefault();
+    resetMessages();
+
+    const emailError = validateEmail(email);
+    if (emailError) {
+      setError(emailError);
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await requestPasswordReset(email);
+      setInfo(
+        "If an account exists for that email, we sent a password reset link. Open it on this device to set a new password."
+      );
+    } catch (cause) {
+      setError(mapAuthError(cause));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    setError(null);
-    setInfo(null);
+    resetMessages();
+    setNeedsConfirmation(false);
 
     const emailError = validateEmail(email);
     if (emailError) {
@@ -91,8 +145,9 @@ export function AuthForm({ mode }: AuthFormProps) {
         );
 
         if (!data.session) {
+          setNeedsConfirmation(true);
           setInfo(
-            "Account created. Check your email and open the confirmation link to finish signing in."
+            "Account created. Check your email and open the confirmation link on this device to finish signing in."
           );
           setPassword("");
           setConfirmPassword("");
@@ -102,10 +157,24 @@ export function AuthForm({ mode }: AuthFormProps) {
         await signInWithEmail(email, password);
       }
 
-      router.replace(nextPath);
-      router.refresh();
+      window.location.assign(nextPath);
     } catch (cause) {
       setError(mapAuthError(cause));
+      const alreadyResent =
+        cause instanceof Error && cause.name === "AuthNeedsConfirmationError";
+      if (isUnconfirmedAuthError(cause)) {
+        setNeedsConfirmation(true);
+        if (!alreadyResent) {
+          try {
+            await resendConfirmationEmail(email);
+            setInfo(
+              "We sent a new confirmation link. Open it on this device, then sign in with your password."
+            );
+          } catch {
+            // Keep the mapped login/signup error if resend is rate-limited.
+          }
+        }
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -125,22 +194,24 @@ export function AuthForm({ mode }: AuthFormProps) {
             EDGE LOG
           </h1>
           <p className="mt-2 text-sm text-zinc-400">
-            {isSignup
-              ? "Create an account to start logging your own trades."
-              : "Sign in to view and log your trades."}
+            {isForgot
+              ? "Enter your email and we will send a reset link."
+              : isSignup
+                ? "Create an account to start logging your own trades."
+                : "Sign in to view and log your trades."}
           </p>
         </div>
 
         <form
-          onSubmit={handleSubmit}
+          onSubmit={isForgot ? handleForgot : handleSubmit}
           className="rounded-xl border border-border bg-surface-raised p-6"
         >
-          {(error || queryError) && (
+          {(error || (!isForgot && queryError)) && (
             <p className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
               {error ?? queryError}
             </p>
           )}
-          {(info || (!error && !queryError && queryInfo)) && (
+          {(info || (!error && !queryError && !isForgot && queryInfo)) && (
             <p className="mb-4 rounded-lg border border-accent/30 bg-accent/10 px-3 py-2 text-sm text-accent-hover">
               {info ?? queryInfo}
             </p>
@@ -162,24 +233,26 @@ export function AuthForm({ mode }: AuthFormProps) {
             />
           </div>
 
-          <div className="mt-4">
-            <label htmlFor="password" className={labelClass}>
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              autoComplete={isSignup ? "new-password" : "current-password"}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="At least 8 characters"
-              className={inputClass}
-              required
-              minLength={8}
-            />
-          </div>
+          {!isForgot && (
+            <div className="mt-4">
+              <label htmlFor="password" className={labelClass}>
+                Password
+              </label>
+              <input
+                id="password"
+                type="password"
+                autoComplete={isSignup ? "new-password" : "current-password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="At least 8 characters"
+                className={inputClass}
+                required
+                minLength={8}
+              />
+            </div>
+          )}
 
-          {isSignup && (
+          {!isForgot && isSignup && (
             <div className="mt-4">
               <label htmlFor="confirmPassword" className={labelClass}>
                 Confirm password
@@ -198,22 +271,61 @@ export function AuthForm({ mode }: AuthFormProps) {
             </div>
           )}
 
+          {!isForgot && !isSignup && (
+            <button
+              type="button"
+              onClick={() => {
+                resetMessages();
+                setIsForgot(true);
+              }}
+              className="mt-3 text-sm text-zinc-500 transition-colors hover:text-white"
+            >
+              Forgot password?
+            </button>
+          )}
+
           <button
             type="submit"
             disabled={isSubmitting}
             className="mt-6 w-full rounded-lg bg-accent px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSubmitting
-              ? isSignup
-                ? "Creating account..."
-                : "Signing in..."
-              : isSignup
-                ? "Create account"
-                : "Sign in"}
+              ? isForgot
+                ? "Sending reset link..."
+                : isSignup
+                  ? "Creating account..."
+                  : "Signing in..."
+              : isForgot
+                ? "Send reset link"
+                : isSignup
+                  ? "Create account"
+                  : "Sign in"}
           </button>
 
+          {(needsConfirmation || (!isForgot && queryError)) && email && (
+            <button
+              type="button"
+              onClick={() => void handleResend()}
+              disabled={isSubmitting}
+              className="mt-3 w-full rounded-lg border border-border bg-surface-overlay px-5 py-2.5 text-sm font-medium text-zinc-200 transition-colors hover:border-accent/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Resend confirmation email
+            </button>
+          )}
+
           <p className="mt-4 text-center text-sm text-zinc-500">
-            {isSignup ? (
+            {isForgot ? (
+              <button
+                type="button"
+                onClick={() => {
+                  resetMessages();
+                  setIsForgot(false);
+                }}
+                className="text-accent-hover hover:text-white"
+              >
+                Back to sign in
+              </button>
+            ) : isSignup ? (
               <>
                 Already have an account?{" "}
                 <Link

@@ -1,56 +1,88 @@
 import { NextResponse } from "next/server";
 import type { EmailOtpType } from "@supabase/supabase-js";
-import { safeNextPath } from "@/lib/auth-path";
+import { getRedirectUrl, getSiteOrigin, safeNextPath } from "@/lib/auth-path";
 import { ensureUserProfile } from "@/lib/supabase/profile";
 import { createClient } from "@/lib/supabase/server";
 
-function loginErrorUrl(origin: string, description?: string | null) {
-  const url = new URL("/login", origin);
-  url.searchParams.set("error", "auth");
-  if (description) {
-    url.searchParams.set("error_description", description);
+function loginUrl(params: Record<string, string>) {
+  const url = new URL(getRedirectUrl("/login"));
+  for (const [key, value] of Object.entries(params)) {
+    url.searchParams.set(key, value);
   }
   return url;
 }
 
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
+  const { searchParams } = new URL(request.url);
+  const origin = getSiteOrigin();
   const code = searchParams.get("code");
   const tokenHash = searchParams.get("token_hash");
   const type = searchParams.get("type") as EmailOtpType | null;
-  const next = safeNextPath(searchParams.get("next"));
+  const isRecovery =
+    type === "recovery" ||
+    safeNextPath(searchParams.get("next")).startsWith("/auth/update-password");
+  const next = isRecovery
+    ? "/auth/update-password"
+    : safeNextPath(searchParams.get("next"));
   const authError =
     searchParams.get("error_description") || searchParams.get("error");
 
   if (authError) {
-    return NextResponse.redirect(loginErrorUrl(origin, authError));
+    return NextResponse.redirect(
+      loginUrl({ error: "auth", error_description: authError })
+    );
   }
 
   const supabase = await createClient();
+  let sessionError: string | null = null;
 
   if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (error) {
-      return NextResponse.redirect(loginErrorUrl(origin, error.message));
-    }
+    if (error) sessionError = error.message;
   } else if (tokenHash && type) {
     const { error } = await supabase.auth.verifyOtp({
       type,
       token_hash: tokenHash,
     });
-    if (error) {
-      return NextResponse.redirect(loginErrorUrl(origin, error.message));
-    }
+    if (error) sessionError = error.message;
   } else {
-    return NextResponse.redirect(loginErrorUrl(origin, "Missing confirmation code."));
+    return NextResponse.redirect(
+      loginUrl({
+        error: "auth",
+        error_description: "Missing confirmation code.",
+      })
+    );
   }
 
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
   if (user) {
     await ensureUserProfile(supabase, user);
+    return NextResponse.redirect(new URL(next, origin));
   }
 
-  return NextResponse.redirect(new URL(next, origin));
+  if (isRecovery) {
+    return NextResponse.redirect(
+      loginUrl({
+        error: "auth",
+        error_description:
+          "That password reset link could not be completed. Request a new one from the sign-in page.",
+      })
+    );
+  }
+
+  if (sessionError) {
+    // Email can still be confirmed even when PKCE fails on another device.
+    return NextResponse.redirect(loginUrl({ confirmed: "1" }));
+  }
+
+  return NextResponse.redirect(
+    loginUrl({
+      error: "auth",
+      error_description:
+        "Could not complete sign-in. Try signing in with your password.",
+    })
+  );
 }

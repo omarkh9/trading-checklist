@@ -4,16 +4,14 @@
 -- Auth dashboard (required for live sign-up):
 -- Authentication → Providers → Email: enable Email, allow new users to sign up.
 -- Authentication → URL Configuration:
---   Site URL = your production Netlify URL (NOT localhost)
+--   Site URL = https://edge-log-11.netlify.app
 --   Redirect URLs include:
---     https://<your-netlify-site>/**
---     https://<your-netlify-site>/auth/callback
---     http://localhost:3000/auth/callback
---     http://localhost:3001/auth/callback
--- If Site URL is localhost, confirmation emails open 127.0.0.1 on mobile.
+--     https://edge-log-11.netlify.app/**
+--     https://edge-log-11.netlify.app/auth/callback
+--     https://edge-log-11.netlify.app/auth/update-password
 --
--- Also turn off email confirmation while testing locally:
--- Authentication → Providers → Email → Confirm email (disable).
+-- If confirmation emails are on, users must open the Netlify callback link
+-- before they can sign in. Keep Site URL on the production domain above.
 
 create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
