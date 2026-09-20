@@ -7,6 +7,12 @@ import {
   writeTradeAccountMapEntry,
 } from "@/lib/trades/account-balance";
 import { normalizeTrade } from "@/lib/trades/load-trades";
+import {
+  getCachedTrades,
+  loadTradesCache,
+  removeTradesFromCache,
+  upsertTradeInCache,
+} from "@/lib/trades/trades-cache";
 import type { Trade, TradeFormData } from "@/lib/types/trade";
 
 function throwIfError(error: { message: string } | null) {
@@ -181,7 +187,7 @@ export function tradeFormToUpdate(data: TradeFormData): TradeUpdate {
   };
 }
 
-export async function fetchTrades(): Promise<Trade[]> {
+async function fetchTradesFromNetwork(): Promise<Trade[]> {
   const { supabase, userId } = await requireUserId();
   const { data, error } = await supabase
     .from("trades")
@@ -194,6 +200,10 @@ export async function fetchTrades(): Promise<Trade[]> {
   return (data ?? []).map((row) =>
     applyAccountFallback(normalizeTrade(tradeFromRow(row)), map)
   );
+}
+
+export async function fetchTrades(options?: { force?: boolean }): Promise<Trade[]> {
+  return loadTradesCache(fetchTradesFromNetwork, options?.force);
 }
 
 export async function insertTrade(data: TradeFormData): Promise<Trade> {
@@ -233,10 +243,12 @@ export async function insertTrade(data: TradeFormData): Promise<Trade> {
   throwIfError(error);
   if (!row) throw new Error("Trade was not saved.");
   if (data.accountId) writeTradeAccountMapEntry(row.id, data.accountId);
-  return applyAccountFallback(
+  const created = applyAccountFallback(
     normalizeTrade(tradeFromRow(row)),
     readTradeAccountMap()
   );
+  upsertTradeInCache(created);
+  return created;
 }
 
 export async function updateTrade(
@@ -285,10 +297,12 @@ export async function updateTrade(
   throwIfError(error);
   if (!row) throw new Error("Trade was not updated.");
   if (data.accountId) writeTradeAccountMapEntry(id, data.accountId);
-  return applyAccountFallback(
+  const updated = applyAccountFallback(
     normalizeTrade(tradeFromRow(row)),
     readTradeAccountMap()
   );
+  upsertTradeInCache(updated);
+  return updated;
 }
 
 export async function deleteTrade(id: string): Promise<void> {
@@ -300,13 +314,14 @@ export async function deleteTrade(id: string): Promise<void> {
     .eq("user_id", userId);
   throwIfError(error);
   removeTradeAccountMapEntries([id]);
+  removeTradesFromCache([id]);
 }
 
 export async function deleteTradesForAccount(
   accountId: string,
   fallbackAccountId: string
 ): Promise<void> {
-  const trades = await fetchTrades();
+  const trades = getCachedTrades() ?? (await fetchTrades());
   const ids = tradesForAccount(trades, accountId, fallbackAccountId).map(
     (trade) => trade.id
   );
@@ -320,4 +335,5 @@ export async function deleteTradesForAccount(
     .in("id", ids);
   throwIfError(error);
   removeTradeAccountMapEntries(ids);
+  removeTradesFromCache(ids);
 }

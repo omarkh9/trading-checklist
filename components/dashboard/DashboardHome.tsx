@@ -1,19 +1,16 @@
 "use client";
 
 import { useAccounts } from "@/components/accounts/AccountProvider";
+import { useCachedTrades } from "@/components/trade-journal/useCachedTrades";
 import type { Outcome, Trade } from "@/lib/types/trade";
 import { fetchChecklistSnapshot } from "@/lib/supabase/checklist";
-import { fetchTrades } from "@/lib/supabase/trades";
 import { withDailyChecks, type ChecklistItem } from "@/lib/types/checklist";
 import {
   formatLocalDate,
   startOfLocalWeek,
   timestampMs,
 } from "@/lib/time";
-import {
-  fallbackAccountId,
-  tradesForAccount,
-} from "@/lib/trades/account-balance";
+import { tradesForAccount } from "@/lib/trades/account-balance";
 import { formatPnlDollars } from "@/lib/trades/pnl";
 import {
   ArrowRight,
@@ -194,32 +191,23 @@ function rrAccent(avgRr: number | null): Accent {
 
 export function DashboardHome() {
   const { accounts, activeAccount, isLoaded: accountsLoaded } = useAccounts();
-  const [allTrades, setAllTrades] = useState<Trade[]>([]);
+  const { trades: allTrades, isLoaded: tradesLoaded } = useCachedTrades();
   const [checklistRules, setChecklistRules] = useState<ChecklistItem[]>([]);
-  const [isLoaded, setIsLoaded] = useState(false);
+  const [checklistLoaded, setChecklistLoaded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
     const load = async () => {
-      const [tradesResult, checklistResult] = await Promise.allSettled([
-        fetchTrades(),
-        fetchChecklistSnapshot(),
-      ]);
-
-      if (cancelled) return;
-
-      setAllTrades(
-        tradesResult.status === "fulfilled" ? tradesResult.value : []
-      );
-      if (checklistResult.status === "fulfilled") {
-        setChecklistRules(
-          withDailyChecks(checklistResult.value.rules, checklistResult.value.session)
-        );
-      } else {
-        setChecklistRules([]);
+      try {
+        const snapshot = await fetchChecklistSnapshot();
+        if (cancelled) return;
+        setChecklistRules(withDailyChecks(snapshot.rules, snapshot.session));
+      } catch {
+        if (!cancelled) setChecklistRules([]);
+      } finally {
+        if (!cancelled) setChecklistLoaded(true);
       }
-      setIsLoaded(true);
     };
 
     void load();
@@ -228,14 +216,11 @@ export function DashboardHome() {
     };
   }, []);
 
+  const fallbackId = accounts[0]?.id ?? "";
   const trades = useMemo(
     () =>
-      tradesForAccount(
-        allTrades,
-        activeAccount?.id ?? "",
-        fallbackAccountId(accounts)
-      ),
-    [allTrades, activeAccount?.id, accounts]
+      tradesForAccount(allTrades, activeAccount?.id ?? "", fallbackId),
+    [allTrades, activeAccount?.id, fallbackId]
   );
 
   const metrics = useMemo(() => {
@@ -285,7 +270,7 @@ export function DashboardHome() {
   const hasChecklistActivity =
     metrics.checklistScore !== null && metrics.checked > 0;
 
-  if (!isLoaded || !accountsLoaded) {
+  if (!tradesLoaded || !checklistLoaded || !accountsLoaded) {
     return (
       <div className="animate-pulse space-y-8">
         <div className="h-36 rounded-2xl bg-[#12121a]" />

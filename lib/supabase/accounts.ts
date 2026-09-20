@@ -6,6 +6,7 @@ import type {
 import {
   ACCOUNT_STORAGE_KEY,
   ACTIVE_ACCOUNT_STORAGE_KEY,
+  TRADE_ACCOUNTS_BACKFILL_STORAGE_KEY,
   TRADING_ACCOUNTS_STORAGE_KEY,
 } from "@/lib/storage/keys";
 import {
@@ -101,6 +102,33 @@ function writeLocalAccounts(accounts: TradingAccount[]) {
   );
 }
 
+let cachedAccounts: TradingAccount[] | null = null;
+let accountsInflight: Promise<TradingAccount[]> | null = null;
+let tradeAccountsReconciled = false;
+
+function rememberAccounts(accounts: TradingAccount[]) {
+  const next = sortAccounts(accounts);
+  cachedAccounts = next;
+  writeLocalAccounts(next);
+  return next;
+}
+
+export function clearAccountsCache() {
+  cachedAccounts = null;
+  accountsInflight = null;
+  tradeAccountsReconciled = false;
+}
+
+async function getExistingAccounts(): Promise<TradingAccount[]> {
+  if (cachedAccounts && cachedAccounts.length > 0) return cachedAccounts;
+  const local = readLocalAccounts();
+  if (local.length > 0) {
+    cachedAccounts = local;
+    return local;
+  }
+  return loadTradingAccounts();
+}
+
 function defaultLocalAccount(): TradingAccount {
   return {
     id: crypto.randomUUID(),
@@ -173,6 +201,32 @@ async function backfillTradeAccounts(
   }
 }
 
+async function maybeReconcileTradeAccounts(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  accountId: string
+) {
+  if (tradeAccountsReconciled) return;
+
+  const map = readTradeAccountMap();
+  if (Object.keys(map).length > 0) {
+    await syncMappedTradeAccounts(supabase, userId);
+  }
+
+  const alreadyBackfilled =
+    typeof window !== "undefined" &&
+    localStorage.getItem(TRADE_ACCOUNTS_BACKFILL_STORAGE_KEY) === "1";
+
+  if (!alreadyBackfilled) {
+    await backfillTradeAccounts(supabase, userId, accountId);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(TRADE_ACCOUNTS_BACKFILL_STORAGE_KEY, "1");
+    }
+  }
+
+  tradeAccountsReconciled = true;
+}
+
 function remapTradeAccounts(fromId: string, toId: string) {
   if (!fromId || !toId || fromId === toId) return;
   const map = readTradeAccountMap();
@@ -205,6 +259,16 @@ async function insertRemoteAccount(
 }
 
 export async function loadTradingAccounts(): Promise<TradingAccount[]> {
+  if (cachedAccounts && cachedAccounts.length > 0) return cachedAccounts;
+  if (accountsInflight) return accountsInflight;
+
+  accountsInflight = loadTradingAccountsFromNetwork().finally(() => {
+    accountsInflight = null;
+  });
+  return accountsInflight;
+}
+
+async function loadTradingAccountsFromNetwork(): Promise<TradingAccount[]> {
   const { supabase, userId } = await requireUserId();
   const { data, error } = await supabase
     .from("trading_accounts")
@@ -213,7 +277,7 @@ export async function loadTradingAccounts(): Promise<TradingAccount[]> {
     .order("created_at", { ascending: true });
 
   if (isMissingAccountsTable(error)) {
-    return ensureLocalAccounts();
+    return rememberAccounts(ensureLocalAccounts());
   }
   throwIfError(error);
 
@@ -237,10 +301,8 @@ export async function loadTradingAccounts(): Promise<TradingAccount[]> {
       remoteIds.add(row.id);
     }
 
-    const merged = sortAccounts(accounts);
-    writeLocalAccounts(merged);
-    await syncMappedTradeAccounts(supabase, userId);
-    await backfillTradeAccounts(supabase, userId, merged[0].id);
+    const merged = rememberAccounts(accounts);
+    await maybeReconcileTradeAccounts(supabase, userId, merged[0].id);
     return merged;
   }
 
@@ -248,14 +310,12 @@ export async function loadTradingAccounts(): Promise<TradingAccount[]> {
   const inserted: TradingAccount[] = [];
   for (const account of local) {
     const row = await insertRemoteAccount(supabase, userId, account);
-    if (!row) return local;
+    if (!row) return rememberAccounts(local);
     inserted.push(row);
   }
 
-  const accounts = inserted.length > 0 ? inserted : local;
-  writeLocalAccounts(accounts);
-  await syncMappedTradeAccounts(supabase, userId);
-  await backfillTradeAccounts(supabase, userId, accounts[0]?.id ?? "");
+  const accounts = rememberAccounts(inserted.length > 0 ? inserted : local);
+  await maybeReconcileTradeAccounts(supabase, userId, accounts[0]?.id ?? "");
   return accounts;
 }
 
@@ -263,7 +323,7 @@ export async function createTradingAccount(input?: {
   name?: string;
   startingBalance?: number;
 }): Promise<TradingAccount> {
-  const existing = await loadTradingAccounts();
+  const existing = await getExistingAccounts();
   if (existing.length >= MAX_TRADING_ACCOUNTS) {
     throw new Error(`You can keep up to ${MAX_TRADING_ACCOUNTS} trading accounts.`);
   }
@@ -293,7 +353,7 @@ export async function createTradingAccount(input?: {
   const { supabase, userId } = await requireUserId();
   const remote = await insertRemoteAccount(supabase, userId, draft);
   const created = remote ?? draft;
-  writeLocalAccounts([...existing, created]);
+  rememberAccounts([...existing, created]);
   return created;
 }
 
@@ -301,7 +361,7 @@ export async function updateTradingAccount(
   id: string,
   patch: { name?: string; startingBalance?: number }
 ): Promise<TradingAccount> {
-  const existing = await loadTradingAccounts();
+  const existing = await getExistingAccounts();
   const current = existing.find((account) => account.id === id);
   if (!current) throw new Error("Trading account not found.");
 
@@ -337,10 +397,9 @@ export async function updateTradingAccount(
 
   if (error && !isMissingAccountsTable(error)) throwIfError(error);
 
-  const accounts = existing.map((account) =>
-    account.id === id ? next : account
+  const accounts = rememberAccounts(
+    existing.map((account) => (account.id === id ? next : account))
   );
-  writeLocalAccounts(accounts);
   if (accounts[0]?.id === id) {
     localStorage.setItem(
       ACCOUNT_STORAGE_KEY,
@@ -351,7 +410,7 @@ export async function updateTradingAccount(
 }
 
 export async function deleteTradingAccount(id: string): Promise<TradingAccount[]> {
-  const existing = await loadTradingAccounts();
+  const existing = await getExistingAccounts();
   if (existing.length <= 1) {
     throw new Error("Keep at least one trading account.");
   }
@@ -368,7 +427,5 @@ export async function deleteTradingAccount(id: string): Promise<TradingAccount[]
 
   if (error && !isMissingAccountsTable(error)) throwIfError(error);
 
-  const remaining = existing.filter((account) => account.id !== id);
-  writeLocalAccounts(remaining);
-  return remaining;
+  return rememberAccounts(existing.filter((account) => account.id !== id));
 }

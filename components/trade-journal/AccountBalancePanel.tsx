@@ -10,7 +10,7 @@ import {
 import { desk } from "@/lib/ui/desk";
 import { parseNumericInput } from "@/lib/trades/pnl";
 import { Plus, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { memo, useEffect, useState } from "react";
 
 function toBalanceDraft(value: number) {
   return Number.isFinite(value) ? String(value) : "";
@@ -39,7 +39,7 @@ type AccountBalancePanelProps = {
   currentBalance: number;
 };
 
-export function AccountBalancePanel({
+export const AccountBalancePanel = memo(function AccountBalancePanel({
   currentBalance,
 }: AccountBalancePanelProps) {
   const {
@@ -302,4 +302,4 @@ export function AccountBalancePanel({
       </div>
     </DeskCard>
   );
-}
+});

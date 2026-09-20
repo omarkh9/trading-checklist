@@ -1,12 +1,9 @@
 "use client";
 
 import { useAccounts } from "@/components/accounts/AccountProvider";
+import { useCachedTrades } from "@/components/trade-journal/useCachedTrades";
 import { DeskCard } from "@/components/ui/DeskCard";
-import { fetchTrades } from "@/lib/supabase/trades";
-import {
-  fallbackAccountId,
-  tradesForAccount,
-} from "@/lib/trades/account-balance";
+import { tradesForAccount } from "@/lib/trades/account-balance";
 import { desk } from "@/lib/ui/desk";
 import {
   buildEquityCurve,
@@ -27,7 +24,7 @@ import {
   Scale,
   TrendingUp,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
   Area,
   AreaChart,
@@ -160,48 +157,16 @@ function StrategyTooltip({
 
 export function AnalyticsDashboard() {
   const { accounts, activeAccount, isLoaded: accountsLoaded } = useAccounts();
-  const [allTrades, setAllTrades] = useState<Trade[]>([]);
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    trades: allTrades,
+    isLoaded: tradesLoaded,
+    error,
+  } = useCachedTrades();
 
-  useEffect(() => {
-    let cancelled = false;
-
-    const load = async () => {
-      try {
-        const nextTrades = await fetchTrades();
-        if (!cancelled) {
-          setAllTrades(nextTrades);
-          setError(null);
-        }
-      } catch (loadError) {
-        if (!cancelled) {
-          setAllTrades([]);
-          setError(
-            loadError instanceof Error
-              ? loadError.message
-              : "Could not load trades."
-          );
-        }
-      } finally {
-        if (!cancelled) setIsLoaded(true);
-      }
-    };
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
+  const fallbackId = accounts[0]?.id ?? "";
   const trades = useMemo(
-    () =>
-      tradesForAccount(
-        allTrades,
-        activeAccount?.id ?? "",
-        fallbackAccountId(accounts)
-      ),
-    [allTrades, activeAccount?.id, accounts]
+    () => tradesForAccount(allTrades, activeAccount?.id ?? "", fallbackId),
+    [allTrades, activeAccount?.id, fallbackId]
   );
 
   const summary = useMemo(() => computeAnalyticsSummary(trades), [trades]);
@@ -229,7 +194,7 @@ export function AnalyticsDashboard() {
   const hasTrades = trades.length > 0;
   const lastEquity = equityCurve.at(-1)?.cumulative ?? 0;
 
-  if (!isLoaded || !accountsLoaded) {
+  if (!tradesLoaded || !accountsLoaded) {
     return (
       <div className="space-y-6 animate-pulse">
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

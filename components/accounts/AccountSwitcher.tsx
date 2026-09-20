@@ -1,21 +1,22 @@
 "use client";
 
-import { useAccounts } from "@/components/accounts/AccountProvider";
+import { useAccountSwitcher } from "@/components/accounts/AccountProvider";
 import { MAX_TRADING_ACCOUNTS } from "@/lib/types/account";
 import { ChevronDown, Wallet } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 
 type AccountSwitcherProps = {
   variant?: "header" | "sidebar";
 };
 
-export function AccountSwitcher({
+export const AccountSwitcher = memo(function AccountSwitcher({
   variant = "header",
 }: AccountSwitcherProps) {
-  const { accounts, activeAccount, isLoaded, setActiveAccountId } =
-    useAccounts();
+  const { accounts, activeId, isLoaded, setActiveAccountId } =
+    useAccountSwitcher();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const activeAccount = accounts.find((account) => account.id === activeId);
 
   useEffect(() => {
     if (!open) return;
@@ -122,4 +123,4 @@ export function AccountSwitcher({
       )}
     </div>
   );
-}
+});

@@ -20,6 +20,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -38,7 +39,15 @@ type AccountContextValue = {
   deleteAccount: (id: string) => Promise<void>;
 };
 
+type AccountSwitcherValue = {
+  accounts: { id: string; name: string }[];
+  activeId: string;
+  isLoaded: boolean;
+  setActiveAccountId: (id: string) => void;
+};
+
 const AccountContext = createContext<AccountContextValue | null>(null);
+const AccountSwitcherContext = createContext<AccountSwitcherValue | null>(null);
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Something went wrong.";
@@ -49,6 +58,10 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
   const [activeAccountId, setActiveAccountIdState] = useState("");
   const [isLoaded, setIsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const accountsRef = useRef(accounts);
+  const activeAccountIdRef = useRef(activeAccountId);
+  accountsRef.current = accounts;
+  activeAccountIdRef.current = activeAccountId;
 
   const selectAccount = useCallback((id: string, list: TradingAccount[]) => {
     const resolved =
@@ -84,9 +97,9 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
 
   const setActiveAccountId = useCallback(
     (id: string) => {
-      selectAccount(id, accounts);
+      selectAccount(id, accountsRef.current);
     },
-    [accounts, selectAccount]
+    [selectAccount]
   );
 
   const createAccount = useCallback(
@@ -143,14 +156,17 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
   const deleteAccount = useCallback(
     async (id: string) => {
       try {
+        const list = accountsRef.current;
         const fallbackId = fallbackAccountId(
-          accounts.filter((account) => account.id !== id)
+          list.filter((account) => account.id !== id)
         );
-        await deleteTradesForAccount(id, fallbackAccountId(accounts));
+        await deleteTradesForAccount(id, fallbackAccountId(list));
         const remaining = await deleteTradingAccount(id);
         setAccounts(remaining);
         selectAccount(
-          activeAccountId === id ? fallbackId : activeAccountId,
+          activeAccountIdRef.current === id
+            ? fallbackId
+            : activeAccountIdRef.current,
           remaining
         );
         setError(null);
@@ -160,11 +176,14 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
         throw cause;
       }
     },
-    [accounts, activeAccountId, selectAccount]
+    [selectAccount]
   );
 
   const activeAccount = useMemo(
-    () => accounts.find((account) => account.id === activeAccountId) ?? accounts[0] ?? null,
+    () =>
+      accounts.find((account) => account.id === activeAccountId) ??
+      accounts[0] ??
+      null,
     [accounts, activeAccountId]
   );
 
@@ -193,8 +212,31 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
     ]
   );
 
+  const switcherKey = accounts
+    .map((account) => `${account.id}:${account.name}`)
+    .join("|");
+  const switcherAccounts = useMemo(
+    () => accounts.map(({ id, name }) => ({ id, name })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by id/name, ignore balance updates
+    [switcherKey]
+  );
+
+  const switcherValue = useMemo<AccountSwitcherValue>(
+    () => ({
+      accounts: switcherAccounts,
+      activeId: activeAccountId,
+      isLoaded,
+      setActiveAccountId,
+    }),
+    [switcherAccounts, activeAccountId, isLoaded, setActiveAccountId]
+  );
+
   return (
-    <AccountContext.Provider value={value}>{children}</AccountContext.Provider>
+    <AccountContext.Provider value={value}>
+      <AccountSwitcherContext.Provider value={switcherValue}>
+        {children}
+      </AccountSwitcherContext.Provider>
+    </AccountContext.Provider>
   );
 }
 
@@ -202,6 +244,14 @@ export function useAccounts() {
   const context = useContext(AccountContext);
   if (!context) {
     throw new Error("useAccounts must be used within AccountProvider.");
+  }
+  return context;
+}
+
+export function useAccountSwitcher() {
+  const context = useContext(AccountSwitcherContext);
+  if (!context) {
+    throw new Error("useAccountSwitcher must be used within AccountProvider.");
   }
   return context;
 }

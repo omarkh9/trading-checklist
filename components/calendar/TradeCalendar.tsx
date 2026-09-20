@@ -1,11 +1,9 @@
 "use client";
 
 import { useAccounts } from "@/components/accounts/AccountProvider";
+import { useCachedTrades } from "@/components/trade-journal/useCachedTrades";
 import { TradeDetailCard } from "@/components/trade-journal/TradeDetailCard";
-import {
-  fallbackAccountId,
-  tradesForAccount,
-} from "@/lib/trades/account-balance";
+import { tradesForAccount } from "@/lib/trades/account-balance";
 import {
   buildStartingEquityByDay,
   computeDayStats,
@@ -22,7 +20,6 @@ import {
 } from "@/lib/trades/day-stats";
 import { formatCalendarDateLabel, formatLocalMonthYear } from "@/lib/time";
 import { dateKeyFromDate } from "@/lib/trades/load-trades";
-import { fetchTrades } from "@/lib/supabase/trades";
 import type { Trade } from "@/lib/types/trade";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import Link from "next/link";
@@ -252,8 +249,7 @@ function DayDetailModal({
 
 export function TradeCalendar() {
   const { accounts, activeAccount, isLoaded: accountsLoaded } = useAccounts();
-  const [allTrades, setAllTrades] = useState<Trade[]>([]);
-  const [isLoaded, setIsLoaded] = useState(false);
+  const { trades: allTrades, isLoaded: tradesLoaded } = useCachedTrades();
   const [viewDate, setViewDate] = useState(() => new Date());
   const [modalDateKey, setModalDateKey] = useState<string | null>(null);
   const [metric, setMetric] = useState<CalendarDisplayMetric>("dollar");
@@ -262,40 +258,10 @@ export function TradeCalendar() {
     setMetric(loadCalendarDisplayMetric());
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    const load = async () => {
-      try {
-        const nextTrades = await fetchTrades();
-        if (!cancelled) setAllTrades(nextTrades);
-      } catch {
-        if (!cancelled) setAllTrades([]);
-      } finally {
-        if (!cancelled) setIsLoaded(true);
-      }
-    };
-
-    void load();
-    const onFocus = () => {
-      void load();
-    };
-    window.addEventListener("focus", onFocus);
-
-    return () => {
-      cancelled = true;
-      window.removeEventListener("focus", onFocus);
-    };
-  }, []);
-
+  const fallbackId = accounts[0]?.id ?? "";
   const trades = useMemo(
-    () =>
-      tradesForAccount(
-        allTrades,
-        activeAccount?.id ?? "",
-        fallbackAccountId(accounts)
-      ),
-    [allTrades, activeAccount?.id, accounts]
+    () => tradesForAccount(allTrades, activeAccount?.id ?? "", fallbackId),
+    [allTrades, activeAccount?.id, fallbackId]
   );
   const startingBalance = activeAccount?.startingBalance ?? 0;
 
@@ -350,7 +316,7 @@ export function TradeCalendar() {
     saveCalendarDisplayMetric(next);
   };
 
-  if (!isLoaded || !accountsLoaded) {
+  if (!tradesLoaded || !accountsLoaded) {
     return (
       <div className="animate-pulse space-y-4">
         <div className="h-12 rounded-2xl bg-[#0c0c16]/80" />

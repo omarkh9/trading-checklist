@@ -14,7 +14,7 @@ import type { TradingAccount } from "@/lib/types/account";
 import type { Direction, Outcome, Trade, TradeFormData } from "@/lib/types/trade";
 import { assetClassBadgeClass } from "@/lib/ui/desk";
 import { Eye, Pencil, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 
 type FilterTab = "All" | Outcome;
 
@@ -46,7 +46,7 @@ function formatCardDate(iso: string) {
   return formatLocalDateTime(iso);
 }
 
-export function TradeHistoryGrid({
+export const TradeHistoryGrid = memo(function TradeHistoryGrid({
   trades,
   accounts,
   accountBalances,
@@ -375,4 +375,4 @@ export function TradeHistoryGrid({
       )}
     </>
   );
-}
+});

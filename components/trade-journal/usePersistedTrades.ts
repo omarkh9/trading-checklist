@@ -1,9 +1,9 @@
 "use client";
 
 import { useAccounts } from "@/components/accounts/AccountProvider";
+import { useCachedTrades } from "@/components/trade-journal/useCachedTrades";
 import {
   deleteTrade,
-  fetchTrades,
   insertTrade,
   updateTrade,
 } from "@/lib/supabase/trades";
@@ -13,8 +13,8 @@ import {
   fallbackAccountId,
   tradesForAccount,
 } from "@/lib/trades/account-balance";
-import type { Trade, TradeFormData } from "@/lib/types/trade";
-import { useEffect, useMemo, useState } from "react";
+import type { TradeFormData } from "@/lib/types/trade";
+import { useCallback, useMemo, useState } from "react";
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Something went wrong.";
@@ -28,32 +28,12 @@ export function usePersistedTrades() {
     error: accountsError,
     setActiveAccountId,
   } = useAccounts();
-  const [allTrades, setAllTrades] = useState<Trade[]>([]);
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const load = async () => {
-      try {
-        const nextTrades = await fetchTrades();
-        if (cancelled) return;
-        setAllTrades(nextTrades);
-        setError(null);
-      } catch (cause) {
-        if (cancelled) return;
-        setError(errorMessage(cause));
-      } finally {
-        if (!cancelled) setIsLoaded(true);
-      }
-    };
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const {
+    trades: allTrades,
+    isLoaded: tradesLoaded,
+    error: tradesError,
+  } = useCachedTrades();
+  const [mutationError, setMutationError] = useState<string | null>(null);
 
   const fallbackId = fallbackAccountId(accounts);
   const activeAccountId = activeAccount?.id ?? "";
@@ -75,45 +55,43 @@ export function usePersistedTrades() {
     [accounts, allTrades]
   );
 
-  const handleSubmit = async (data: TradeFormData) => {
-    setError(null);
-    const accountId = data.accountId || activeAccountId;
-    try {
-      const created = await insertTrade({ ...data, accountId });
-      setAllTrades((prev) => [created, ...prev]);
-      if (accountId && accountId !== activeAccountId) {
-        setActiveAccountId(accountId);
+  const handleSubmit = useCallback(
+    async (data: TradeFormData) => {
+      setMutationError(null);
+      const accountId = data.accountId || activeAccountId;
+      try {
+        await insertTrade({ ...data, accountId });
+        if (accountId && accountId !== activeAccountId) {
+          setActiveAccountId(accountId);
+        }
+      } catch (cause) {
+        const message = errorMessage(cause);
+        setMutationError(message);
+        throw cause;
       }
-    } catch (cause) {
-      const message = errorMessage(cause);
-      setError(message);
-      throw cause;
-    }
-  };
+    },
+    [activeAccountId, setActiveAccountId]
+  );
 
-  const handleUpdate = async (id: string, data: TradeFormData) => {
-    setError(null);
+  const handleUpdate = useCallback(async (id: string, data: TradeFormData) => {
+    setMutationError(null);
     try {
-      const updated = await updateTrade(id, data);
-      setAllTrades((prev) =>
-        prev.map((trade) => (trade.id === id ? updated : trade))
-      );
+      await updateTrade(id, data);
     } catch (cause) {
       const message = errorMessage(cause);
-      setError(message);
+      setMutationError(message);
       throw cause;
     }
-  };
+  }, []);
 
-  const handleDelete = async (id: string) => {
-    setError(null);
+  const handleDelete = useCallback(async (id: string) => {
+    setMutationError(null);
     try {
       await deleteTrade(id);
-      setAllTrades((prev) => prev.filter((trade) => trade.id !== id));
     } catch (cause) {
-      setError(errorMessage(cause));
+      setMutationError(errorMessage(cause));
     }
-  };
+  }, []);
 
   return {
     trades,
@@ -123,8 +101,8 @@ export function usePersistedTrades() {
     startingBalance,
     currentBalance,
     accountBalances,
-    isLoaded: isLoaded && accountsLoaded,
-    error: error ?? accountsError,
+    isLoaded: tradesLoaded && accountsLoaded,
+    error: mutationError ?? tradesError ?? accountsError,
     handleSubmit,
     handleUpdate,
     handleDelete,

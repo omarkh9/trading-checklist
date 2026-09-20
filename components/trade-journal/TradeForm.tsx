@@ -24,7 +24,7 @@ import type { TradingAccount } from "@/lib/types/account";
 import { DeskCard } from "@/components/ui/DeskCard";
 import { desk } from "@/lib/ui/desk";
 import { ChevronDown, Save } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 
 type TradeFormProps = {
   accounts: TradingAccount[];
@@ -159,7 +159,7 @@ function ToggleGroup<T extends string>({
   );
 }
 
-export function TradeForm({
+export const TradeForm = memo(function TradeForm({
   accounts,
   accountBalances,
   defaultAccountId,
@@ -176,11 +176,17 @@ export function TradeForm({
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    const next = initialData ?? emptyTradeForm();
-    setForm({
-      ...next,
-      accountId: next.accountId || defaultAccountId,
-    });
+    if (initialData) {
+      setForm({
+        ...initialData,
+        accountId: initialData.accountId || defaultAccountId,
+      });
+      return;
+    }
+    setForm((prev) => ({
+      ...prev,
+      accountId: defaultAccountId || prev.accountId,
+    }));
   }, [initialData, defaultAccountId]);
 
   const update = <K extends keyof TradeFormData>(
@@ -647,4 +653,4 @@ export function TradeForm({
       {embedded ? formBody : <DeskCard>{formBody}</DeskCard>}
     </form>
   );
-}
+});
