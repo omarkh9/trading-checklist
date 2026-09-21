@@ -1,5 +1,10 @@
+# Production branch must be `main` in Netlify:
+# Project configuration → Build & deploy → Continuous deployment → Production branch.
+# netlify.toml cannot set that UI field; the ignore command below is the repo-side lock.
+
 [build]
   command = "npm run build"
+  ignore = 'if [ "$CONTEXT" = "production" ] && [ "$BRANCH" != "main" ]; then echo "Skipping production deploy from $BRANCH (locked to main)"; exit 0; fi; exit 1'
 
 [build.environment]
   NEXT_PUBLIC_SUPABASE_URL = "https://agfzhwyhrrcbadbzvmpy.supabase.co"
@@ -7,12 +12,18 @@
   NEXT_PUBLIC_OWNER_EMAIL = "Omar.khallil@outlook.com"
   NEXT_PUBLIC_SITE_URL = "https://edge-log-11.netlify.app"
 
+[context.production]
+  command = "npm run build"
+
 [context.production.environment]
   NEXT_PUBLIC_SITE_URL = "https://edge-log-11.netlify.app"
 
+# Pull-request Deploy Previews. No extra build command needed.
 [context.deploy-preview.environment]
   NEXT_PUBLIC_SITE_URL = "https://edge-log-11.netlify.app"
 
+# Feature-branch deploys (cursor/*, etc.) stay on *.netlify.app preview URLs.
+# They never replace production unless the UI production branch is changed.
 [context.branch-deploy.environment]
   NEXT_PUBLIC_SITE_URL = "https://edge-log-11.netlify.app"
 
