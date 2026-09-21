@@ -7,6 +7,7 @@ import {
   buildStartingEquityByDay,
   computeDayStats,
   computePeriodStats,
+  formatCompactPnl,
   formatDayMetric,
   formatTradeCount,
   formatWeekHeading,
@@ -125,32 +126,42 @@ function RangeToggle({
   value: CalendarRange;
   onChange: (value: CalendarRange) => void;
 }) {
+  const isWeekly = value === "week";
+
   return (
-    <div
-      className="flex rounded-lg border border-white/10 bg-white/[0.03] p-1"
-      role="group"
-      aria-label="Calendar range"
-    >
-      {(
-        [
-          { id: "week", label: "Weekly" },
-          { id: "month", label: "Monthly" },
-        ] as const
-      ).map((option) => (
-        <button
-          key={option.id}
-          type="button"
-          onClick={() => onChange(option.id)}
-          aria-pressed={value === option.id}
-          className={`rounded-md px-3.5 py-1.5 text-xs font-semibold transition-colors ${
-            value === option.id
-              ? "bg-indigo-500 text-white shadow-[0_0_14px_rgba(99,102,241,0.35)]"
-              : "text-zinc-400 hover:text-zinc-200"
+    <div className="inline-flex items-center gap-3 rounded-full border border-indigo-400/25 bg-white/[0.04] px-3 py-1.5">
+      <button
+        type="button"
+        onClick={() => onChange("week")}
+        className={`text-sm font-semibold transition-colors ${
+          isWeekly ? "text-zinc-50" : "text-zinc-500 hover:text-zinc-300"
+        }`}
+      >
+        Weekly
+      </button>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={isWeekly}
+        aria-label="Switch between weekly and monthly calendar views"
+        onClick={() => onChange(isWeekly ? "month" : "week")}
+        className="relative h-7 w-12 shrink-0 rounded-full bg-indigo-500"
+      >
+        <span
+          className={`absolute top-0.5 left-0.5 h-6 w-6 rounded-full bg-white shadow-sm transition-transform ${
+            isWeekly ? "translate-x-0" : "translate-x-5"
           }`}
-        >
-          {option.label}
-        </button>
-      ))}
+        />
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange("month")}
+        className={`text-sm font-semibold transition-colors ${
+          isWeekly ? "text-zinc-500 hover:text-zinc-300" : "text-zinc-50"
+        }`}
+      >
+        Monthly
+      </button>
     </div>
   );
 }
@@ -524,20 +535,22 @@ export function TradeCalendar() {
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-indigo-500/10 via-transparent to-transparent" />
           <div className="relative">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <h3 className="text-lg font-semibold tracking-tight text-zinc-50">
-                {range === "week"
-                  ? formatWeekHeading(weekBounds.start, weekBounds.end)
-                  : formatMonthLabel(viewDate)}
-              </h3>
-              <p className="mt-1 text-sm text-zinc-500">
-                {activeAccount
-                  ? `${activeAccount.name} — click any date to journal trades for that day.`
-                  : "Click any date to journal trades for that day."}
-              </p>
+            <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+              <div>
+                <h3 className="text-lg font-semibold tracking-tight text-zinc-50">
+                  {range === "week"
+                    ? formatWeekHeading(weekBounds.start, weekBounds.end)
+                    : formatMonthLabel(viewDate)}
+                </h3>
+                <p className="mt-1 text-sm text-zinc-500">
+                  {activeAccount
+                    ? `${activeAccount.name} — click any date to journal trades for that day.`
+                    : "Click any date to journal trades for that day."}
+                </p>
+              </div>
+              <RangeToggle value={range} onChange={handleRangeChange} />
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <RangeToggle value={range} onChange={handleRangeChange} />
               <MetricToggle value={metric} onChange={handleMetricChange} />
               <button
                 type="button"
@@ -625,7 +638,7 @@ export function TradeCalendar() {
                   " ring-2 ring-indigo-300/80 ring-offset-2 ring-offset-[#0c0c16]";
               }
 
-              const metricLabel = stats ? formatDayMetric(stats, metric) : "";
+              const metricLabel = stats ? formatCompactPnl(stats.netPnl) : "";
               const ariaLabel = stats
                 ? `${date.getDate()}, ${metricLabel}, ${formatTradeCount(stats.tradeCount)}. Click to journal trades for this day.`
                 : `${date.getDate()}, no trades. Click to journal trades for this day.`;
