@@ -253,7 +253,7 @@ export const TradeHistoryGrid = memo(function TradeHistoryGrid({
           </div>
         </div>
         ) : (
-        <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="mt-6 grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {filteredTrades.map((trade) => {
             const pnl = trade.pnlDollars ?? 0;
             const notesPreview = trade.notes.trim() || "No notes added yet.";
@@ -271,52 +271,53 @@ export const TradeHistoryGrid = memo(function TradeHistoryGrid({
                 : pnlTone === "negative"
                   ? "text-rose-400"
                   : "text-sky-300";
+            const strategy = trade.strategy.trim();
+            const badgeClass =
+              "inline-flex max-w-full items-center rounded-full px-2 py-0.5 text-[11px] font-medium leading-tight ring-1";
 
             return (
               <article
                 key={trade.id}
-                className="flex flex-col rounded-xl border border-indigo-400/15 bg-[#0c0c16]/80 p-5 shadow-[0_8px_24px_rgba(0,0,0,0.28)] transition-all duration-300 hover:border-indigo-400/35"
+                className="flex min-w-0 flex-col overflow-hidden rounded-xl border border-indigo-400/15 bg-[#0c0c16]/80 p-4 shadow-[0_8px_24px_rgba(0,0,0,0.28)] transition-all duration-300 hover:border-indigo-400/35 sm:p-5"
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h4 className="text-lg font-semibold text-zinc-100">
-                      {trade.pair}
-                    </h4>
-                    <p className="mt-1 text-xs text-zinc-500">
-                      {formatCardDate(trade.createdAt)}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap justify-end gap-1.5">
+                <div className="min-w-0">
+                  <h4 className="truncate text-lg font-semibold text-zinc-100">
+                    {trade.pair}
+                  </h4>
+                  <p className="mt-1 truncate text-xs text-zinc-500">
+                    {formatCardDate(trade.createdAt)}
+                  </p>
+                  <div className="mt-2.5 flex min-w-0 flex-wrap gap-1.5">
                     <span
-                      className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${directionBadgeClass[trade.direction]}`}
+                      className={`${badgeClass} ${directionBadgeClass[trade.direction]}`}
                     >
                       {trade.direction}
                     </span>
                     <span
-                      className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${outcomeBadgeClass[trade.outcome]}`}
+                      className={`${badgeClass} ${outcomeBadgeClass[trade.outcome]}`}
                     >
                       {trade.outcome}
                     </span>
                     <span
-                      className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${assetClassBadgeClass[resolveAsset(trade.pair).spec.assetClass]}`}
+                      className={`${badgeClass} ${assetClassBadgeClass[resolveAsset(trade.pair).spec.assetClass]}`}
                     >
                       {ASSET_CLASS_LABELS[resolveAsset(trade.pair).spec.assetClass]}
                     </span>
-                    {trade.strategy.trim() && (
-                      <span className="inline-flex rounded-full bg-indigo-500/15 px-2.5 py-0.5 text-xs font-medium text-indigo-300 ring-1 ring-indigo-400/30">
-                        {trade.strategy.trim()}
+                    {strategy && (
+                      <span className={`${badgeClass} max-w-[11rem] bg-indigo-500/15 text-indigo-300 ring-indigo-400/30`}>
+                        <span className="truncate">{strategy}</span>
                       </span>
                     )}
                   </div>
                 </div>
 
-                <div className="mt-4 grid items-stretch gap-3 sm:grid-cols-2">
-                  <div className={`flex h-full flex-col justify-center rounded-lg border px-3 py-2.5 ${pnlCardClass}`}>
+                <div className="mt-4 grid min-w-0 items-stretch gap-3 sm:grid-cols-2">
+                  <div className={`flex h-full min-w-0 flex-col justify-center rounded-lg border px-3 py-2.5 ${pnlCardClass}`}>
                     <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">
                       Total P/L
                     </p>
                     <p
-                      className={`mt-1 font-mono text-xl font-semibold ${pnlTextClass}`}
+                      className={`mt-1 min-w-0 break-words font-mono text-lg font-semibold sm:text-xl ${pnlTextClass}`}
                     >
                       {formatPnlDollars(pnl)}
                     </p>
@@ -324,31 +325,31 @@ export const TradeHistoryGrid = memo(function TradeHistoryGrid({
                   <RuleScoreStat trade={trade} />
                 </div>
 
-                <p className="mt-4 line-clamp-2 flex-1 text-sm leading-relaxed text-zinc-400">
+                <p className="mt-4 line-clamp-2 min-w-0 flex-1 break-words text-sm leading-relaxed text-zinc-400">
                   {notesPreview}
                 </p>
 
-                <div className="mt-5 flex flex-wrap gap-2 border-t border-white/10 pt-4">
+                <div className="mt-5 flex min-w-0 flex-wrap gap-2 border-t border-white/10 pt-4">
                   <button
                     type="button"
                     onClick={() => setViewTradeId(trade.id)}
-                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-zinc-200 transition-all duration-300 hover:border-indigo-400/30 hover:bg-indigo-500/10"
+                    className="inline-flex min-w-0 flex-1 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-zinc-200 transition-all duration-300 hover:border-indigo-400/30 hover:bg-indigo-500/10"
                   >
-                    <Eye className="h-4 w-4" />
+                    <Eye className="h-4 w-4 shrink-0" />
                     View
                   </button>
                   <button
                     type="button"
                     onClick={() => setEditTradeId(trade.id)}
-                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-indigo-400/30 bg-indigo-500/10 px-3 py-2 text-sm font-medium text-indigo-200 transition-all duration-300 hover:bg-indigo-500/20"
+                    className="inline-flex min-w-0 flex-1 items-center justify-center gap-2 rounded-lg border border-indigo-400/30 bg-indigo-500/10 px-3 py-2 text-sm font-medium text-indigo-200 transition-all duration-300 hover:bg-indigo-500/20"
                   >
-                    <Pencil className="h-4 w-4" />
+                    <Pencil className="h-4 w-4 shrink-0" />
                     Update Trade
                   </button>
                   <button
                     type="button"
                     onClick={() => onDelete(trade.id)}
-                    className="inline-flex items-center justify-center rounded-lg border border-white/10 px-3 py-2 text-zinc-400 transition-all duration-300 hover:border-rose-500/30 hover:bg-rose-500/10 hover:text-rose-400"
+                    className="inline-flex shrink-0 items-center justify-center rounded-lg border border-white/10 px-3 py-2 text-zinc-400 transition-all duration-300 hover:border-rose-500/30 hover:bg-rose-500/10 hover:text-rose-400"
                     aria-label={`Delete ${trade.pair} trade`}
                   >
                     <Trash2 className="h-4 w-4" />

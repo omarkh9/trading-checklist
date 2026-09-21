@@ -184,7 +184,7 @@ export const AccountBalancePanel = memo(function AccountBalancePanel({
         logged win and loss.
       </p>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-6 grid min-w-0 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <label htmlFor="account-name" className={desk.label}>
             Account name
@@ -218,9 +218,9 @@ export const AccountBalancePanel = memo(function AccountBalancePanel({
           />
         </div>
 
-        <div className={`${desk.panel} border-indigo-400/20`}>
+        <div className={`${desk.panel} @container min-w-0 border-indigo-400/20`}>
           <p className={desk.label}>Current Balance</p>
-          <p className="mt-1 text-3xl font-extrabold tracking-tight text-indigo-200">
+          <p className="mt-1 min-w-0 break-words font-sans text-[clamp(1.15rem,12cqi,1.875rem)] font-extrabold leading-tight tracking-tight text-indigo-200 tabular-nums">
             {formatBalance(currentBalance)}
           </p>
           <p className="mt-1 text-[11px] text-zinc-500">
@@ -229,13 +229,13 @@ export const AccountBalancePanel = memo(function AccountBalancePanel({
         </div>
 
         <div
-          className={`${desk.panel} ${
+          className={`${desk.panel} @container min-w-0 ${
             netPnl >= 0 ? "border-emerald-400/25" : "border-rose-400/25"
           }`}
         >
           <p className={desk.label}>Net P/L</p>
           <p
-            className={`mt-1 text-3xl font-extrabold tracking-tight ${
+            className={`mt-1 min-w-0 break-words font-sans text-[clamp(1.15rem,12cqi,1.875rem)] font-extrabold leading-tight tracking-tight tabular-nums ${
               netPnl > 0
                 ? "text-emerald-300"
                 : netPnl < 0

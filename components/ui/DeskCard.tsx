@@ -12,10 +12,10 @@ export function DeskCard({
   padding = true,
 }: DeskCardProps) {
   return (
-    <div className={`${desk.card} ${padding ? "p-6" : ""} ${className}`}>
+    <div className={`${desk.card} min-w-0 ${padding ? "p-6" : ""} ${className}`}>
       <div className={desk.bar} />
       <div className={desk.wash} />
-      <div className="relative">{children}</div>
+      <div className="relative min-w-0">{children}</div>
     </div>
   );
 }

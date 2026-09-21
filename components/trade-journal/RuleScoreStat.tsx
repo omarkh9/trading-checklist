@@ -50,15 +50,15 @@ export function RuleScoreStat({
 
   return (
     <div
-      className={`flex h-full flex-col rounded-lg border px-4 py-3 ${tone.card}`}
+      className={`flex h-full min-w-0 flex-col rounded-lg border px-3 py-2.5 sm:px-4 sm:py-3 ${tone.card}`}
       title="Exact Pre-Trade Checklist score stored when this trade was submitted"
     >
       <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">
         Pre-Trade Checklist
       </p>
-      <p className={`mt-1 flex items-center gap-2 font-mono text-lg font-semibold leading-tight ${tone.text}`}>
+      <p className={`mt-1 flex min-w-0 items-center gap-2 font-mono text-lg font-semibold leading-tight ${tone.text}`}>
         <ListChecks className="h-4 w-4 shrink-0" />
-        <span className="whitespace-nowrap">{caption}</span>
+        <span className="min-w-0 break-words">{caption}</span>
       </p>
       <div className="mt-auto pt-2">
         <div className="h-1.5 overflow-hidden rounded-full bg-white/10">

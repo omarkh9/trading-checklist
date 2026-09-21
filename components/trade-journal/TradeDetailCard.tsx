@@ -90,35 +90,35 @@ export function TradeDetailCard({ trade }: TradeDetailCardProps) {
         : "border-blue-400/40 bg-blue-500/10";
 
   return (
-    <article className="rounded-xl border border-indigo-400/15 bg-[#0c0c16]/70 p-4 sm:p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h4 className="text-xl font-semibold tracking-tight text-zinc-50">
+    <article className="min-w-0 overflow-hidden rounded-xl border border-indigo-400/15 bg-[#0c0c16]/70 p-4 sm:p-5">
+      <div className="flex min-w-0 flex-col gap-3">
+        <div className="min-w-0">
+          <h4 className="truncate text-xl font-semibold tracking-tight text-zinc-50">
             {trade.pair}
           </h4>
-          <p className="mt-1 text-sm text-zinc-500">
+          <p className="mt-1 truncate text-sm text-zinc-500">
             {formatTradeDateTime(trade.createdAt)}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex min-w-0 flex-wrap gap-1.5">
           <span
-            className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${assetClassBadgeClass[asset.spec.assetClass]}`}
+            className={`inline-flex max-w-full items-center rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ${assetClassBadgeClass[asset.spec.assetClass]}`}
           >
             {ASSET_CLASS_LABELS[asset.spec.assetClass]}
           </span>
           <span
-            className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${directionBadgeClass[trade.direction]}`}
+            className={`inline-flex max-w-full items-center rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ${directionBadgeClass[trade.direction]}`}
           >
             {trade.direction}
           </span>
           <span
-            className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${outcomeBadgeClass[trade.outcome]}`}
+            className={`inline-flex max-w-full items-center rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ${outcomeBadgeClass[trade.outcome]}`}
           >
             {trade.outcome}
           </span>
           {trade.strategy.trim() && (
-            <span className="inline-flex rounded-full bg-indigo-500/15 px-2.5 py-0.5 text-xs font-medium text-indigo-300 ring-1 ring-indigo-400/30">
-              {trade.strategy.trim()}
+            <span className="inline-flex max-w-[11rem] items-center rounded-full bg-indigo-500/15 px-2 py-0.5 text-[11px] font-medium text-indigo-300 ring-1 ring-indigo-400/30">
+              <span className="truncate">{trade.strategy.trim()}</span>
             </span>
           )}
         </div>

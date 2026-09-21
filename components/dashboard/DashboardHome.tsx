@@ -126,7 +126,7 @@ const StatCard = memo(function StatCard({
 
   return (
     <div
-      className={`group relative overflow-hidden rounded-2xl border bg-[#0c0c16]/90 p-5 shadow-[0_8px_32px_rgba(0,0,0,0.35)] transition-all duration-300 hover:-translate-y-0.5 ${styles.border} ${styles.glow}`}
+      className={`group @container relative min-w-0 overflow-hidden rounded-2xl border bg-[#0c0c16]/90 p-4 shadow-[0_8px_32px_rgba(0,0,0,0.35)] transition-all duration-300 hover:-translate-y-0.5 sm:p-5 ${styles.border} ${styles.glow}`}
     >
       <div
         className={`pointer-events-none absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r ${styles.bar}`}
@@ -136,21 +136,23 @@ const StatCard = memo(function StatCard({
       />
 
       <div className="relative flex items-start justify-between gap-3">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
+        <p className="min-w-0 text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
           {label}
         </p>
         <div
-          className={`flex h-9 w-9 items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-105 ${styles.iconWrap}`}
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-105 ${styles.iconWrap}`}
         >
           <Icon className={`h-4 w-4 ${styles.icon}`} />
         </div>
       </div>
       <p
-        className={`relative mt-4 font-sans text-4xl font-extrabold tracking-tight tabular-nums sm:text-5xl ${styles.value}`}
+        className={`relative mt-4 min-w-0 break-words font-sans text-[clamp(1.15rem,10cqi,2.5rem)] font-extrabold leading-tight tracking-tight tabular-nums ${styles.value}`}
       >
         {value}
       </p>
-      <p className="relative mt-2 text-sm text-zinc-500">{hint}</p>
+      <p className="relative mt-2 min-w-0 break-words text-sm text-zinc-500">
+        {hint}
+      </p>
     </div>
   );
 });
@@ -267,7 +269,7 @@ export const DashboardHome = memo(function DashboardHome() {
         </section>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <StatCard
           label="Account Balance"
           value={formatBalance(currentBalance)}
