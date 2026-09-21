@@ -310,7 +310,7 @@ function DayDetailModal({
             <p className="mt-1 text-sm text-zinc-500">
               {trades.length === 0
                 ? "Journal trades for this calendar day. The entry date is set automatically."
-                : `${formatTradeCount(trades.length)} logged — add another below if you are catching up.`}
+                : `${formatTradeCount(trades.length)} logged.`}
             </p>
           </div>
           <button
@@ -336,24 +336,25 @@ function DayDetailModal({
             </div>
           )}
 
-          <TradeForm
-            key={dateKey}
-            embedded
-            entryDateKey={dateKey}
-            accounts={accounts}
-            accountBalances={accountBalances}
-            defaultAccountId={defaultAccountId}
-            submitLabel="Save to this day"
-            onSubmit={onSubmit}
-          />
-
           {trades.length === 0 ? (
-            <p className="mt-5 pb-2 text-center text-sm text-zinc-500">
-              No trades on this day yet. Save one above and it will land on this
-              calendar box.
-            </p>
+            <>
+              <TradeForm
+                key={dateKey}
+                embedded
+                entryDateKey={dateKey}
+                accounts={accounts}
+                accountBalances={accountBalances}
+                defaultAccountId={defaultAccountId}
+                submitLabel="Save to this day"
+                onSubmit={onSubmit}
+              />
+              <p className="mt-5 pb-2 text-center text-sm text-zinc-500">
+                No trades on this day yet. Save one above and it will land on this
+                calendar box.
+              </p>
+            </>
           ) : (
-            <ul className="mt-6 space-y-5 border-t border-white/10 pt-5 pb-2">
+            <ul className="space-y-5 pb-2">
               {trades.map((trade, index) => (
                 <li key={trade.id}>
                   {trades.length > 1 && (
