@@ -2,13 +2,10 @@
 
 import { UserMenu } from "@/components/auth/UserMenu";
 import { useOwner } from "@/components/auth/useOwner";
-import { SessionStatus } from "@/components/dashboard/SessionStatus";
 import { navItems } from "@/lib/navigation";
 import { Activity, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-
-export { SessionStatus };
 
 type SidebarPanelProps = {
   onNavigate?: () => void;
@@ -88,8 +85,7 @@ export function SidebarPanel({ onNavigate, onClose }: SidebarPanelProps) {
         })}
       </nav>
 
-      <div className="shrink-0 space-y-3 border-t border-indigo-400/15 p-3">
-        <SessionStatus />
+      <div className="shrink-0 border-t border-indigo-400/15 p-3">
         <UserMenu variant="sidebar" />
       </div>
     </>

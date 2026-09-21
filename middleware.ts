@@ -12,6 +12,7 @@ function isPublicPath(pathname: string) {
     pathname.startsWith("/forgot-password") ||
     pathname.startsWith("/auth") ||
     pathname.startsWith("/api/mt5/webhook") ||
+    pathname.startsWith("/api/news/calendar") ||
     pathname === "/robots.txt" ||
     pathname === "/sitemap.xml" ||
     pathname === "/manifest.json" ||

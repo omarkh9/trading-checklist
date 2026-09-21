@@ -1,5 +1,13 @@
 import { CALENDAR_METRIC_STORAGE_KEY } from "@/lib/storage/keys";
-import { timestampMs } from "@/lib/time";
+import {
+  addLocalDays,
+  dateKeyFromDate,
+  localDateKey,
+  monthKeyFromDate,
+  startOfLocalMonth,
+  startOfLocalWeek,
+  timestampMs,
+} from "@/lib/time";
 import { sumTradePnl } from "@/lib/trades/pnl";
 import { tradeDateKey } from "@/lib/trades/load-trades";
 import type { Trade } from "@/lib/types/trade";
@@ -157,4 +165,83 @@ export function groupTradesByDay(trades: Trade[]): Map<string, Trade[]> {
     );
   }
   return map;
+}
+
+export type PeriodStats = DayStats & {
+  label: string;
+  startKey: string;
+  endKey: string;
+};
+
+export function tradesInDateRange(
+  trades: Trade[],
+  startKey: string,
+  endKey: string
+): Trade[] {
+  return trades.filter((trade) => {
+    const key = tradeDateKey(trade.createdAt);
+    return key >= startKey && key <= endKey;
+  });
+}
+
+export function computePeriodStats(
+  trades: Trade[],
+  startingEquity: number,
+  label: string,
+  startKey: string,
+  endKey: string
+): PeriodStats {
+  return {
+    ...computeDayStats(trades, startingEquity),
+    label,
+    startKey,
+    endKey,
+  };
+}
+
+export function weekRowsFromCalendarDays(
+  days: (Date | null)[]
+): Date[][] {
+  const rows: Date[][] = [];
+  for (let index = 0; index < days.length; index += 7) {
+    rows.push(
+      days.slice(index, index + 7).filter((day): day is Date => day != null)
+    );
+  }
+  return rows.filter((row) => row.length > 0);
+}
+
+export function monthPeriodBounds(viewDate: Date) {
+  const start = startOfLocalMonth(viewDate);
+  const end = new Date(start.getFullYear(), start.getMonth() + 1, 0);
+  return {
+    startKey: dateKeyFromDate(start),
+    endKey: dateKeyFromDate(end),
+    monthKey: monthKeyFromDate(start),
+  };
+}
+
+export function currentWeekBounds(now = new Date()) {
+  const start = startOfLocalWeek(now);
+  const end = addLocalDays(start, 6);
+  return {
+    startKey: dateKeyFromDate(start),
+    endKey: dateKeyFromDate(end),
+  };
+}
+
+export function formatWeekRangeLabel(start: Date, end: Date): string {
+  const startLabel = start.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+  const endLabel = end.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+  return `${startLabel} – ${endLabel}`;
+}
+
+export function todayKey(): string {
+  return localDateKey(new Date());
 }

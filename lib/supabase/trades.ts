@@ -7,6 +7,7 @@ import {
   tradesForAccount,
   writeTradeAccountMapEntry,
 } from "@/lib/trades/account-balance";
+import { encodeNotesWithMeta } from "@/lib/trades/journal-meta";
 import { normalizeTrade } from "@/lib/trades/load-trades";
 import {
   getCachedTrades,
@@ -80,6 +81,26 @@ function applyAccountFallback(trade: Trade, map: Record<string, string>): Trade 
   return { ...trade, accountId: map[trade.id] ?? "" };
 }
 
+function persistableNotes(
+  data: Pick<
+    Trade | TradeFormData,
+    | "notes"
+    | "exitPrice"
+    | "emotionBefore"
+    | "emotionAfter"
+    | "ruleScore"
+    | "checkedRuleIds"
+  >
+) {
+  return encodeNotesWithMeta(data.notes ?? "", {
+    exitPrice: data.exitPrice ?? "",
+    emotionBefore: data.emotionBefore ?? null,
+    emotionAfter: data.emotionAfter ?? null,
+    ruleScore: data.ruleScore ?? null,
+    checkedRuleIds: data.checkedRuleIds ?? [],
+  });
+}
+
 export function tradeFromRow(row: TradeRow): Trade {
   return {
     id: row.id,
@@ -90,6 +111,7 @@ export function tradeFromRow(row: TradeRow): Trade {
     entry: row.entry,
     direction: row.direction,
     entryPrice: row.entry_price,
+    exitPrice: "",
     stopLoss: row.stop_loss,
     takeProfit: row.take_profit,
     outcome: row.outcome,
@@ -104,6 +126,10 @@ export function tradeFromRow(row: TradeRow): Trade {
     accountId: row.account_id ?? "",
     strategy: row.strategy ?? "",
     notes: row.notes,
+    emotionBefore: null,
+    emotionAfter: null,
+    ruleScore: null,
+    checkedRuleIds: [],
     beforeChart: row.before_chart,
     afterChart: row.after_chart,
     createdAt: row.created_at,
@@ -134,7 +160,7 @@ export function tradeToInsert(trade: Trade, userId: string): TradeInsert {
     account_balance_at_entry: trade.accountBalanceAtEntry,
     account_id: trade.accountId || null,
     strategy: trade.strategy,
-    notes: trade.notes,
+    notes: persistableNotes(trade),
     before_chart: trade.beforeChart,
     after_chart: trade.afterChart,
     created_at: trade.createdAt,
@@ -167,7 +193,7 @@ export function tradeFormToInsert(
     account_balance_at_entry: data.accountBalanceAtEntry,
     account_id: data.accountId || null,
     strategy: (data.strategy ?? "").trim(),
-    notes: data.notes,
+    notes: persistableNotes(data),
     before_chart: data.beforeChart,
     after_chart: data.afterChart,
     ...(data.createdAt ? { created_at: data.createdAt } : {}),

@@ -1,23 +1,22 @@
 "use client";
 
 import { useAccounts } from "@/components/accounts/AccountProvider";
-import { useCachedChecklist } from "@/components/pre-trade-checklist/useCachedChecklist";
+import { EconomicCalendar } from "@/components/news/EconomicCalendar";
 import { useCachedTrades } from "@/components/trade-journal/useCachedTrades";
 import type { Outcome, Trade } from "@/lib/types/trade";
-import { withDailyChecks, type ChecklistItem } from "@/lib/types/checklist";
+import { formatLocalDate, startOfLocalWeek, timestampMs } from "@/lib/time";
 import {
-  formatLocalDate,
-  startOfLocalWeek,
-  timestampMs,
-} from "@/lib/time";
-import { tradesForAccount } from "@/lib/trades/account-balance";
-import { formatPnlDollars } from "@/lib/trades/pnl";
+  computeCurrentBalance,
+  formatBalance,
+  tradesForAccount,
+} from "@/lib/trades/account-balance";
+import { formatPnlDollars, sumTradePnl } from "@/lib/trades/pnl";
 import {
   ArrowRight,
   ArrowUpRight,
-  ClipboardCheck,
   NotebookPen,
   TrendingUp,
+  Wallet,
 } from "lucide-react";
 import Link from "next/link";
 import { memo, useMemo } from "react";
@@ -175,13 +174,6 @@ function winRateAccent(winRate: number | null): Accent {
   return "rose";
 }
 
-function checklistAccent(score: number | null, hasActivity: boolean): Accent {
-  if (!hasActivity || score == null) return "slate";
-  if (score >= 70) return "emerald";
-  if (score >= 40) return "amber";
-  return "rose";
-}
-
 function rrAccent(avgRr: number | null): Accent {
   if (avgRr == null) return "slate";
   if (avgRr >= 1.5) return "emerald";
@@ -189,7 +181,7 @@ function rrAccent(avgRr: number | null): Accent {
   return "rose";
 }
 
-function computeDashboardMetrics(trades: Trade[], checklistRules: ChecklistItem[]) {
+function computeDashboardMetrics(trades: Trade[]) {
   const weekStartMs = startOfLocalWeek(new Date()).getTime();
   let tradesThisWeek = 0;
   let wins = 0;
@@ -206,21 +198,12 @@ function computeDashboardMetrics(trades: Trade[], checklistRules: ChecklistItem[
     }
   }
 
-  const checked = checklistRules.reduce(
-    (count, rule) => count + (rule.checked ? 1 : 0),
-    0
-  );
-  const checklistTotal = checklistRules.length;
-
   return {
     tradesThisWeek,
     winRate: trades.length > 0 ? Math.round((wins / trades.length) * 100) : null,
     wins,
     avgRr: rrCount > 0 ? rrSum / rrCount : null,
-    checklistScore:
-      checklistTotal > 0 ? Math.round((checked / checklistTotal) * 100) : null,
-    checklistTotal,
-    checked,
+    netPnl: sumTradePnl(trades),
     recentTrades: trades.slice(0, 5),
   };
 }
@@ -228,11 +211,6 @@ function computeDashboardMetrics(trades: Trade[], checklistRules: ChecklistItem[
 export const DashboardHome = memo(function DashboardHome() {
   const { accounts, activeAccount, isLoaded: accountsLoaded } = useAccounts();
   const { trades: allTrades, isLoaded: tradesLoaded } = useCachedTrades();
-  const {
-    rules: checklistRules,
-    session: checklistSession,
-    isLoaded: checklistLoaded,
-  } = useCachedChecklist();
 
   const fallbackId = accounts[0]?.id ?? "";
   const trades = useMemo(
@@ -240,22 +218,10 @@ export const DashboardHome = memo(function DashboardHome() {
     [allTrades, activeAccount?.id, fallbackId]
   );
 
-  const checklistItems = useMemo(
-    () =>
-      checklistLoaded
-        ? withDailyChecks(checklistRules, checklistSession)
-        : [],
-    [checklistLoaded, checklistRules, checklistSession]
-  );
-
-  const metrics = useMemo(
-    () => computeDashboardMetrics(trades, checklistItems),
-    [trades, checklistItems]
-  );
-
+  const metrics = useMemo(() => computeDashboardMetrics(trades), [trades]);
+  const startingBalance = activeAccount?.startingBalance ?? 0;
+  const currentBalance = computeCurrentBalance(startingBalance, trades);
   const hasTrades = trades.length > 0;
-  const hasChecklistActivity =
-    metrics.checklistScore !== null && metrics.checked > 0;
 
   if (!tradesLoaded || !accountsLoaded) {
     return (
@@ -285,8 +251,8 @@ export const DashboardHome = memo(function DashboardHome() {
             </h3>
             <p className="mt-2 max-w-xl text-sm text-zinc-400 sm:text-base">
               {activeAccount
-                ? `No trades on ${activeAccount.name} yet. Run the pre-trade checklist, then log a setup to this account. Stats stay separate when you switch accounts.`
-                : "Run the pre-trade checklist, then log your first setup. Stats, session color, and the equity curve unlock from your journal."}
+                ? `No trades on ${activeAccount.name} yet. Log a win or loss and this balance will move with net P/L.`
+                : "Log your first setup. Account balance, net P/L, and the equity curve unlock from the journal."}
             </p>
             <div className="mt-6 flex flex-col gap-3 sm:flex-row">
               <Link
@@ -296,18 +262,37 @@ export const DashboardHome = memo(function DashboardHome() {
                 Log your first trade
                 <ArrowRight className="h-4 w-4" />
               </Link>
-              <Link
-                href="/pre-trade-checklist"
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-medium text-zinc-200 transition-all duration-300 hover:border-indigo-400/40 hover:bg-indigo-500/10"
-              >
-                Open pre-trade checklist
-              </Link>
             </div>
           </div>
         </section>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <StatCard
+          label="Account Balance"
+          value={formatBalance(currentBalance)}
+          hint={`Start ${formatBalance(startingBalance)} + net P/L`}
+          icon={Wallet}
+          accent="indigo"
+        />
+        <StatCard
+          label="Net P/L"
+          value={formatPnlDollars(metrics.netPnl)}
+          hint={
+            hasTrades
+              ? "Live total from logged wins and losses"
+              : "Updates as soon as a trade is saved"
+          }
+          icon={TrendingUp}
+          accent={
+            metrics.netPnl > 0
+              ? "emerald"
+              : metrics.netPnl < 0
+                ? "rose"
+                : "violet"
+          }
+          isEmpty={!hasTrades}
+        />
         <StatCard
           label="Win Rate"
           value={metrics.winRate !== null ? `${metrics.winRate}%` : "—"}
@@ -333,29 +318,8 @@ export const DashboardHome = memo(function DashboardHome() {
           isEmpty={!hasTrades}
         />
         <StatCard
-          label="Checklist Score"
-          value={
-            metrics.checklistScore !== null
-              ? `${metrics.checklistScore}%`
-              : "—"
-          }
-          hint={
-            metrics.checklistTotal > 0
-              ? `${metrics.checked} of ${metrics.checklistTotal} rules checked`
-              : "Configure your pre-trade routine"
-          }
-          icon={ClipboardCheck}
-          accent={checklistAccent(
-            metrics.checklistScore,
-            hasChecklistActivity
-          )}
-          isEmpty={!hasChecklistActivity}
-        />
-        <StatCard
           label="Avg. R:R"
-          value={
-            metrics.avgRr !== null ? metrics.avgRr.toFixed(1) : "—"
-          }
+          value={metrics.avgRr !== null ? metrics.avgRr.toFixed(1) : "—"}
           hint={
             metrics.avgRr !== null
               ? "From entry, stop, and target on logged trades"
@@ -447,122 +411,7 @@ export const DashboardHome = memo(function DashboardHome() {
           </div>
         </section>
 
-        <section className="relative overflow-hidden rounded-2xl border border-violet-400/20 bg-[#0c0c16]/90 p-6 shadow-[0_8px_32px_rgba(0,0,0,0.35)] transition-all duration-300 hover:border-violet-400/35">
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-violet-400 via-indigo-400 to-sky-400" />
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-bl from-violet-500/12 via-transparent to-transparent" />
-          <div className="relative">
-            <h3 className="text-lg font-semibold tracking-tight text-zinc-50">
-              Pre-Trade Checklist
-            </h3>
-            <p className="mt-1 text-sm text-zinc-500">
-              Today&apos;s readiness score
-            </p>
-
-            {!checklistLoaded ? (
-              <div className="mt-6 h-44 animate-pulse rounded-xl bg-white/[0.03]" />
-            ) : !hasChecklistActivity ? (
-              <div className="mt-6 flex flex-col items-center rounded-xl border border-dashed border-white/10 bg-white/[0.02] px-6 py-10 text-center">
-                <div className="relative flex h-28 w-28 items-center justify-center">
-                  <svg
-                    className="h-full w-full -rotate-90"
-                    viewBox="0 0 100 100"
-                    aria-hidden
-                  >
-                    <circle
-                      cx="50"
-                      cy="50"
-                      r="42"
-                      fill="none"
-                      stroke="#1a1a28"
-                      strokeWidth="8"
-                    />
-                    <circle
-                      cx="50"
-                      cy="50"
-                      r="42"
-                      fill="none"
-                      stroke="#3f3f55"
-                      strokeWidth="8"
-                      strokeDasharray="264"
-                      strokeDashoffset="0"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                  <div className="absolute text-center">
-                    <p className="text-2xl font-extrabold text-zinc-600">—</p>
-                    <p className="text-[10px] uppercase tracking-wider text-zinc-500">
-                      No score
-                    </p>
-                  </div>
-                </div>
-                <p className="mt-4 max-w-xs text-sm text-zinc-500">
-                  Check off your trading rules before the session to track
-                  readiness here.
-                </p>
-                <Link
-                  href="/pre-trade-checklist"
-                  className="mt-5 inline-flex items-center gap-2 text-sm font-medium text-violet-300 transition-colors hover:text-white"
-                >
-                  Start checklist
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
-              </div>
-            ) : (
-              <div className="mt-6 flex items-center justify-center">
-                <div className="relative flex h-44 w-44 items-center justify-center">
-                  <div className="pointer-events-none absolute inset-6 rounded-full bg-indigo-500/10 blur-2xl" />
-                  <svg
-                    className="h-full w-full -rotate-90"
-                    viewBox="0 0 100 100"
-                    aria-hidden
-                  >
-                    <defs>
-                      <linearGradient
-                        id="checklistGlow"
-                        x1="0%"
-                        y1="0%"
-                        x2="100%"
-                        y2="100%"
-                      >
-                        <stop offset="0%" stopColor="#34d399" />
-                        <stop offset="100%" stopColor="#818cf8" />
-                      </linearGradient>
-                    </defs>
-                    <circle
-                      cx="50"
-                      cy="50"
-                      r="42"
-                      fill="none"
-                      stroke="#16161f"
-                      strokeWidth="8"
-                    />
-                    <circle
-                      cx="50"
-                      cy="50"
-                      r="42"
-                      fill="none"
-                      stroke="url(#checklistGlow)"
-                      strokeWidth="8"
-                      strokeDasharray={264}
-                      strokeDashoffset={
-                        264 - ((metrics.checklistScore ?? 0) / 100) * 264
-                      }
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                  <div className="absolute text-center">
-                    <p className="text-4xl font-extrabold tracking-tight text-zinc-50">
-                      {metrics.checklistScore}%
-                    </p>
-                    <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
-                      Complete
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </section>
+        <EconomicCalendar compact />
       </div>
     </div>
   );

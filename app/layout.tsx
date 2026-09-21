@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { PwaRegister } from "@/components/PwaRegister";
+import { WorkspaceProvider } from "@/components/workspace/WorkspaceProvider";
+import { THEME_BOOTSTRAP_SCRIPT } from "@/lib/settings/workspace";
 import {
   SITE_DESCRIPTION,
   SITE_KEYWORDS,
@@ -73,8 +75,11 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0c0c16",
-  colorScheme: "dark",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f4f6fb" },
+    { media: "(prefers-color-scheme: dark)", color: "#0c0c16" },
+  ],
+  colorScheme: "dark light",
   width: "device-width",
   initialScale: 1,
 };
@@ -100,8 +105,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" className="dark" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP_SCRIPT }} />
         <link rel="manifest" href="/manifest.json" />
         <meta
           name="google-site-verification"
@@ -114,7 +120,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
         <PwaRegister />
-        {children}
+        <WorkspaceProvider>{children}</WorkspaceProvider>
       </body>
     </html>
   );

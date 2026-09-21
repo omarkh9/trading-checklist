@@ -7,11 +7,13 @@ type ImageDropzoneProps = {
   label: string;
   value: string | null;
   onChange: (dataUrl: string | null) => void;
+  compact?: boolean;
 };
 
-export function ImageDropzone({ label, value, onChange }: ImageDropzoneProps) {
+export function ImageDropzone({ label, value, onChange, compact = false }: ImageDropzoneProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const previewHeight = compact ? "h-32" : "h-44";
 
   const handleFile = useCallback(
     (file: File) => {
@@ -56,7 +58,7 @@ export function ImageDropzone({ label, value, onChange }: ImageDropzoneProps) {
           <img
             src={value}
             alt={label}
-            className="h-44 w-full object-cover"
+            className={`${previewHeight} w-full object-cover`}
           />
           <button
             type="button"
@@ -84,7 +86,7 @@ export function ImageDropzone({ label, value, onChange }: ImageDropzoneProps) {
         onDrop={onDrop}
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}
-        className={`flex h-44 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed transition-all duration-300 ${
+        className={`flex ${previewHeight} cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed transition-all duration-300 ${
           isDragging
             ? "border-indigo-400 bg-indigo-500/15 shadow-[0_0_24px_rgba(99,102,241,0.2)]"
             : "border-white/10 bg-white/[0.03] hover:border-indigo-400/50 hover:bg-indigo-500/5"

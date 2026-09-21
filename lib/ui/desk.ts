@@ -1,7 +1,7 @@
 import type { AssetClass } from "@/lib/trades/assets";
 
 export const desk = {
-  card: "relative overflow-hidden rounded-2xl border border-indigo-400/20 bg-[#0c0c16]/90 shadow-[0_8px_32px_rgba(0,0,0,0.35)] transition-all duration-300 hover:border-indigo-400/35",
+  card: "relative overflow-hidden rounded-2xl border border-indigo-400/20 bg-desk/90 shadow-[0_8px_32px_rgba(0,0,0,0.35)] transition-all duration-300 hover:border-indigo-400/35",
   bar: "pointer-events-none absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-indigo-400 via-violet-400 to-emerald-400",
   wash: "pointer-events-none absolute inset-0 bg-gradient-to-br from-indigo-500/10 via-transparent to-transparent",
   input:

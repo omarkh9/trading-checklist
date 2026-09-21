@@ -180,7 +180,8 @@ export const AccountBalancePanel = memo(function AccountBalancePanel({
       <h3 className={desk.title}>Account Balance</h3>
       <p className={desk.subtitle}>
         Each trading account keeps its own starting balance, trades, and
-        journal. Switch accounts anytime — up to {MAX_TRADING_ACCOUNTS}.
+        journal. Current balance is starting equity plus net P/L from every
+        logged win and loss.
       </p>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -222,7 +223,9 @@ export const AccountBalancePanel = memo(function AccountBalancePanel({
           <p className="mt-1 text-3xl font-extrabold tracking-tight text-indigo-200">
             {formatBalance(currentBalance)}
           </p>
-          <p className="mt-1 text-[11px] text-zinc-500">Journal start + P/L</p>
+          <p className="mt-1 text-[11px] text-zinc-500">
+            Updates live with each win or loss
+          </p>
         </div>
 
         <div

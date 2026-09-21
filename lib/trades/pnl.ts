@@ -6,6 +6,12 @@ export function parseNumericInput(value: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+export function outcomeFromPnl(value: number): Outcome {
+  if (value > 0.005) return "Win";
+  if (value < -0.005) return "Loss";
+  return "Breakeven";
+}
+
 export function resolvePnlDollars(
   outcome: Outcome,
   pnlMode: PnlMode,
@@ -59,4 +65,47 @@ export function estimatePnlFromPrices(input: {
       lots: input.lots,
     })?.pnlUsd ?? null
   );
+}
+
+export function resolveTradeResult(input: {
+  pair: string;
+  direction: Direction;
+  entryPrice: string;
+  exitPrice: string;
+  lots: number | null;
+  outcome: Outcome;
+  pnlMode: PnlMode;
+  pnlInput: string;
+  balanceBeforeTrade: number;
+  preferAuto?: boolean;
+}): { pnlDollars: number; outcome: Outcome; autoCalculated: boolean } {
+  const autoPnl =
+    input.preferAuto === false
+      ? null
+      : estimatePnlFromPrices({
+          pair: input.pair,
+          direction: input.direction,
+          entryPrice: input.entryPrice,
+          exitPrice: input.exitPrice,
+          lots: input.lots,
+        });
+
+  if (autoPnl != null) {
+    return {
+      pnlDollars: autoPnl,
+      outcome: outcomeFromPnl(autoPnl),
+      autoCalculated: true,
+    };
+  }
+
+  return {
+    pnlDollars: resolvePnlDollars(
+      input.outcome,
+      input.pnlMode,
+      input.pnlInput,
+      input.balanceBeforeTrade
+    ),
+    outcome: input.outcome,
+    autoCalculated: false,
+  };
 }

@@ -139,3 +139,23 @@ export function startOfLocalWeek(date: Date = new Date()): Date {
   start.setDate(start.getDate() - diff);
   return start;
 }
+
+export function startOfLocalMonth(date: Date = new Date()): Date {
+  const [year, month] = localDateKey(date).split("-").map(Number);
+  return new Date(year, month - 1, 1, 0, 0, 0, 0);
+}
+
+export function endOfLocalMonth(date: Date = new Date()): Date {
+  const [year, month] = localDateKey(date).split("-").map(Number);
+  return new Date(year, month, 0, 23, 59, 59, 999);
+}
+
+export function addLocalDays(date: Date, days: number): Date {
+  const next = new Date(date.getTime());
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+export function monthKeyFromDate(date: Date = new Date()): string {
+  return localDateKey(date).slice(0, 7);
+}

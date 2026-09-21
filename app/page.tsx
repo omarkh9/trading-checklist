@@ -18,7 +18,7 @@ export default async function HomePage() {
     return (
       <DashboardShell
         title="Dashboard"
-        description="Your edge at a glance — performance, flow, and readiness"
+        description="Live balance, net P/L, and the setups that moved the account"
       >
         <DashboardHome />
       </DashboardShell>

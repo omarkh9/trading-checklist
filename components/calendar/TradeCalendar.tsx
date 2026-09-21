@@ -6,16 +6,23 @@ import { usePersistedTrades } from "@/components/trade-journal/usePersistedTrade
 import {
   buildStartingEquityByDay,
   computeDayStats,
+  computePeriodStats,
+  currentWeekBounds,
   formatDayMetric,
   formatTradeCount,
+  formatWeekRangeLabel,
   formatWinRate,
   groupTradesByDay,
   loadCalendarDisplayMetric,
+  monthPeriodBounds,
   saveCalendarDisplayMetric,
   startingEquityForDay,
+  tradesInDateRange,
+  weekRowsFromCalendarDays,
   type CalendarDisplayMetric,
   type DayStats,
   type DayTone,
+  type PeriodStats,
 } from "@/lib/trades/day-stats";
 import { formatCalendarDateLabel, formatLocalMonthYear } from "@/lib/time";
 import { dateKeyFromDate } from "@/lib/trades/load-trades";
@@ -99,6 +106,31 @@ function MetricToggle({
           {option.label}
         </button>
       ))}
+    </div>
+  );
+}
+
+function PeriodSummaryCard({
+  stats,
+  metric,
+}: {
+  stats: PeriodStats;
+  metric: CalendarDisplayMetric;
+}) {
+  return (
+    <div className={`rounded-xl border px-4 py-3 ${dayToneCardClass[stats.tone]}`}>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
+        {stats.label}
+      </p>
+      <p
+        className={`mt-2 font-mono text-xl font-semibold tabular-nums ${dayToneMetricClass[stats.tone]}`}
+      >
+        {formatDayMetric(stats, metric)}
+      </p>
+      <p className="mt-1 text-xs text-zinc-500">
+        {formatTradeCount(stats.tradeCount)} · {formatWinRate(stats.winRate)} win
+        rate
+      </p>
     </div>
   );
 }
@@ -297,6 +329,50 @@ export function TradeCalendar() {
     [viewDate]
   );
 
+  const periodCards = useMemo(() => {
+    const month = monthPeriodBounds(viewDate);
+    const week = currentWeekBounds();
+    const monthTrades = tradesInDateRange(trades, month.startKey, month.endKey);
+    const weekTrades = tradesInDateRange(trades, week.startKey, week.endKey);
+    const monthStartEquity =
+      startingEquityForDay(monthTrades, month.startKey, equityByDay, startingBalance);
+    const weekStartEquity =
+      startingEquityForDay(weekTrades, week.startKey, equityByDay, startingBalance);
+
+    const weekCards = weekRowsFromCalendarDays(calendarDays).map((days) => {
+      const start = days[0];
+      const end = days[days.length - 1];
+      const startKey = dateKeyFromDate(start);
+      const endKey = dateKeyFromDate(end);
+      const weekRowTrades = tradesInDateRange(trades, startKey, endKey);
+      return computePeriodStats(
+        weekRowTrades,
+        startingEquityForDay(weekRowTrades, startKey, equityByDay, startingBalance),
+        formatWeekRangeLabel(start, end),
+        startKey,
+        endKey
+      );
+    });
+
+    return {
+      month: computePeriodStats(
+        monthTrades,
+        monthStartEquity,
+        formatMonthLabel(viewDate),
+        month.startKey,
+        month.endKey
+      ),
+      thisWeek: computePeriodStats(
+        weekTrades,
+        weekStartEquity,
+        "This week",
+        week.startKey,
+        week.endKey
+      ),
+      weeks: weekCards,
+    };
+  }, [calendarDays, equityByDay, startingBalance, trades, viewDate]);
+
   const todayKey = dateKeyFromDate(new Date());
   const modalTrades = modalDateKey
     ? (tradesByDay.get(modalDateKey) ?? [])
@@ -488,6 +564,20 @@ export function TradeCalendar() {
                 </button>
               );
             })}
+          </div>
+
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            <PeriodSummaryCard stats={periodCards.thisWeek} metric={metric} />
+            <PeriodSummaryCard stats={periodCards.month} metric={metric} />
+          </div>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            {periodCards.weeks.map((week) => (
+              <PeriodSummaryCard
+                key={`${week.startKey}-${week.endKey}`}
+                stats={week}
+                metric={metric}
+              />
+            ))}
           </div>
 
           <div className="mt-6 flex flex-wrap gap-4 border-t border-white/10 pt-4 text-xs text-zinc-500">

@@ -13,7 +13,7 @@ export default function CalendarPage() {
   return (
     <DashboardShell
       title="Calendar"
-      description="Color-coded days with net P/L, trade count, and win rate"
+      description="Color-coded days plus weekly and monthly P/L summaries"
     >
       <TradeCalendar />
     </DashboardShell>
