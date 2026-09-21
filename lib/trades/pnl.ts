@@ -79,8 +79,12 @@ export function resolveLotsForPnl(input: {
   );
 }
 
-export function resolveExitPrice(exitPrice: string, takeProfit: string): string {
-  return exitPrice.trim() || takeProfit.trim();
+export function resolveExitPrice(
+  exitPrice: string,
+  takeProfit: string,
+  stopLoss = ""
+): string {
+  return exitPrice.trim() || takeProfit.trim() || stopLoss.trim();
 }
 
 export function resolveTradeResult(input: {

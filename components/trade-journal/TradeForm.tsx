@@ -56,6 +56,18 @@ type TradeFormProps = {
 
 const KNOWN_SYMBOLS = listKnownSymbols();
 
+const PNL_DRIVER_KEYS = new Set<keyof TradeFormData>([
+  "pair",
+  "direction",
+  "entryPrice",
+  "exitPrice",
+  "stopLoss",
+  "takeProfit",
+  "lotSize",
+  "fixedLotSize",
+  "riskSizeMode",
+]);
+
 const inputClass = desk.input;
 const labelClass = desk.label;
 
@@ -255,7 +267,12 @@ export const TradeForm = memo(function TradeForm({
   const update = <K extends keyof TradeFormData>(
     key: K,
     value: TradeFormData[K]
-  ) => setForm((prev) => ({ ...prev, [key]: value }));
+  ) => {
+    if (PNL_DRIVER_KEYS.has(key) && manualPnl) {
+      setManualPnl(false);
+    }
+    setForm((prev) => ({ ...prev, [key]: value }));
+  };
 
   const currentBalance = accountBalances[form.accountId] ?? 0;
   const fallbackId = accounts[0]?.id ?? "";
@@ -301,7 +318,11 @@ export const TradeForm = memo(function TradeForm({
     fixedLotSize: form.fixedLotSize,
     calculatedLot,
   });
-  const exitForPnl = resolveExitPrice(form.exitPrice, form.takeProfit);
+  const exitForPnl = resolveExitPrice(
+    form.exitPrice,
+    form.takeProfit,
+    form.stopLoss
+  );
 
   const tradeResult = useMemo(
     () =>
@@ -332,10 +353,15 @@ export const TradeForm = memo(function TradeForm({
   );
 
   useEffect(() => {
-    if (!tradeResult.autoCalculated) return;
+    if (manualPnl || !tradeResult.autoCalculated) return;
     if (form.outcome === tradeResult.outcome) return;
     setForm((prev) => ({ ...prev, outcome: tradeResult.outcome }));
-  }, [form.outcome, tradeResult.autoCalculated, tradeResult.outcome]);
+  }, [
+    form.outcome,
+    manualPnl,
+    tradeResult.autoCalculated,
+    tradeResult.outcome,
+  ]);
 
   const resolvedAsset = useMemo(() => resolveAsset(form.pair), [form.pair]);
 
@@ -353,13 +379,29 @@ export const TradeForm = memo(function TradeForm({
   }, [form.pair, form.entryPrice, form.stopLoss, form.takeProfit]);
 
   const sizedRiskUsd =
-    calculatedLot != null && positionRisk
-      ? calculatedLot * positionRisk.riskPerLotUsd
+    lotsForPnl != null && positionRisk
+      ? lotsForPnl * positionRisk.riskPerLotUsd
       : null;
   const sizedRewardUsd =
-    calculatedLot != null && positionRisk?.rewardPerLotUsd != null
-      ? calculatedLot * positionRisk.rewardPerLotUsd
+    lotsForPnl != null && positionRisk?.rewardPerLotUsd != null
+      ? lotsForPnl * positionRisk.rewardPerLotUsd
       : null;
+  const rewardRiskRatio =
+    sizedRiskUsd != null && sizedRewardUsd != null && sizedRiskUsd > 0
+      ? sizedRewardUsd / sizedRiskUsd
+      : null;
+  const autoPnlInput = tradeResult.autoCalculated
+    ? Math.abs(tradeResult.pnlDollars).toFixed(2)
+    : "";
+  const pnlInputValue = manualPnl ? form.pnlInput : autoPnlInput;
+  const pnlModeValue = manualPnl ? form.pnlMode : "dollar";
+  const exitSourceLabel = form.exitPrice.trim()
+    ? "exit"
+    : form.takeProfit.trim()
+      ? "take profit"
+      : form.stopLoss.trim()
+        ? "stop loss"
+        : null;
 
   const displayLotSize =
     form.riskSizeMode === "fixed"
@@ -440,8 +482,6 @@ export const TradeForm = memo(function TradeForm({
       setIsSaving(false);
     }
   };
-
-  const showPnlFields = tradeResult.outcome !== "Breakeven" || manualPnl;
 
   const formBody = (
     <>
@@ -738,7 +778,8 @@ export const TradeForm = memo(function TradeForm({
                 <div>
                   <p className="text-sm font-semibold text-zinc-100">Profit / Loss</p>
                   <p className="mt-1 text-xs text-zinc-500">
-                    Auto-calculated from entry, exit, lot size, and asset specs.
+                    Updates live from entry, exit, stop, lot size, and the
+                    instrument contract. Type here to override.
                   </p>
                 </div>
                 <button
@@ -750,38 +791,36 @@ export const TradeForm = memo(function TradeForm({
                 </button>
               </div>
 
-              {manualPnl && showPnlFields ? (
-                <div className="mt-4 space-y-3">
-                  <ToggleGroup<PnlMode>
-                    value={form.pnlMode}
-                    options={[
-                      { id: "dollar", label: "$ Amount" },
-                      { id: "percent", label: "% Percent" },
-                    ]}
-                    onChange={(value) => update("pnlMode", value)}
-                  />
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    placeholder={
-                      form.pnlMode === "dollar" ? "e.g. 250" : "e.g. 1.5"
-                    }
-                    value={form.pnlInput}
-                    onChange={(e) => update("pnlInput", e.target.value)}
-                    className={inputClass}
-                  />
-                </div>
-              ) : (
-                <p className="mt-4 text-sm text-zinc-500">
-                  {tradeResult.autoCalculated
-                    ? "Filled from price distance × contract value × lots."
-                    : "Add entry, exit, and size to auto-calc, or switch to manual."}
-                </p>
-              )}
+              <div className="mt-4 space-y-3">
+                <ToggleGroup<PnlMode>
+                  value={pnlModeValue}
+                  options={[
+                    { id: "dollar", label: "$ Amount" },
+                    { id: "percent", label: "% Percent" },
+                  ]}
+                  onChange={(value) => {
+                    setManualPnl(true);
+                    update("pnlMode", value);
+                  }}
+                />
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder={
+                    pnlModeValue === "dollar" ? "e.g. 250" : "e.g. 1.5"
+                  }
+                  value={pnlInputValue}
+                  onChange={(e) => {
+                    setManualPnl(true);
+                    update("pnlInput", e.target.value);
+                  }}
+                  className={inputClass}
+                />
+              </div>
 
               <div className="mt-4 rounded-lg border border-white/10 bg-[#0a0a12] px-3 py-2">
                 <p className="text-xs text-zinc-400">
-                  {tradeResult.autoCalculated ? "Auto P/L" : "Resolved P/L"}
+                  {manualPnl ? "Manual P/L" : "Resolved P/L"}
                 </p>
                 <div className="mt-1 flex items-center justify-between gap-3">
                   <p
@@ -812,9 +851,24 @@ export const TradeForm = memo(function TradeForm({
                   {lotsForPnl == null
                     ? " · add lot size to auto-calc"
                     : !exitForPnl
-                      ? " · add exit or TP to auto-calc"
-                      : ""}
+                      ? " · add exit, TP, or stop to auto-calc"
+                      : tradeResult.autoCalculated && exitSourceLabel
+                        ? ` · from ${exitSourceLabel}`
+                        : ""}
                 </p>
+                {(sizedRiskUsd != null || rewardRiskRatio != null) && (
+                  <div className="mt-2 space-y-0.5 border-t border-white/10 pt-2 text-[11px] text-zinc-500">
+                    {sizedRiskUsd != null && (
+                      <p>Stop risk: {formatUsdCompact(sizedRiskUsd)}</p>
+                    )}
+                    {sizedRewardUsd != null && (
+                      <p>Target reward: {formatUsdCompact(sizedRewardUsd)}</p>
+                    )}
+                    {rewardRiskRatio != null && (
+                      <p>R:R {rewardRiskRatio.toFixed(2)}</p>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
