@@ -36,7 +36,14 @@ function parseImpact(value: unknown): NewsImpact {
   const normalized = asText(value).toLowerCase();
   if (normalized.includes("high") || normalized === "red") return "High";
   if (normalized.includes("medium") || normalized === "orange") return "Medium";
-  if (normalized.includes("holiday")) return "Holiday";
+  if (
+    normalized.includes("holiday") ||
+    normalized === "gray" ||
+    normalized === "grey" ||
+    normalized === "non-economic"
+  ) {
+    return "Holiday";
+  }
   return "Low";
 }
 
@@ -152,4 +159,89 @@ export function eventDayKey(iso: string, timeZone: string): string {
   const read = (type: Intl.DateTimeFormatPartTypes) =>
     parts.find((part) => part.type === type)?.value ?? "";
   return `${read("year")}-${read("month")}-${read("day")}`;
+}
+
+export function shiftDateKey(key: string, days: number): string {
+  const [year, month, day] = key.split("-").map(Number);
+  if (!year || !month || !day) return key;
+  const date = new Date(Date.UTC(year, month - 1, day + days, 12));
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(date.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+export function enumerateDateKeys(start: string, end: string): string[] {
+  if (!start) return [];
+  if (!end || end < start) return [start];
+  const keys: string[] = [];
+  for (let key = start; key <= end; key = shiftDateKey(key, 1)) {
+    keys.push(key);
+    if (keys.length > 31) break;
+  }
+  return keys;
+}
+
+export function formatCalendarDay(
+  key: string,
+  style: "short" | "long" | "strip" = "short"
+): string {
+  const [year, month, day] = key.split("-").map(Number);
+  if (!year || !month || !day) return key;
+  const date = new Date(Date.UTC(year, month - 1, day, 12));
+  if (style === "strip") {
+    return new Intl.DateTimeFormat("en-US", {
+      weekday: "short",
+      day: "numeric",
+      timeZone: "UTC",
+    }).format(date);
+  }
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: style === "long" ? "long" : "short",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+}
+
+export function forexFactoryDayUrl(key: string): string {
+  const [year, month, day] = key.split("-").map(Number);
+  const months = [
+    "jan",
+    "feb",
+    "mar",
+    "apr",
+    "may",
+    "jun",
+    "jul",
+    "aug",
+    "sep",
+    "oct",
+    "nov",
+    "dec",
+  ];
+  if (!year || !month || !day) return "https://www.forexfactory.com/calendar";
+  return `https://www.forexfactory.com/calendar?day=${months[month - 1]}${day}.${year}`;
+}
+
+export function isAllDayEvent(event: EconomicEvent): boolean {
+  return (
+    event.impact === "Holiday" ||
+    /holiday|daylight saving/i.test(event.title)
+  );
+}
+
+export function groupEventsByDay(
+  events: EconomicEvent[],
+  timeZone: string
+): Map<string, EconomicEvent[]> {
+  const map = new Map<string, EconomicEvent[]>();
+  for (const event of events) {
+    const key = eventDayKey(event.date, timeZone);
+    if (!key) continue;
+    const list = map.get(key) ?? [];
+    list.push(event);
+    map.set(key, list);
+  }
+  return map;
 }
