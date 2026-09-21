@@ -51,7 +51,7 @@ export function TradeDetailModal({
               <h3 id="trade-detail-title" className="text-lg font-semibold text-zinc-100">
                 {title}
               </h3>
-              <RuleScoreStat score={trade.ruleScore} size="sm" />
+              <RuleScoreStat trade={trade} size="sm" />
             </div>
             {subtitle && (
               <p className="mt-1 text-sm text-zinc-500">{subtitle}</p>

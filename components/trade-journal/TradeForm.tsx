@@ -27,7 +27,7 @@ import {
   resolveLotsForPnl,
   resolveTradeResult,
 } from "@/lib/trades/pnl";
-import { computeRuleScore } from "@/lib/trades/rule-score";
+import { computeRuleScore, resolveTradeRuleScore } from "@/lib/trades/rule-score";
 import {
   emptyTradeForm,
   type PnlMode,
@@ -204,18 +204,18 @@ export const TradeForm = memo(function TradeForm({
   const [manualPnl, setManualPnl] = useState(
     () => Boolean(initialData?.pnlInput?.trim()) && !initialData?.exitPrice
   );
-  const seededRef = useRef(Boolean(initialData));
 
   useEffect(() => {
     if (initialData) {
       setForm({
         ...initialData,
         accountId: initialData.accountId || defaultAccountId,
+        checkedRuleIds: initialData.checkedRuleIds ?? [],
+        ruleScore: initialData.ruleScore ?? null,
       });
       setManualPnl(
         Boolean(initialData.pnlInput?.trim()) && !initialData.exitPrice
       );
-      seededRef.current = true;
       return;
     }
     setForm((prev) => ({
@@ -225,17 +225,32 @@ export const TradeForm = memo(function TradeForm({
   }, [initialData, defaultAccountId]);
 
   useEffect(() => {
-    if (seededRef.current || !checklistLoaded) return;
-    seededRef.current = true;
-    setForm((prev) => ({
-      ...prev,
-      riskPercent: prev.riskPercent || String(settings.defaultRiskPercent),
-      checkedRuleIds:
+    if (initialData || !checklistLoaded) return;
+    setForm((prev) => {
+      const nextIds =
         prev.checkedRuleIds.length > 0
           ? prev.checkedRuleIds
-          : checklistSession.checkedRuleIds,
-    }));
-  }, [checklistLoaded, checklistSession.checkedRuleIds, settings.defaultRiskPercent]);
+          : checklistSession.checkedRuleIds;
+      const nextRisk =
+        prev.riskPercent || String(settings.defaultRiskPercent);
+      if (
+        nextIds === prev.checkedRuleIds &&
+        nextRisk === prev.riskPercent
+      ) {
+        return prev;
+      }
+      return {
+        ...prev,
+        riskPercent: nextRisk,
+        checkedRuleIds: nextIds,
+      };
+    });
+  }, [
+    checklistLoaded,
+    checklistSession.checkedRuleIds,
+    initialData,
+    settings.defaultRiskPercent,
+  ]);
 
   const update = <K extends keyof TradeFormData>(
     key: K,
@@ -351,15 +366,29 @@ export const TradeForm = memo(function TradeForm({
       ? form.fixedLotSize || "—"
       : formatLotSize(calculatedLot);
 
+  const activeCheckedIds =
+    form.checkedRuleIds.length > 0
+      ? form.checkedRuleIds
+      : initialData?.checkedRuleIds ?? [];
   const checklistItems = useMemo(
     () =>
       withDailyChecks(checklistRules, {
         ...checklistSession,
-        checkedRuleIds: form.checkedRuleIds,
+        checkedRuleIds: activeCheckedIds,
       }),
-    [checklistRules, checklistSession, form.checkedRuleIds]
+    [activeCheckedIds, checklistRules, checklistSession]
   );
-  const ruleScore = computeRuleScore(checklistRules, form.checkedRuleIds);
+  const liveRuleScore = computeRuleScore(checklistRules, activeCheckedIds);
+  const ruleScore =
+    form.checkedRuleIds.length > 0 || !initialData
+      ? liveRuleScore ?? initialData?.ruleScore ?? form.ruleScore ?? null
+      : resolveTradeRuleScore(
+          {
+            ruleScore: form.ruleScore ?? initialData?.ruleScore ?? null,
+            checkedRuleIds: activeCheckedIds,
+          },
+          checklistRules
+        );
   const dailyLossLimit =
     currentBalance > 0
       ? currentBalance * (settings.dailyLossLimitPercent / 100)
@@ -391,13 +420,13 @@ export const TradeForm = memo(function TradeForm({
         riskPercent: String(cappedRisk),
         accountBalanceAtEntry: currentBalance,
         accountId: form.accountId || defaultAccountId,
+        checkedRuleIds: activeCheckedIds,
         ruleScore,
         createdAt: entryDateKey
           ? isoTimestampForDateKey(entryDateKey)
           : form.createdAt,
       });
       if (!initialData) {
-        seededRef.current = false;
         setForm({
           ...emptyTradeForm(),
           accountId: form.accountId || defaultAccountId,
@@ -867,7 +896,11 @@ export const TradeForm = memo(function TradeForm({
             score={ruleScore}
             onToggle={(id) =>
               setForm((prev) => {
-                const checked = new Set(prev.checkedRuleIds);
+                const source =
+                  prev.checkedRuleIds.length > 0
+                    ? prev.checkedRuleIds
+                    : initialData?.checkedRuleIds ?? [];
+                const checked = new Set(source);
                 if (checked.has(id)) checked.delete(id);
                 else checked.add(id);
                 return { ...prev, checkedRuleIds: [...checked] };

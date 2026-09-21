@@ -1,23 +1,40 @@
 "use client";
 
+import { useCachedChecklist } from "@/components/pre-trade-checklist/useCachedChecklist";
 import {
   formatRuleScoreCaption,
+  resolveTradeRuleScore,
   ruleScoreToneClass,
 } from "@/lib/trades/rule-score";
-import { ListChecks } from "lucide-react";
+import { withDailyChecks } from "@/lib/types/checklist";
+import type { Trade } from "@/lib/types/trade";
+import { Check, Circle, ListChecks } from "lucide-react";
 
 type RuleScoreStatProps = {
-  score: number | null;
+  trade: Pick<Trade, "ruleScore" | "checkedRuleIds">;
   size?: "lg" | "sm";
+  showItems?: boolean;
 };
 
-export function RuleScoreStat({ score, size = "lg" }: RuleScoreStatProps) {
+export function RuleScoreStat({
+  trade,
+  size = "lg",
+  showItems = false,
+}: RuleScoreStatProps) {
+  const { rules } = useCachedChecklist();
+  const score = resolveTradeRuleScore(trade, rules);
   const tone = ruleScoreToneClass(score);
   const caption = formatRuleScoreCaption(score);
   const width =
     score == null || !Number.isFinite(score)
       ? 0
       : Math.max(0, Math.min(100, Math.round(score)));
+  const items = withDailyChecks(rules, {
+    date: "",
+    checkedRuleIds: trade.checkedRuleIds ?? [],
+    confidence: 0,
+  });
+  const checkedCount = (trade.checkedRuleIds ?? []).length;
 
   if (size === "sm") {
     return (
@@ -51,6 +68,31 @@ export function RuleScoreStat({ score, size = "lg" }: RuleScoreStatProps) {
           />
         </div>
       </div>
+      {showItems && items.length > 0 && (
+        <ul className="mt-3 space-y-1">
+          {items.map((item) => (
+            <li
+              key={item.id}
+              className={`flex items-center gap-2 text-xs ${
+                item.checked ? "text-zinc-200" : "text-zinc-500"
+              }`}
+            >
+              {item.checked ? (
+                <Check className="h-3.5 w-3.5 shrink-0 text-emerald-300" />
+              ) : (
+                <Circle className="h-3.5 w-3.5 shrink-0 text-zinc-600" />
+              )}
+              <span>{item.label}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {showItems && items.length === 0 && checkedCount > 0 && (
+        <p className="mt-2 text-xs text-zinc-500">
+          {checkedCount} checklist {checkedCount === 1 ? "rule" : "rules"} checked
+          on this trade.
+        </p>
+      )}
     </div>
   );
 }

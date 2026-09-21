@@ -155,7 +155,7 @@ export function TradeDetailCard({ trade }: TradeDetailCardProps) {
                 {formatPnlSummary(trade)}
               </p>
             </div>
-            <RuleScoreStat score={trade.ruleScore} />
+            <RuleScoreStat trade={trade} showItems />
           </div>
 
           <dl className="mt-4 grid gap-3 sm:grid-cols-2">

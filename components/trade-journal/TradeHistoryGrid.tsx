@@ -205,7 +205,7 @@ export const TradeHistoryGrid = memo(function TradeHistoryGrid({
                         {formatPnlDollars(pnl)}
                       </td>
                       <td className="px-4 py-3">
-                        <RuleScoreStat score={trade.ruleScore} size="sm" />
+                        <RuleScoreStat trade={trade} size="sm" />
                       </td>
                       <td className="px-4 py-3">
                         <span
@@ -321,7 +321,7 @@ export const TradeHistoryGrid = memo(function TradeHistoryGrid({
                       {formatPnlDollars(pnl)}
                     </p>
                   </div>
-                  <RuleScoreStat score={trade.ruleScore} />
+                  <RuleScoreStat trade={trade} />
                 </div>
 
                 <p className="mt-4 line-clamp-2 flex-1 text-sm leading-relaxed text-zinc-400">

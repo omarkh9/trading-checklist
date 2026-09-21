@@ -63,3 +63,27 @@ export function ruleScoreToneClass(score: number | null): {
 export function checkedIdsFromItems(items: ChecklistItem[]): string[] {
   return items.filter((item) => item.checked).map((item) => item.id);
 }
+
+export function resolveTradeRuleScore(
+  trade: {
+    ruleScore?: number | null;
+    checkedRuleIds?: string[] | null;
+  },
+  rules: Array<Pick<ChecklistRule, "id">> = []
+): number | null {
+  const checkedRuleIds = Array.isArray(trade.checkedRuleIds)
+    ? trade.checkedRuleIds.filter(Boolean)
+    : [];
+  const stored =
+    trade.ruleScore == null || !Number.isFinite(trade.ruleScore)
+      ? null
+      : Math.max(0, Math.min(100, Math.round(trade.ruleScore)));
+  const computed = computeRuleScore(rules, checkedRuleIds);
+
+  if (stored != null && stored > 0) return stored;
+  if (computed != null && (computed > 0 || checkedRuleIds.length === 0)) {
+    return computed;
+  }
+  if (computed != null) return computed;
+  return stored;
+}

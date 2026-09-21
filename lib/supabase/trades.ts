@@ -7,7 +7,7 @@ import {
   tradesForAccount,
   writeTradeAccountMapEntry,
 } from "@/lib/trades/account-balance";
-import { encodeNotesWithMeta } from "@/lib/trades/journal-meta";
+import { asScore, asStringArray, decodeNotesWithMeta, encodeNotesWithMeta } from "@/lib/trades/journal-meta";
 import { normalizeTrade } from "@/lib/trades/load-trades";
 import {
   getCachedTrades,
@@ -102,6 +102,17 @@ function persistableNotes(
 }
 
 export function tradeFromRow(row: TradeRow): Trade {
+  const extra = row as TradeRow & {
+    rule_score?: number | null;
+    ruleScore?: number | null;
+    checked_rule_ids?: string[] | null;
+    checkedRuleIds?: string[] | null;
+  };
+  const decoded = decodeNotesWithMeta(row.notes ?? "");
+  const columnIds = asStringArray(
+    extra.checked_rule_ids ?? extra.checkedRuleIds
+  );
+
   return {
     id: row.id,
     pair: row.pair,
@@ -128,8 +139,10 @@ export function tradeFromRow(row: TradeRow): Trade {
     notes: row.notes,
     emotionBefore: null,
     emotionAfter: null,
-    ruleScore: null,
-    checkedRuleIds: [],
+    ruleScore:
+      asScore(extra.rule_score ?? extra.ruleScore) ?? decoded.meta.ruleScore,
+    checkedRuleIds:
+      columnIds.length > 0 ? columnIds : decoded.meta.checkedRuleIds,
     beforeChart: row.before_chart,
     afterChart: row.after_chart,
     createdAt: row.created_at,

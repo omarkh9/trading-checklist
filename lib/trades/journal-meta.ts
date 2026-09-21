@@ -23,15 +23,16 @@ export const emptyJournalMeta = (): JournalMeta => ({
   checkedRuleIds: [],
 });
 
-function asStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter((item): item is string => typeof item === "string");
-}
-
-function asScore(value: unknown): number | null {
+export function asScore(value: unknown): number | null {
+  if (value == null || value === "") return null;
   const numeric = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(numeric)) return null;
   return Math.max(0, Math.min(100, Math.round(numeric)));
+}
+
+export function asStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === "string" && item.length > 0);
 }
 
 export function parseJournalMeta(value: unknown): JournalMeta {
