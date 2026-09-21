@@ -39,6 +39,14 @@ function getSpeechRecognition():
   );
 }
 
+function joinNotes(...parts: string[]) {
+  return parts
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(" ")
+    .replace(/\s+/g, " ");
+}
+
 type VoiceNoteFieldProps = {
   id?: string;
   label?: string;
@@ -57,6 +65,9 @@ export function VoiceNoteField({
   rows = 5,
 }: VoiceNoteFieldProps) {
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const listeningRef = useRef(false);
+  const baseTextRef = useRef("");
+  const finalTextRef = useRef("");
   const [listening, setListening] = useState(false);
   const [supported, setSupported] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -64,13 +75,76 @@ export function VoiceNoteField({
   useEffect(() => {
     setSupported(Boolean(getSpeechRecognition()));
     return () => {
+      listeningRef.current = false;
       recognitionRef.current?.abort();
     };
   }, []);
 
+  const publish = (interim = "") => {
+    onChange(joinNotes(baseTextRef.current, finalTextRef.current, interim));
+  };
+
   const stop = () => {
-    recognitionRef.current?.stop();
+    listeningRef.current = false;
     setListening(false);
+    recognitionRef.current?.stop();
+  };
+
+  const attachHandlers = (recognition: SpeechRecognitionLike) => {
+    recognition.lang = "en-US";
+    recognition.continuous = true;
+    recognition.interimResults = true;
+
+    recognition.onresult = (event) => {
+      let sessionFinals = "";
+      let interim = "";
+      for (let index = 0; index < event.results.length; index += 1) {
+        const result = event.results[index];
+        const transcript = result[0]?.transcript?.trim();
+        if (!transcript) continue;
+        if (result.isFinal) {
+          sessionFinals = joinNotes(sessionFinals, transcript);
+        } else {
+          interim = joinNotes(interim, transcript);
+        }
+      }
+      finalTextRef.current = sessionFinals;
+      publish(interim);
+    };
+
+    recognition.onerror = (event) => {
+      if (event.error === "no-speech" || event.error === "aborted") return;
+      if (event.error === "not-allowed") {
+        setError("Microphone permission was denied.");
+        listeningRef.current = false;
+        setListening(false);
+        return;
+      }
+      setError("Voice capture hit a pause — keep talking, it will continue.");
+    };
+
+    recognition.onend = () => {
+      if (!listeningRef.current) {
+        setListening(false);
+        return;
+      }
+
+      baseTextRef.current = joinNotes(baseTextRef.current, finalTextRef.current);
+      finalTextRef.current = "";
+      publish();
+
+      window.setTimeout(() => {
+        if (!listeningRef.current || recognitionRef.current !== recognition) {
+          return;
+        }
+        try {
+          recognition.start();
+        } catch {
+          listeningRef.current = false;
+          setListening(false);
+        }
+      }, 80);
+    };
   };
 
   const toggle = () => {
@@ -81,53 +155,26 @@ export function VoiceNoteField({
       return;
     }
 
-    if (listening) {
+    if (listeningRef.current) {
       stop();
       return;
     }
 
     setError(null);
+    baseTextRef.current = value.trim();
+    finalTextRef.current = "";
     const recognition = new Recognition();
-    recognition.lang = "en-US";
-    recognition.continuous = true;
-    recognition.interimResults = true;
     recognitionRef.current = recognition;
-
-    let committed = value;
-    recognition.onresult = (event) => {
-      let interim = "";
-      for (let index = event.resultIndex; index < event.results.length; index += 1) {
-        const result = event.results[index];
-        const transcript = result[0]?.transcript?.trim();
-        if (!transcript) continue;
-        if (result.isFinal) {
-          committed = committed.trim()
-            ? `${committed.trim()} ${transcript}`
-            : transcript;
-        } else {
-          interim = transcript;
-        }
-      }
-      onChange(interim ? `${committed}${committed ? " " : ""}${interim}` : committed);
-    };
-    recognition.onerror = (event) => {
-      if (event.error === "not-allowed") {
-        setError("Microphone permission was denied.");
-      } else if (event.error && event.error !== "aborted") {
-        setError("Voice capture stopped. You can keep typing.");
-      }
-      setListening(false);
-    };
-    recognition.onend = () => {
-      setListening(false);
-    };
+    attachHandlers(recognition);
 
     try {
-      recognition.start();
+      listeningRef.current = true;
       setListening(true);
+      recognition.start();
     } catch {
-      setError("Unable to start voice capture.");
+      listeningRef.current = false;
       setListening(false);
+      setError("Unable to start voice capture.");
     }
   };
 
@@ -144,7 +191,7 @@ export function VoiceNoteField({
           className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] transition-colors ${
             listening
               ? "border-rose-400/40 bg-rose-500/15 text-rose-200"
-              : "border-white/10 bg-white/5 text-zinc-400 hover:border-indigo-400/40 hover:text-zinc-100"
+              : "border-white/10 bg-white/5 text-zinc-300 hover:border-indigo-400/40 hover:text-zinc-100"
           } disabled:cursor-not-allowed disabled:opacity-50`}
         >
           {listening ? <Square className="h-3 w-3" /> : <Mic className="h-3 w-3" />}
@@ -159,9 +206,9 @@ export function VoiceNoteField({
         onChange={(event) => onChange(event.target.value)}
         className={`${desk.input} resize-none`}
       />
-      <p className="mt-1.5 text-xs text-zinc-500">
+      <p className="mt-1.5 text-xs text-zinc-400">
         {listening
-          ? "Listening… speak your reflection and it will transcribe into the note."
+          ? "Listening… each sentence is appended. Keep talking or press Stop."
           : supported
             ? "Type freely, or use voice-to-text to dictate the review."
             : "Voice-to-text is unavailable here — type the note instead."}

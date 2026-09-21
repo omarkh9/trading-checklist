@@ -6,10 +6,10 @@ import { useWorkspaceSettings } from "@/components/workspace/WorkspaceProvider";
 import { useEffect, useState } from "react";
 
 const WORLD_CLOCKS = [
-  { id: "syd", label: "Syd", timeZone: "Australia/Sydney" },
-  { id: "tyo", label: "Tyo", timeZone: "Asia/Tokyo" },
-  { id: "lon", label: "Lon", timeZone: "Europe/London" },
-  { id: "ny", label: "NY", timeZone: "America/New_York" },
+  { id: "syd", label: "Sydney", short: "Syd", timeZone: "Australia/Sydney" },
+  { id: "tyo", label: "Tokyo", short: "Tyo", timeZone: "Asia/Tokyo" },
+  { id: "lon", label: "London", short: "Lon", timeZone: "Europe/London" },
+  { id: "ny", label: "New York", short: "NY", timeZone: "America/New_York" },
 ] as const;
 
 function formatClock(timeZone: string, now: Date): string {
@@ -32,7 +32,11 @@ function statusText(isOpen: boolean, isOverlap: boolean) {
   return "text-emerald-300";
 }
 
-export function CompactMarketClock() {
+export function CompactMarketClock({
+  variant = "panel",
+}: {
+  variant?: "panel" | "compact";
+}) {
   const { settings } = useWorkspaceSettings();
   const displayZone = resolveDisplayTimeZone(settings.timeZone);
   const [now, setNow] = useState<Date | null>(null);
@@ -46,7 +50,7 @@ export function CompactMarketClock() {
 
   if (!now) {
     return (
-      <div className="h-10 w-56 animate-pulse rounded-lg border border-white/10 bg-white/5" />
+      <div className="h-28 animate-pulse rounded-xl border border-white/10 bg-[#12121a]" />
     );
   }
 
@@ -59,38 +63,69 @@ export function CompactMarketClock() {
     }).map((session) => session.timeZone)
   );
 
-  return (
-    <div
-      className="flex max-w-full items-center gap-2 rounded-lg border border-indigo-400/15 bg-[#0c0c16]/80 px-2.5 py-1.5"
-      title={clock.nextChangeLabel ?? clock.label}
-    >
-      <span className="relative flex h-2 w-2 shrink-0">
-        <span
-          className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-70 ${statusTone(clock.isOpen, clock.isOverlap)}`}
-        />
-        <span
-          className={`relative inline-flex h-2 w-2 rounded-full ${statusTone(clock.isOpen, clock.isOverlap)}`}
-        />
-      </span>
-      <span
-        className={`hidden shrink-0 text-[11px] font-semibold sm:inline ${statusText(clock.isOpen, clock.isOverlap)}`}
+  if (variant === "compact") {
+    return (
+      <div
+        className="flex max-w-full items-center gap-2 rounded-lg border border-indigo-400/15 bg-[#12121a] px-2.5 py-1.5"
+        title={clock.nextChangeLabel ?? clock.label}
       >
-        {clock.isOpen ? clock.label.replace("Asia / ", "") : "Closed"}
-      </span>
-      <span className="hidden h-3 w-px bg-white/10 sm:block" />
-      <ul className="flex items-center gap-2 overflow-x-auto">
+        <span className="relative flex h-2 w-2 shrink-0">
+          <span
+            className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-70 ${statusTone(clock.isOpen, clock.isOverlap)}`}
+          />
+          <span
+            className={`relative inline-flex h-2 w-2 rounded-full ${statusTone(clock.isOpen, clock.isOverlap)}`}
+          />
+        </span>
+        <span className={`text-[11px] font-semibold ${statusText(clock.isOpen, clock.isOverlap)}`}>
+          {clock.isOpen ? clock.label.replace("Asia / ", "") : "Closed"}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <section className="rounded-xl border border-indigo-400/20 bg-[#12121a] p-3">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400">
+        Market sessions
+      </p>
+      <div className="mt-2 flex items-center gap-2">
+        <span className="relative flex h-2.5 w-2.5 shrink-0">
+          <span
+            className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-70 ${statusTone(clock.isOpen, clock.isOverlap)}`}
+          />
+          <span
+            className={`relative inline-flex h-2.5 w-2.5 rounded-full ${statusTone(clock.isOpen, clock.isOverlap)}`}
+          />
+        </span>
+        <div className="min-w-0">
+          <p className={`truncate text-sm font-semibold ${statusText(clock.isOpen, clock.isOverlap)}`}>
+            {clock.isOpen ? clock.label.replace("Asia / ", "") : "Market closed"}
+          </p>
+          <p className="text-[11px] leading-snug text-zinc-400">
+            {clock.nextChangeLabel ?? `Times in ${clock.userTimeZoneShort}`}
+          </p>
+        </div>
+      </div>
+      <ul className="mt-3 grid grid-cols-2 gap-1.5">
         {WORLD_CLOCKS.map((city) => (
           <li
             key={city.id}
-            className={`flex items-center gap-1 text-[11px] tabular-nums ${
-              activeIds.has(city.timeZone) ? "text-zinc-200" : "text-zinc-500"
+            className={`rounded-lg border px-2 py-1.5 ${
+              activeIds.has(city.timeZone)
+                ? "border-emerald-400/25 bg-emerald-500/10 text-zinc-100"
+                : "border-white/10 bg-white/[0.03] text-zinc-400"
             }`}
           >
-            <span className="font-semibold">{city.label}</span>
-            <span>{formatClock(city.timeZone, now)}</span>
+            <p className="text-[10px] font-semibold uppercase tracking-wider">
+              {city.short}
+            </p>
+            <p className="font-mono text-xs tabular-nums text-zinc-100">
+              {formatClock(city.timeZone, now)}
+            </p>
           </li>
         ))}
       </ul>
-    </div>
+    </section>
   );
 }

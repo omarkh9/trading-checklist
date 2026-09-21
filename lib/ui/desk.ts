@@ -5,7 +5,9 @@ export const desk = {
   bar: "pointer-events-none absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-indigo-400 via-violet-400 to-emerald-400",
   wash: "pointer-events-none absolute inset-0 bg-gradient-to-br from-indigo-500/10 via-transparent to-transparent",
   input:
-    "w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none transition-all duration-300 focus:border-indigo-400/55 focus:bg-indigo-500/5 focus:shadow-[0_0_0_3px_rgba(99,102,241,0.16)]",
+    "w-full rounded-lg border border-white/10 bg-[#12121a] px-3 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-500 outline-none transition-all duration-300 focus:border-indigo-400/55 focus:bg-indigo-500/5 focus:shadow-[0_0_0_3px_rgba(99,102,241,0.16)]",
+  nativeSelect:
+    "w-full rounded-lg border border-white/10 bg-[#12121a] px-3 py-2.5 text-sm text-zinc-100 outline-none transition-all duration-300 focus:border-indigo-400/55 focus:bg-[#12121a] focus:shadow-[0_0_0_3px_rgba(99,102,241,0.16)]",
   label:
     "mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500",
   title: "text-lg font-semibold tracking-tight text-zinc-50",

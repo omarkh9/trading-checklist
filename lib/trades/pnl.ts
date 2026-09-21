@@ -56,15 +56,31 @@ export function estimatePnlFromPrices(input: {
     return null;
   }
 
+  const computed = calculatePnlFromPrices({
+    pair: input.pair,
+    direction: input.direction,
+    entryPrice: entry,
+    exitPrice: exit,
+    lots: input.lots,
+  });
+
+  return computed?.pnlUsd ?? null;
+}
+
+export function resolveLotsForPnl(input: {
+  lotSize: string;
+  fixedLotSize: string;
+  calculatedLot: number | null;
+}): number | null {
   return (
-    calculatePnlFromPrices({
-      pair: input.pair,
-      direction: input.direction,
-      entryPrice: entry,
-      exitPrice: exit,
-      lots: input.lots,
-    })?.pnlUsd ?? null
+    parseNumericInput(input.lotSize) ??
+    parseNumericInput(input.fixedLotSize) ??
+    input.calculatedLot
   );
+}
+
+export function resolveExitPrice(exitPrice: string, takeProfit: string): string {
+  return exitPrice.trim() || takeProfit.trim();
 }
 
 export function resolveTradeResult(input: {

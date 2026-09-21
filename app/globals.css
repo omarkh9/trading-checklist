@@ -136,3 +136,34 @@ html.light .ring-offset-\[\#0c0c16\] {
 html.light .placeholder\:text-zinc-600::placeholder {
   color: #a1a1aa;
 }
+
+html.dark select,
+html:not(.light) select {
+  color-scheme: dark;
+  background-color: #12121a;
+  color: #f4f4f5;
+}
+
+html.dark option,
+html:not(.light) option {
+  background-color: #12121a;
+  color: #fafafa;
+}
+
+html.light select {
+  color-scheme: light;
+  background-color: #ffffff;
+  color: #18181b;
+}
+
+html.light option {
+  background-color: #ffffff;
+  color: #18181b;
+}
+
+html.dark input,
+html.dark textarea,
+html:not(.light) input,
+html:not(.light) textarea {
+  color-scheme: dark;
+}

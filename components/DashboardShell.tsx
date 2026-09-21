@@ -3,7 +3,6 @@
 import { AccountProvider } from "@/components/accounts/AccountProvider";
 import { AccountSwitcher } from "@/components/accounts/AccountSwitcher";
 import { UserMenu } from "@/components/auth/UserMenu";
-import { CompactMarketClock } from "@/components/dashboard/CompactMarketClock";
 import { Sidebar, SidebarPanel } from "@/components/Sidebar";
 import { ThemeToggle } from "@/components/workspace/ThemeToggle";
 import { Menu } from "lucide-react";
@@ -86,7 +85,6 @@ export function DashboardShell({
           </div>
 
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-            <CompactMarketClock />
             <AccountSwitcher />
             <ThemeToggle />
             <div className="md:hidden">

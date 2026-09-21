@@ -129,7 +129,7 @@ export function PositionSizer({
             onChange={(event) =>
               setDirection(event.target.value as Direction)
             }
-            className={desk.input}
+            className={desk.nativeSelect}
           >
             <option value="Long">Long</option>
             <option value="Short">Short</option>

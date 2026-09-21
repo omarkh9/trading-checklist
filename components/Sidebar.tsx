@@ -2,6 +2,7 @@
 
 import { UserMenu } from "@/components/auth/UserMenu";
 import { useOwner } from "@/components/auth/useOwner";
+import { CompactMarketClock } from "@/components/dashboard/CompactMarketClock";
 import { navItems } from "@/lib/navigation";
 import { Activity, X } from "lucide-react";
 import Link from "next/link";
@@ -15,6 +16,46 @@ type SidebarPanelProps = {
 export function SidebarPanel({ onNavigate, onClose }: SidebarPanelProps) {
   const pathname = usePathname();
   const { isOwner } = useOwner();
+  const primaryItems = navItems.filter((item) => item.href !== "/settings");
+  const settingsItem = navItems.find((item) => item.href === "/settings");
+
+  const renderLink = (item: (typeof navItems)[number]) => {
+    const isActive =
+      item.href === "/"
+        ? pathname === "/"
+        : pathname.startsWith(item.href);
+    const Icon = item.icon;
+
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        onClick={onNavigate}
+        className={`group relative flex items-center gap-3 overflow-hidden rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-300 ${
+          isActive
+            ? "bg-indigo-500/12 text-zinc-50 shadow-[inset_0_0_0_1px_rgba(129,140,248,0.16)]"
+            : "text-zinc-300 hover:bg-white/[0.04] hover:text-zinc-100"
+        }`}
+      >
+        <span
+          className={`absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-gradient-to-b from-indigo-400 to-violet-400 transition-opacity duration-300 ${
+            isActive
+              ? "opacity-100 shadow-[0_0_10px_rgba(129,140,248,0.65)]"
+              : "opacity-0 group-hover:opacity-40"
+          }`}
+          aria-hidden
+        />
+        <Icon
+          className={`h-4 w-4 shrink-0 transition-colors duration-300 ${
+            isActive
+              ? "text-indigo-300"
+              : "text-zinc-400 group-hover:text-indigo-200"
+          }`}
+        />
+        {item.label}
+      </Link>
+    );
+  };
 
   return (
     <>
@@ -37,7 +78,7 @@ export function SidebarPanel({ onNavigate, onClose }: SidebarPanelProps) {
           <button
             type="button"
             onClick={onClose}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-zinc-400 transition-all duration-300 hover:border-indigo-400/40 hover:bg-indigo-500/10 hover:text-zinc-100 md:hidden"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-zinc-300 transition-all duration-300 hover:border-indigo-400/40 hover:bg-indigo-500/10 hover:text-zinc-100 md:hidden"
             aria-label="Close navigation menu"
           >
             <X className="h-5 w-5" />
@@ -46,43 +87,11 @@ export function SidebarPanel({ onNavigate, onClose }: SidebarPanelProps) {
       </div>
 
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-        {navItems.map((item) => {
-          const isActive =
-            item.href === "/"
-              ? pathname === "/"
-              : pathname.startsWith(item.href);
-          const Icon = item.icon;
-
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={onNavigate}
-              className={`group relative flex items-center gap-3 overflow-hidden rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-300 ${
-                isActive
-                  ? "bg-indigo-500/12 text-zinc-50 shadow-[inset_0_0_0_1px_rgba(129,140,248,0.16)]"
-                  : "text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-100"
-              }`}
-            >
-              <span
-                className={`absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-gradient-to-b from-indigo-400 to-violet-400 transition-opacity duration-300 ${
-                  isActive
-                    ? "opacity-100 shadow-[0_0_10px_rgba(129,140,248,0.65)]"
-                    : "opacity-0 group-hover:opacity-40"
-                }`}
-                aria-hidden
-              />
-              <Icon
-                className={`h-4 w-4 shrink-0 transition-colors duration-300 ${
-                  isActive
-                    ? "text-indigo-300"
-                    : "text-zinc-500 group-hover:text-indigo-200"
-                }`}
-              />
-              {item.label}
-            </Link>
-          );
-        })}
+        {primaryItems.map(renderLink)}
+        <div className="px-0.5 pt-3 pb-2">
+          <CompactMarketClock />
+        </div>
+        {settingsItem ? renderLink(settingsItem) : null}
       </nav>
 
       <div className="shrink-0 border-t border-indigo-400/15 p-3">

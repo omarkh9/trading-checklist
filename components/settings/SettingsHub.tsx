@@ -1,6 +1,7 @@
 "use client";
 
 import { useAccounts } from "@/components/accounts/AccountProvider";
+import { CompactMarketClock } from "@/components/dashboard/CompactMarketClock";
 import { PositionSizer } from "@/components/risk/PositionSizer";
 import { useCachedTrades } from "@/components/trade-journal/useCachedTrades";
 import { ThemeToggle } from "@/components/workspace/ThemeToggle";
@@ -134,6 +135,9 @@ export function SettingsHub() {
         <p className={desk.subtitle}>
           Calendar events and session clocks convert into this zone automatically.
         </p>
+        <div className="mt-5">
+          <CompactMarketClock />
+        </div>
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
           <div>
             <label className={desk.label} htmlFor="timezone">
@@ -143,7 +147,7 @@ export function SettingsHub() {
               id="timezone"
               value={settings.timeZone}
               onChange={(event) => setSettings({ timeZone: event.target.value })}
-              className={desk.input}
+              className={desk.nativeSelect}
             >
               <option value={AUTO_TIME_ZONE}>Auto ({displayZone})</option>
               {timeZones.map((zone) => (
@@ -165,7 +169,7 @@ export function SettingsHub() {
                   newsImpact: event.target.value as typeof settings.newsImpact,
                 })
               }
-              className={desk.input}
+              className={desk.nativeSelect}
             >
               <option value="all">All events</option>
               <option value="medium">Medium and high</option>

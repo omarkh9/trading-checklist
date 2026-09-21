@@ -89,7 +89,7 @@ export const AccountSwitcher = memo(function AccountSwitcher({
       {open && (
         <ul
           role="listbox"
-          className={`absolute z-20 mt-1 overflow-hidden rounded-lg border border-indigo-400/20 bg-[#0c0c16] py-1 shadow-[0_12px_32px_rgba(0,0,0,0.55)] ${
+          className={`absolute z-20 mt-1 overflow-hidden rounded-lg border border-indigo-400/20 bg-[#12121a] py-1 text-zinc-100 shadow-[0_12px_32px_rgba(0,0,0,0.55)] ${
             variant === "sidebar" ? "inset-x-0" : "right-0 w-64"
           }`}
         >

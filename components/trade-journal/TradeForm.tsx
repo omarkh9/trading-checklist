@@ -23,6 +23,8 @@ import { tradeDateKey } from "@/lib/trades/load-trades";
 import {
   formatPnlDollars,
   parseNumericInput,
+  resolveExitPrice,
+  resolveLotsForPnl,
   resolveTradeResult,
 } from "@/lib/trades/pnl";
 import { computeRuleScore } from "@/lib/trades/rule-score";
@@ -116,7 +118,7 @@ function DeskSelect<T extends string>({
         <ul
           role="listbox"
           aria-labelledby={id}
-          className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-indigo-400/20 bg-[#0c0c16] py-1 shadow-[0_12px_32px_rgba(0,0,0,0.55)]"
+          className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-indigo-400/20 bg-[#12121a] py-1 text-zinc-100 shadow-[0_12px_32px_rgba(0,0,0,0.55)]"
         >
           {options.map((option) => {
             const isSelected = option.value === value;
@@ -279,10 +281,12 @@ export const TradeForm = memo(function TradeForm({
     ]
   );
 
-  const lotsForPnl =
-    form.riskSizeMode === "fixed"
-      ? parseNumericInput(form.fixedLotSize)
-      : calculatedLot;
+  const lotsForPnl = resolveLotsForPnl({
+    lotSize: form.lotSize,
+    fixedLotSize: form.fixedLotSize,
+    calculatedLot,
+  });
+  const exitForPnl = resolveExitPrice(form.exitPrice, form.takeProfit);
 
   const tradeResult = useMemo(
     () =>
@@ -290,7 +294,7 @@ export const TradeForm = memo(function TradeForm({
         pair: form.pair,
         direction: form.direction,
         entryPrice: form.entryPrice,
-        exitPrice: form.exitPrice,
+        exitPrice: exitForPnl,
         lots: lotsForPnl,
         outcome: form.outcome,
         pnlMode: form.pnlMode,
@@ -300,9 +304,9 @@ export const TradeForm = memo(function TradeForm({
       }),
     [
       currentBalance,
+      exitForPnl,
       form.direction,
       form.entryPrice,
-      form.exitPrice,
       form.outcome,
       form.pair,
       form.pnlInput,
@@ -311,6 +315,12 @@ export const TradeForm = memo(function TradeForm({
       manualPnl,
     ]
   );
+
+  useEffect(() => {
+    if (!tradeResult.autoCalculated) return;
+    if (form.outcome === tradeResult.outcome) return;
+    setForm((prev) => ({ ...prev, outcome: tradeResult.outcome }));
+  }, [form.outcome, tradeResult.autoCalculated, tradeResult.outcome]);
 
   const resolvedAsset = useMemo(() => resolveAsset(form.pair), [form.pair]);
 
@@ -372,7 +382,12 @@ export const TradeForm = memo(function TradeForm({
           ? Math.abs(tradeResult.pnlDollars).toFixed(2)
           : form.pnlInput,
         pnlMode: tradeResult.autoCalculated ? "dollar" : form.pnlMode,
-        lotSize: displayLotSize === "—" ? "" : displayLotSize,
+        lotSize:
+          displayLotSize === "—"
+            ? formatLotSize(lotsForPnl) === "—"
+              ? form.lotSize
+              : formatLotSize(lotsForPnl)
+            : displayLotSize,
         riskPercent: String(cappedRisk),
         accountBalanceAtEntry: currentBalance,
         accountId: form.accountId || defaultAccountId,
@@ -551,6 +566,83 @@ export const TradeForm = memo(function TradeForm({
             </div>
 
             <div>
+              <label htmlFor="outcome" className={labelClass}>
+                Result
+              </label>
+              <div className="flex rounded-lg border border-white/10 bg-[#12121a] p-1">
+                {(
+                  [
+                    { id: "Win", label: "Win" },
+                    { id: "Loss", label: "Loss" },
+                    { id: "Breakeven", label: "BE" },
+                  ] as const
+                ).map((option) => {
+                  const selected = form.outcome === option.id;
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => {
+                        update("outcome", option.id);
+                        if (
+                          tradeResult.autoCalculated &&
+                          option.id !== tradeResult.outcome
+                        ) {
+                          setManualPnl(true);
+                        }
+                      }}
+                      className={`flex-1 rounded-md px-2 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors ${
+                        selected && option.id === "Win"
+                          ? "bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-400/40"
+                          : selected && option.id === "Loss"
+                            ? "bg-rose-500/20 text-rose-300 ring-1 ring-rose-400/40"
+                            : selected
+                              ? "bg-sky-500/20 text-sky-300 ring-1 ring-sky-400/40"
+                              : "text-zinc-400 hover:text-zinc-100"
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="lotSize" className={labelClass}>
+                Lot size
+              </label>
+              <input
+                id="lotSize"
+                type="text"
+                inputMode="decimal"
+                placeholder={
+                  calculatedLot != null ? formatLotSize(calculatedLot) : "e.g. 0.10"
+                }
+                value={
+                  form.riskSizeMode === "fixed"
+                    ? form.fixedLotSize
+                    : form.lotSize
+                }
+                onChange={(e) => {
+                  const next = e.target.value;
+                  if (form.riskSizeMode === "fixed") {
+                    update("fixedLotSize", next);
+                    update("lotSize", next);
+                    return;
+                  }
+                  update("lotSize", next);
+                }}
+                className={inputClass}
+              />
+              {calculatedLot != null && !form.lotSize.trim() && form.riskSizeMode !== "fixed" && (
+                <p className="mt-1.5 text-xs text-zinc-500">
+                  Using sizer lot {formatLotSize(calculatedLot)} for P/L
+                </p>
+              )}
+            </div>
+
+            <div>
               <label htmlFor="entryPrice" className={labelClass}>
                 Entry Price
               </label>
@@ -659,21 +751,40 @@ export const TradeForm = memo(function TradeForm({
               )}
 
               <div className="mt-4 rounded-lg border border-white/10 bg-[#0a0a12] px-3 py-2">
-                <p className="text-xs text-zinc-500">
-                  {tradeResult.autoCalculated ? "Auto P/L" : "Resolved P/L"} ·{" "}
-                  {tradeResult.outcome}
+                <p className="text-xs text-zinc-400">
+                  {tradeResult.autoCalculated ? "Auto P/L" : "Resolved P/L"}
                 </p>
-                <p
-                  className={`mt-1 font-mono text-lg ${
-                    tradeResult.pnlDollars >= 0
-                      ? "text-emerald-400"
-                      : "text-rose-400"
-                  }`}
-                >
-                  {formatPnlDollars(tradeResult.pnlDollars)}
-                </p>
-                <p className="mt-1 text-[11px] text-zinc-500">
+                <div className="mt-1 flex items-center justify-between gap-3">
+                  <p
+                    className={`font-mono text-lg ${
+                      tradeResult.pnlDollars > 0
+                        ? "text-emerald-400"
+                        : tradeResult.pnlDollars < 0
+                          ? "text-rose-400"
+                          : "text-sky-300"
+                    }`}
+                  >
+                    {formatPnlDollars(tradeResult.pnlDollars)}
+                  </p>
+                  <span
+                    className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide ring-1 ${
+                      tradeResult.outcome === "Win"
+                        ? "bg-emerald-500/15 text-emerald-300 ring-emerald-400/40"
+                        : tradeResult.outcome === "Loss"
+                          ? "bg-rose-500/15 text-rose-300 ring-rose-400/40"
+                          : "bg-sky-500/15 text-sky-300 ring-sky-400/40"
+                    }`}
+                  >
+                    {tradeResult.outcome}
+                  </span>
+                </div>
+                <p className="mt-1 text-[11px] text-zinc-400">
                   New balance {formatBalance(currentBalance + tradeResult.pnlDollars)}
+                  {lotsForPnl == null
+                    ? " · add lot size to auto-calc"
+                    : !exitForPnl
+                      ? " · add exit or TP to auto-calc"
+                      : ""}
                 </p>
               </div>
             </div>
