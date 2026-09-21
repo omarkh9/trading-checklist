@@ -6,5 +6,6 @@ export const TRADE_ACCOUNT_MAP_STORAGE_KEY = "edge-log-trade-accounts";
 export const TRADE_ACCOUNTS_BACKFILL_STORAGE_KEY =
   "edge-log-trade-accounts-backfilled";
 export const CALENDAR_METRIC_STORAGE_KEY = "edge-log-calendar-metric";
+export const CALENDAR_RANGE_STORAGE_KEY = "edge-log-calendar-range";
 export const WORKSPACE_SETTINGS_STORAGE_KEY = "edge-log-workspace-settings";
 export const THEME_STORAGE_KEY = "edge-log-theme";

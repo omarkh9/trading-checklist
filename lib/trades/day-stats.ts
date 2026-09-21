@@ -1,4 +1,7 @@
-import { CALENDAR_METRIC_STORAGE_KEY } from "@/lib/storage/keys";
+import {
+  CALENDAR_METRIC_STORAGE_KEY,
+  CALENDAR_RANGE_STORAGE_KEY,
+} from "@/lib/storage/keys";
 import {
   addLocalDays,
   dateKeyFromDate,
@@ -13,6 +16,7 @@ import { tradeDateKey } from "@/lib/trades/load-trades";
 import type { Trade } from "@/lib/types/trade";
 
 export type CalendarDisplayMetric = "dollar" | "percent";
+export type CalendarRange = "week" | "month";
 export type DayTone = "positive" | "negative" | "breakeven";
 
 export type DayStats = {
@@ -150,6 +154,21 @@ export function saveCalendarDisplayMetric(metric: CalendarDisplayMetric): void {
   localStorage.setItem(CALENDAR_METRIC_STORAGE_KEY, metric);
 }
 
+export function loadCalendarRange(): CalendarRange {
+  if (typeof window === "undefined") return "month";
+  try {
+    const raw = localStorage.getItem(CALENDAR_RANGE_STORAGE_KEY);
+    return raw === "week" ? "week" : "month";
+  } catch {
+    return "month";
+  }
+}
+
+export function saveCalendarRange(range: CalendarRange): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(CALENDAR_RANGE_STORAGE_KEY, range);
+}
+
 export function groupTradesByDay(trades: Trade[]): Map<string, Trade[]> {
   const map = new Map<string, Trade[]>();
   for (const trade of trades) {
@@ -221,13 +240,25 @@ export function monthPeriodBounds(viewDate: Date) {
   };
 }
 
-export function currentWeekBounds(now = new Date()) {
-  const start = startOfLocalWeek(now);
+export function weekPeriodBounds(date = new Date()) {
+  const start = startOfLocalWeek(date);
   const end = addLocalDays(start, 6);
   return {
+    start,
+    end,
     startKey: dateKeyFromDate(start),
     endKey: dateKeyFromDate(end),
   };
+}
+
+export function currentWeekBounds(now = new Date()) {
+  const { startKey, endKey } = weekPeriodBounds(now);
+  return { startKey, endKey };
+}
+
+export function weekDaysFromDate(date: Date): Date[] {
+  const start = startOfLocalWeek(date);
+  return Array.from({ length: 7 }, (_, index) => addLocalDays(start, index));
 }
 
 export function formatWeekRangeLabel(start: Date, end: Date): string {
@@ -238,6 +269,21 @@ export function formatWeekRangeLabel(start: Date, end: Date): string {
   const endLabel = end.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
+  });
+  return `${startLabel} – ${endLabel}`;
+}
+
+export function formatWeekHeading(start: Date, end: Date): string {
+  const sameYear = start.getFullYear() === end.getFullYear();
+  const startLabel = start.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    ...(sameYear ? {} : { year: "numeric" }),
+  });
+  const endLabel = end.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
   });
   return `${startLabel} – ${endLabel}`;
 }

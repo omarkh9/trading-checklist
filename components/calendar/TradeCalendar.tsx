@@ -7,25 +7,33 @@ import {
   buildStartingEquityByDay,
   computeDayStats,
   computePeriodStats,
-  currentWeekBounds,
   formatDayMetric,
   formatTradeCount,
-  formatWeekRangeLabel,
+  formatWeekHeading,
   formatWinRate,
   groupTradesByDay,
   loadCalendarDisplayMetric,
+  loadCalendarRange,
   monthPeriodBounds,
   saveCalendarDisplayMetric,
+  saveCalendarRange,
   startingEquityForDay,
   tradesInDateRange,
-  weekRowsFromCalendarDays,
+  weekDaysFromDate,
+  weekPeriodBounds,
   type CalendarDisplayMetric,
+  type CalendarRange,
   type DayStats,
   type DayTone,
   type PeriodStats,
 } from "@/lib/trades/day-stats";
-import { formatCalendarDateLabel, formatLocalMonthYear } from "@/lib/time";
-import { dateKeyFromDate } from "@/lib/trades/load-trades";
+import {
+  addLocalDays,
+  dateKeyFromDate,
+  formatCalendarDateLabel,
+  formatLocalMonthYear,
+  startOfLocalWeek,
+} from "@/lib/time";
 import type { TradingAccount } from "@/lib/types/account";
 import type { Trade, TradeFormData } from "@/lib/types/trade";
 import { ChevronLeft, ChevronRight, NotebookPen, X } from "lucide-react";
@@ -110,6 +118,43 @@ function MetricToggle({
   );
 }
 
+function RangeToggle({
+  value,
+  onChange,
+}: {
+  value: CalendarRange;
+  onChange: (value: CalendarRange) => void;
+}) {
+  return (
+    <div
+      className="flex rounded-lg border border-white/10 bg-white/[0.03] p-1"
+      role="group"
+      aria-label="Calendar range"
+    >
+      {(
+        [
+          { id: "week", label: "Weekly" },
+          { id: "month", label: "Monthly" },
+        ] as const
+      ).map((option) => (
+        <button
+          key={option.id}
+          type="button"
+          onClick={() => onChange(option.id)}
+          aria-pressed={value === option.id}
+          className={`rounded-md px-3.5 py-1.5 text-xs font-semibold transition-colors ${
+            value === option.id
+              ? "bg-indigo-500 text-white shadow-[0_0_14px_rgba(99,102,241,0.35)]"
+              : "text-zinc-400 hover:text-zinc-200"
+          }`}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function PeriodSummaryCard({
   stats,
   metric,
@@ -118,20 +163,39 @@ function PeriodSummaryCard({
   metric: CalendarDisplayMetric;
 }) {
   return (
-    <div className={`rounded-xl border px-4 py-3 ${dayToneCardClass[stats.tone]}`}>
+    <section className={`rounded-xl border px-4 py-4 ${dayToneCardClass[stats.tone]}`}>
       <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
         {stats.label}
       </p>
-      <p
-        className={`mt-2 font-mono text-xl font-semibold tabular-nums ${dayToneMetricClass[stats.tone]}`}
-      >
-        {formatDayMetric(stats, metric)}
-      </p>
-      <p className="mt-1 text-xs text-zinc-500">
-        {formatTradeCount(stats.tradeCount)} · {formatWinRate(stats.winRate)} win
-        rate
-      </p>
-    </div>
+      <div className="mt-3 grid gap-3 sm:grid-cols-3">
+        <div>
+          <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-400">
+            {metric === "percent" ? "Return" : "Net P/L"}
+          </p>
+          <p
+            className={`mt-1 font-mono text-xl font-semibold tabular-nums ${dayToneMetricClass[stats.tone]}`}
+          >
+            {formatDayMetric(stats, metric)}
+          </p>
+        </div>
+        <div>
+          <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-400">
+            Trades
+          </p>
+          <p className="mt-1 font-mono text-xl font-semibold tabular-nums text-zinc-100">
+            {formatTradeCount(stats.tradeCount)}
+          </p>
+        </div>
+        <div>
+          <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-400">
+            Win rate
+          </p>
+          <p className="mt-1 font-mono text-xl font-semibold tabular-nums text-zinc-100">
+            {formatWinRate(stats.winRate)}
+          </p>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -310,9 +374,11 @@ export function TradeCalendar() {
   const [viewDate, setViewDate] = useState(() => new Date());
   const [modalDateKey, setModalDateKey] = useState<string | null>(null);
   const [metric, setMetric] = useState<CalendarDisplayMetric>("dollar");
+  const [range, setRange] = useState<CalendarRange>("month");
 
   useEffect(() => {
     setMetric(loadCalendarDisplayMetric());
+    setRange(loadCalendarRange());
   }, []);
 
   const closeModal = useCallback(() => setModalDateKey(null), []);
@@ -328,50 +394,65 @@ export function TradeCalendar() {
     () => buildCalendarDays(viewDate.getFullYear(), viewDate.getMonth()),
     [viewDate]
   );
+  const weekDays = useMemo(() => weekDaysFromDate(viewDate), [viewDate]);
+  const visibleDays = range === "week" ? weekDays : calendarDays;
+  const weekBounds = useMemo(() => weekPeriodBounds(viewDate), [viewDate]);
 
   const periodCards = useMemo(() => {
     const month = monthPeriodBounds(viewDate);
-    const week = currentWeekBounds();
+    const thisWeek = weekPeriodBounds(new Date());
+    const selectedWeek = weekBounds;
     const monthTrades = tradesInDateRange(trades, month.startKey, month.endKey);
-    const weekTrades = tradesInDateRange(trades, week.startKey, week.endKey);
-    const monthStartEquity =
-      startingEquityForDay(monthTrades, month.startKey, equityByDay, startingBalance);
-    const weekStartEquity =
-      startingEquityForDay(weekTrades, week.startKey, equityByDay, startingBalance);
-
-    const weekCards = weekRowsFromCalendarDays(calendarDays).map((days) => {
-      const start = days[0];
-      const end = days[days.length - 1];
-      const startKey = dateKeyFromDate(start);
-      const endKey = dateKeyFromDate(end);
-      const weekRowTrades = tradesInDateRange(trades, startKey, endKey);
-      return computePeriodStats(
-        weekRowTrades,
-        startingEquityForDay(weekRowTrades, startKey, equityByDay, startingBalance),
-        formatWeekRangeLabel(start, end),
-        startKey,
-        endKey
-      );
-    });
+    const thisWeekTrades = tradesInDateRange(
+      trades,
+      thisWeek.startKey,
+      thisWeek.endKey
+    );
+    const selectedWeekTrades = tradesInDateRange(
+      trades,
+      selectedWeek.startKey,
+      selectedWeek.endKey
+    );
 
     return {
       month: computePeriodStats(
         monthTrades,
-        monthStartEquity,
+        startingEquityForDay(
+          monthTrades,
+          month.startKey,
+          equityByDay,
+          startingBalance
+        ),
         formatMonthLabel(viewDate),
         month.startKey,
         month.endKey
       ),
       thisWeek: computePeriodStats(
-        weekTrades,
-        weekStartEquity,
+        thisWeekTrades,
+        startingEquityForDay(
+          thisWeekTrades,
+          thisWeek.startKey,
+          equityByDay,
+          startingBalance
+        ),
         "This week",
-        week.startKey,
-        week.endKey
+        thisWeek.startKey,
+        thisWeek.endKey
       ),
-      weeks: weekCards,
+      selectedWeek: computePeriodStats(
+        selectedWeekTrades,
+        startingEquityForDay(
+          selectedWeekTrades,
+          selectedWeek.startKey,
+          equityByDay,
+          startingBalance
+        ),
+        formatWeekHeading(selectedWeek.start, selectedWeek.end),
+        selectedWeek.startKey,
+        selectedWeek.endKey
+      ),
     };
-  }, [calendarDays, equityByDay, startingBalance, trades, viewDate]);
+  }, [equityByDay, startingBalance, trades, viewDate, weekBounds]);
 
   const todayKey = dateKeyFromDate(new Date());
   const modalTrades = modalDateKey
@@ -390,13 +471,21 @@ export function TradeCalendar() {
         )
       : null;
 
-  const goToPreviousMonth = () => {
+  const goToPrevious = () => {
+    if (range === "week") {
+      setViewDate((prev) => addLocalDays(startOfLocalWeek(prev), -7));
+      return;
+    }
     setViewDate(
       (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1)
     );
   };
 
-  const goToNextMonth = () => {
+  const goToNext = () => {
+    if (range === "week") {
+      setViewDate((prev) => addLocalDays(startOfLocalWeek(prev), 7));
+      return;
+    }
     setViewDate(
       (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1)
     );
@@ -404,13 +493,18 @@ export function TradeCalendar() {
 
   const goToToday = () => {
     const today = new Date();
-    setViewDate(new Date(today.getFullYear(), today.getMonth(), 1));
+    setViewDate(today);
     setModalDateKey(dateKeyFromDate(today));
   };
 
   const handleMetricChange = (next: CalendarDisplayMetric) => {
     setMetric(next);
     saveCalendarDisplayMetric(next);
+  };
+
+  const handleRangeChange = (next: CalendarRange) => {
+    setRange(next);
+    saveCalendarRange(next);
   };
 
   if (!isLoaded) {
@@ -432,7 +526,9 @@ export function TradeCalendar() {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h3 className="text-lg font-semibold tracking-tight text-zinc-50">
-                {formatMonthLabel(viewDate)}
+                {range === "week"
+                  ? formatWeekHeading(weekBounds.start, weekBounds.end)
+                  : formatMonthLabel(viewDate)}
               </h3>
               <p className="mt-1 text-sm text-zinc-500">
                 {activeAccount
@@ -441,12 +537,13 @@ export function TradeCalendar() {
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <RangeToggle value={range} onChange={handleRangeChange} />
               <MetricToggle value={metric} onChange={handleMetricChange} />
               <button
                 type="button"
-                onClick={goToPreviousMonth}
+                onClick={goToPrevious}
                 className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-zinc-400 transition-all duration-300 hover:border-indigo-400/40 hover:bg-indigo-500/10 hover:text-zinc-100"
-                aria-label="Previous month"
+                aria-label={range === "week" ? "Previous week" : "Previous month"}
               >
                 <ChevronLeft className="h-5 w-5" />
               </button>
@@ -459,9 +556,9 @@ export function TradeCalendar() {
               </button>
               <button
                 type="button"
-                onClick={goToNextMonth}
+                onClick={goToNext}
                 className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-zinc-400 transition-all duration-300 hover:border-indigo-400/40 hover:bg-indigo-500/10 hover:text-zinc-100"
-                aria-label="Next month"
+                aria-label={range === "week" ? "Next week" : "Next month"}
               >
                 <ChevronRight className="h-5 w-5" />
               </button>
@@ -478,12 +575,16 @@ export function TradeCalendar() {
               </div>
             ))}
 
-            {calendarDays.map((date, index) => {
+            {visibleDays.map((date, index) => {
               if (!date) {
                 return (
                   <div
                     key={`empty-${index}`}
-                    className="min-h-[6.75rem] rounded-lg bg-transparent sm:min-h-[8.25rem]"
+                    className={`rounded-lg bg-transparent ${
+                      range === "week"
+                        ? "min-h-[8.5rem] sm:min-h-[10.5rem]"
+                        : "min-h-[6.25rem] sm:min-h-[7.75rem]"
+                    }`}
                     aria-hidden
                   />
                 );
@@ -505,8 +606,12 @@ export function TradeCalendar() {
                   )
                 : null;
 
+              const cellHeight =
+                range === "week"
+                  ? "min-h-[8.5rem] sm:min-h-[10.5rem]"
+                  : "min-h-[6.25rem] sm:min-h-[7.75rem]";
               let cellClass =
-                "relative flex min-h-[6.75rem] flex-col rounded-lg border p-1.5 text-left transition-all sm:min-h-[8.25rem] sm:p-2.5 ";
+                `relative flex ${cellHeight} flex-col rounded-lg border p-1.5 text-left transition-all sm:p-2.5 `;
 
               if (!hasTrades || !stats) {
                 cellClass +=
@@ -522,7 +627,7 @@ export function TradeCalendar() {
 
               const metricLabel = stats ? formatDayMetric(stats, metric) : "";
               const ariaLabel = stats
-                ? `${date.getDate()}, ${metricLabel}, ${formatTradeCount(stats.tradeCount)}, ${formatWinRate(stats.winRate)} win rate. Click to journal trades for this day.`
+                ? `${date.getDate()}, ${metricLabel}, ${formatTradeCount(stats.tradeCount)}. Click to journal trades for this day.`
                 : `${date.getDate()}, no trades. Click to journal trades for this day.`;
 
               return (
@@ -551,9 +656,6 @@ export function TradeCalendar() {
                       <p className="text-[10px] leading-tight text-zinc-400 sm:text-xs">
                         {formatTradeCount(stats.tradeCount)}
                       </p>
-                      <p className="text-[10px] leading-tight text-zinc-400 sm:text-xs">
-                        {formatWinRate(stats.winRate)}
-                      </p>
                     </div>
                   ) : (
                     <span className="mt-auto inline-flex items-center gap-1 text-[10px] font-medium text-zinc-500 sm:text-xs">
@@ -566,18 +668,20 @@ export function TradeCalendar() {
             })}
           </div>
 
-          <div className="mt-6 grid gap-3 sm:grid-cols-2">
-            <PeriodSummaryCard stats={periodCards.thisWeek} metric={metric} />
-            <PeriodSummaryCard stats={periodCards.month} metric={metric} />
-          </div>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            {periodCards.weeks.map((week) => (
-              <PeriodSummaryCard
-                key={`${week.startKey}-${week.endKey}`}
-                stats={week}
-                metric={metric}
-              />
-            ))}
+          <div className="mt-6">
+            <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
+              Performance
+            </p>
+            <div className={`grid gap-3 ${range === "month" ? "lg:grid-cols-2" : ""}`}>
+              {range === "week" ? (
+                <PeriodSummaryCard stats={periodCards.selectedWeek} metric={metric} />
+              ) : (
+                <>
+                  <PeriodSummaryCard stats={periodCards.thisWeek} metric={metric} />
+                  <PeriodSummaryCard stats={periodCards.month} metric={metric} />
+                </>
+              )}
+            </div>
           </div>
 
           <div className="mt-6 flex flex-wrap gap-4 border-t border-white/10 pt-4 text-xs text-zinc-500">
