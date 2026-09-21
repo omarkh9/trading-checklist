@@ -23,9 +23,11 @@ export type MarketClock = {
   label: string;
   activeSessions: MarketSession[];
   sessions: SessionWindow[];
+  nextChangeKind: "open" | "close" | null;
   nextChangeLabel: string | null;
   userTimeZone: string;
   userTimeZoneShort: string;
+  userTimeZoneLong: string;
 };
 
 export const MARKET_SESSIONS: MarketSession[] = [
@@ -177,8 +179,19 @@ export function formatTimeZoneShort(date: Date, timeZone: string): string {
   return name ?? timeZone;
 }
 
+export function formatTimeZoneLong(date: Date, timeZone: string): string {
+  const name = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    timeZoneName: "long",
+  })
+    .formatToParts(date)
+    .find((part) => part.type === "timeZoneName")?.value;
+
+  return name ?? timeZone.replace(/_/g, " ");
+}
+
 function formatClock(date: Date, timeZone: string): string {
-  return date.toLocaleTimeString(undefined, {
+  return date.toLocaleTimeString("en-US", {
     timeZone,
     hour: "numeric",
     minute: "2-digit",
@@ -186,12 +199,24 @@ function formatClock(date: Date, timeZone: string): string {
 }
 
 function formatWeekdayTime(date: Date, timeZone: string): string {
-  return date.toLocaleString(undefined, {
+  return date.toLocaleString("en-US", {
     timeZone,
     weekday: "short",
     hour: "numeric",
     minute: "2-digit",
   });
+}
+
+function sameLocalDay(a: Date, b: Date, timeZone: string): boolean {
+  const left = getZonedParts(a, timeZone);
+  const right = getZonedParts(b, timeZone);
+  return left.year === right.year && left.month === right.month && left.day === right.day;
+}
+
+function formatChangeTime(at: Date, now: Date, userTimeZone: string): string {
+  return sameLocalDay(at, now, userTimeZone)
+    ? formatClock(at, userTimeZone)
+    : formatWeekdayTime(at, userTimeZone);
 }
 
 /**
@@ -277,43 +302,52 @@ function nextNyBoundary(date: Date, hour: number, fromWeekday: number): Date {
   return instant;
 }
 
-function nextSessionChange(
+function nextSessionBoundary(
   date: Date,
   session: MarketSession
-): Date {
+): { at: Date; kind: "open" | "close" } {
   const local = getZonedParts(date, session.timeZone);
   const minutes = minutesFromMidnight(local);
   const openMinutes = session.openHour * 60;
   const closeMinutes = session.closeHour * 60;
 
   if (minutes < openMinutes) {
-    return sessionInstantOnCalendarDay(
-      session,
-      local.year,
-      local.month,
-      local.day,
-      session.openHour
-    );
+    return {
+      at: sessionInstantOnCalendarDay(
+        session,
+        local.year,
+        local.month,
+        local.day,
+        session.openHour
+      ),
+      kind: "open",
+    };
   }
 
   if (minutes < closeMinutes) {
-    return sessionInstantOnCalendarDay(
-      session,
-      local.year,
-      local.month,
-      local.day,
-      session.closeHour
-    );
+    return {
+      at: sessionInstantOnCalendarDay(
+        session,
+        local.year,
+        local.month,
+        local.day,
+        session.closeHour
+      ),
+      kind: "close",
+    };
   }
 
   const tomorrow = addDays(local.year, local.month, local.day, 1);
-  return sessionInstantOnCalendarDay(
-    session,
-    tomorrow.year,
-    tomorrow.month,
-    tomorrow.day,
-    session.openHour
-  );
+  return {
+    at: sessionInstantOnCalendarDay(
+      session,
+      tomorrow.year,
+      tomorrow.month,
+      tomorrow.day,
+      session.openHour
+    ),
+    kind: "open",
+  };
 }
 
 function buildLabel(active: MarketSession[]): string {
@@ -335,6 +369,8 @@ export function getMarketClock(
 
   const activeSessions = MARKET_SESSIONS.filter((_, index) => sessions[index].active);
   const isOverlap = activeSessions.length > 1;
+  const zoneShort = formatTimeZoneShort(date, userTimeZone);
+  const zoneLong = formatTimeZoneLong(date, userTimeZone);
 
   if (closed) {
     const opens = nextNyBoundary(date, NY_WEEKEND_CLOSE_HOUR, 0);
@@ -344,31 +380,45 @@ export function getMarketClock(
       label: "Market Closed",
       activeSessions: [],
       sessions,
-      nextChangeLabel: `Opens ${formatWeekdayTime(opens, userTimeZone)}`,
+      nextChangeKind: "open",
+      nextChangeLabel: `Opens ${formatChangeTime(opens, date, userTimeZone)}`,
       userTimeZone,
-      userTimeZoneShort: formatTimeZoneShort(date, userTimeZone),
+      userTimeZoneShort: zoneShort,
+      userTimeZoneLong: zoneLong,
     };
   }
 
-  const upcoming = [
-    nextNyBoundary(date, NY_WEEKEND_CLOSE_HOUR, 5),
-    ...MARKET_SESSIONS.map((session) => nextSessionChange(date, session)),
-  ]
-    .filter((instant) => instant.getTime() > date.getTime())
-    .sort((a, b) => a.getTime() - b.getTime())[0];
+  const weekendClose = {
+    at: nextNyBoundary(date, NY_WEEKEND_CLOSE_HOUR, 5),
+    kind: "close" as const,
+  };
+  const bounds = MARKET_SESSIONS.map((session) =>
+    nextSessionBoundary(date, session)
+  );
+
+  const upcoming =
+    activeSessions.length > 0
+      ? [...activeSessions.map((session) => nextSessionBoundary(date, session)), weekendClose]
+          .filter((item) => item.at.getTime() > date.getTime())
+          .sort((a, b) => a.at.getTime() - b.at.getTime())[0]
+      : bounds
+          .filter((item) => item.kind === "open" && item.at.getTime() > date.getTime())
+          .sort((a, b) => a.at.getTime() - b.at.getTime())[0];
 
   return {
     isOpen: true,
     isOverlap,
     label: isOverlap
       ? buildLabel(activeSessions)
-      : (activeSessions[0]?.name ?? "Markets Open"),
+      : (activeSessions[0]?.name.replace(/^Asia \/ /, "") ?? "Between sessions"),
     activeSessions,
     sessions,
+    nextChangeKind: upcoming?.kind ?? null,
     nextChangeLabel: upcoming
-      ? `Next change ${formatWeekdayTime(upcoming, userTimeZone)}`
+      ? `${upcoming.kind === "close" ? "Closes" : "Opens"} ${formatChangeTime(upcoming.at, date, userTimeZone)}`
       : null,
     userTimeZone,
-    userTimeZoneShort: formatTimeZoneShort(date, userTimeZone),
+    userTimeZoneShort: zoneShort,
+    userTimeZoneLong: zoneLong,
   };
 }

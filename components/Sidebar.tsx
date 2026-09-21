@@ -88,10 +88,10 @@ export function SidebarPanel({ onNavigate, onClose }: SidebarPanelProps) {
 
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
         {primaryItems.map(renderLink)}
-        <div className="px-0.5 pt-3 pb-2">
+        {settingsItem ? renderLink(settingsItem) : null}
+        <div className="px-0.5 pt-3">
           <CompactMarketClock />
         </div>
-        {settingsItem ? renderLink(settingsItem) : null}
       </nav>
 
       <div className="shrink-0 border-t border-indigo-400/15 p-3">
