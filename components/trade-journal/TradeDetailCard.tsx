@@ -1,9 +1,9 @@
 "use client";
 
+import { RuleScoreStat } from "@/components/trade-journal/RuleScoreStat";
 import { formatLocalDateTime } from "@/lib/time";
 import { ASSET_CLASS_LABELS, resolveAsset } from "@/lib/trades/assets";
 import { formatPnlDollars } from "@/lib/trades/pnl";
-import { formatRuleScore } from "@/lib/trades/rule-score";
 import { emotionEmoji, emotionLabel } from "@/lib/types/emotion";
 import type { Direction, Outcome, Trade } from "@/lib/types/trade";
 import { assetClassBadgeClass } from "@/lib/ui/desk";
@@ -146,13 +146,16 @@ export function TradeDetailCard({ trade }: TradeDetailCardProps) {
         </div>
 
         <div>
-          <div className={`rounded-lg border px-4 py-3 ${pnlCardClass}`}>
-            <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">
-              Profit / Loss
-            </p>
-            <p className={`mt-1 font-mono text-lg font-semibold ${pnlColor}`}>
-              {formatPnlSummary(trade)}
-            </p>
+          <div className="grid items-stretch gap-3 sm:grid-cols-2">
+            <div className={`flex h-full flex-col justify-center rounded-lg border px-4 py-3 ${pnlCardClass}`}>
+              <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">
+                Profit / Loss
+              </p>
+              <p className={`mt-1 font-mono text-lg font-semibold ${pnlColor}`}>
+                {formatPnlSummary(trade)}
+              </p>
+            </div>
+            <RuleScoreStat score={trade.ruleScore} />
           </div>
 
           <dl className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -184,12 +187,6 @@ export function TradeDetailCard({ trade }: TradeDetailCardProps) {
               <dt className="text-xs text-zinc-500">Lot Size</dt>
               <dd className="font-mono text-sm text-zinc-200">
                 {trade.lotSize || "—"}
-              </dd>
-            </div>
-            <div className="rounded-lg border border-white/5 bg-white/[0.03] px-3 py-2">
-              <dt className="text-xs text-zinc-500">Rule score</dt>
-              <dd className="font-mono text-sm text-zinc-200">
-                {formatRuleScore(trade.ruleScore)}
               </dd>
             </div>
           </dl>

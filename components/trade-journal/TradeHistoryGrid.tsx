@@ -2,6 +2,7 @@
 
 import { TradeDetailModal } from "@/components/trade-journal/TradeDetailModal";
 import { TradeEditModal } from "@/components/trade-journal/TradeEditModal";
+import { RuleScoreStat } from "@/components/trade-journal/RuleScoreStat";
 import {
   computeCurrentBalance,
   resolveTradeAccountId,
@@ -146,10 +147,10 @@ export const TradeHistoryGrid = memo(function TradeHistoryGrid({
         variant === "table" ? (
         <div className="mt-6 overflow-hidden rounded-xl border border-indigo-400/15">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[880px] text-left text-sm">
+            <table className="w-full min-w-[980px] text-left text-sm">
               <thead>
                 <tr className="border-b border-white/10 bg-white/[0.03]">
-                  {["Pair", "Class", "Direction", "P/L", "Outcome", "Date", ""].map(
+                  {["Pair", "Class", "Direction", "P/L", "Rule Score", "Outcome", "Date", ""].map(
                     (heading) => (
                       <th
                         key={heading || "actions"}
@@ -202,6 +203,9 @@ export const TradeHistoryGrid = memo(function TradeHistoryGrid({
                         }`}
                       >
                         {formatPnlDollars(pnl)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <RuleScoreStat score={trade.ruleScore} size="sm" />
                       </td>
                       <td className="px-4 py-3">
                         <span
@@ -306,15 +310,18 @@ export const TradeHistoryGrid = memo(function TradeHistoryGrid({
                   </div>
                 </div>
 
-                <div className={`mt-4 rounded-lg border px-3 py-2.5 ${pnlCardClass}`}>
-                  <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">
-                    Total P/L
-                  </p>
-                  <p
-                    className={`mt-1 font-mono text-xl font-semibold ${pnlTextClass}`}
-                  >
-                    {formatPnlDollars(pnl)}
-                  </p>
+                <div className="mt-4 grid items-stretch gap-3 sm:grid-cols-2">
+                  <div className={`flex h-full flex-col justify-center rounded-lg border px-3 py-2.5 ${pnlCardClass}`}>
+                    <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">
+                      Total P/L
+                    </p>
+                    <p
+                      className={`mt-1 font-mono text-xl font-semibold ${pnlTextClass}`}
+                    >
+                      {formatPnlDollars(pnl)}
+                    </p>
+                  </div>
+                  <RuleScoreStat score={trade.ruleScore} />
                 </div>
 
                 <p className="mt-4 line-clamp-2 flex-1 text-sm leading-relaxed text-zinc-400">

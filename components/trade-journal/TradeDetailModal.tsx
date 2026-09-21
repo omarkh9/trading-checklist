@@ -1,6 +1,7 @@
 "use client";
 
 import { TradeDetailCard } from "@/components/trade-journal/TradeDetailCard";
+import { RuleScoreStat } from "@/components/trade-journal/RuleScoreStat";
 import type { Trade } from "@/lib/types/trade";
 import { X } from "lucide-react";
 import { useEffect } from "react";
@@ -46,9 +47,12 @@ export function TradeDetailModal({
       >
         <div className="flex shrink-0 items-start justify-between gap-4 border-b border-indigo-400/15 px-5 py-4">
           <div>
-            <h3 id="trade-detail-title" className="text-lg font-semibold text-zinc-100">
-              {title}
-            </h3>
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 id="trade-detail-title" className="text-lg font-semibold text-zinc-100">
+                {title}
+              </h3>
+              <RuleScoreStat score={trade.ruleScore} size="sm" />
+            </div>
             {subtitle && (
               <p className="mt-1 text-sm text-zinc-500">{subtitle}</p>
             )}
