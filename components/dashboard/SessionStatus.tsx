@@ -11,7 +11,11 @@ function useMarketClock(): MarketClock | null {
   const [clock, setClock] = useState<MarketClock | null>(null);
 
   useEffect(() => {
-    const tick = () => setClock(getMarketClock(new Date()));
+    const tick = () => {
+      const timeZone =
+        Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+      setClock(getMarketClock(new Date(), timeZone));
+    };
     tick();
     const id = window.setInterval(tick, 15_000);
     const onVisible = () => {

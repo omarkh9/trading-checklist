@@ -1,16 +1,23 @@
 "use client";
 
-import { getMarketClock, getZonedParts, MARKET_SESSIONS } from "@/lib/markets/sessions";
-import { resolveDisplayTimeZone } from "@/lib/settings/workspace";
-import { useWorkspaceSettings } from "@/components/workspace/WorkspaceProvider";
+import { getMarketClock, type SessionId } from "@/lib/markets/sessions";
+import { getUserTimeZone } from "@/lib/time";
 import { useEffect, useState } from "react";
 
 const WORLD_CLOCKS = [
-  { id: "syd", label: "Sydney", short: "Syd", timeZone: "Australia/Sydney" },
-  { id: "tyo", label: "Tokyo", short: "Tyo", timeZone: "Asia/Tokyo" },
-  { id: "lon", label: "London", short: "Lon", timeZone: "Europe/London" },
-  { id: "ny", label: "New York", short: "NY", timeZone: "America/New_York" },
-] as const;
+  { id: "sydney" as const satisfies SessionId, label: "Sydney", short: "Syd", timeZone: "Australia/Sydney" },
+  { id: "tokyo" as const satisfies SessionId, label: "Tokyo", short: "Tyo", timeZone: "Asia/Tokyo" },
+  { id: "london" as const satisfies SessionId, label: "London", short: "Lon", timeZone: "Europe/London" },
+  { id: "newyork" as const satisfies SessionId, label: "New York", short: "NY", timeZone: "America/New_York" },
+];
+
+function detectBrowserTimeZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || getUserTimeZone();
+  } catch {
+    return getUserTimeZone();
+  }
+}
 
 function formatClock(timeZone: string, now: Date): string {
   return new Intl.DateTimeFormat("en-US", {
@@ -37,30 +44,27 @@ export function CompactMarketClock({
 }: {
   variant?: "panel" | "compact";
 }) {
-  const { settings } = useWorkspaceSettings();
-  const displayZone = resolveDisplayTimeZone(settings.timeZone);
   const [now, setNow] = useState<Date | null>(null);
+  const [userTimeZone, setUserTimeZone] = useState<string | null>(null);
 
   useEffect(() => {
+    setUserTimeZone(detectBrowserTimeZone());
     const tick = () => setNow(new Date());
     tick();
     const id = window.setInterval(tick, 15_000);
     return () => window.clearInterval(id);
   }, []);
 
-  if (!now) {
+  if (!now || !userTimeZone) {
     return (
       <div className="h-28 animate-pulse rounded-xl border border-white/10 bg-[#12121a]" />
     );
   }
 
-  const clock = getMarketClock(now, displayZone);
-  const activeIds = new Set(
-    MARKET_SESSIONS.filter((session) => {
-      if (!clock.isOpen) return false;
-      const local = getZonedParts(now, session.timeZone);
-      return local.hour >= session.openHour && local.hour < session.closeHour;
-    }).map((session) => session.timeZone)
+  const clock = getMarketClock(now, userTimeZone);
+  const activeIds = new Set(clock.activeSessions.map((session) => session.id));
+  const sessionById = new Map(
+    clock.sessions.map((session) => [session.id, session])
   );
 
   if (variant === "compact") {
@@ -107,24 +111,38 @@ export function CompactMarketClock({
           </p>
         </div>
       </div>
+      <p className="mt-2 flex items-baseline justify-between gap-2 text-[11px] text-zinc-500">
+        <span>Local {clock.userTimeZoneShort}</span>
+        <span className="font-mono tabular-nums text-zinc-200">
+          {formatClock(userTimeZone, now)}
+        </span>
+      </p>
       <ul className="mt-3 grid grid-cols-2 gap-1.5">
-        {WORLD_CLOCKS.map((city) => (
-          <li
-            key={city.id}
-            className={`rounded-lg border px-2 py-1.5 ${
-              activeIds.has(city.timeZone)
-                ? "border-emerald-400/25 bg-emerald-500/10 text-zinc-100"
-                : "border-white/10 bg-white/[0.03] text-zinc-400"
-            }`}
-          >
-            <p className="text-[10px] font-semibold uppercase tracking-wider">
-              {city.short}
-            </p>
-            <p className="font-mono text-xs tabular-nums text-zinc-100">
-              {formatClock(city.timeZone, now)}
-            </p>
-          </li>
-        ))}
+        {WORLD_CLOCKS.map((city) => {
+          const session = sessionById.get(city.id);
+          return (
+            <li
+              key={city.id}
+              className={`rounded-lg border px-2 py-1.5 ${
+                activeIds.has(city.id)
+                  ? "border-emerald-400/25 bg-emerald-500/10 text-zinc-100"
+                  : "border-white/10 bg-white/[0.03] text-zinc-400"
+              }`}
+            >
+              <p className="text-[10px] font-semibold uppercase tracking-wider">
+                {city.short}
+              </p>
+              <p className="font-mono text-xs tabular-nums text-zinc-100">
+                {formatClock(city.timeZone, now)}
+              </p>
+              {session && (
+                <p className="mt-0.5 text-[10px] leading-tight text-zinc-500">
+                  {session.localRange}
+                </p>
+              )}
+            </li>
+          );
+        })}
       </ul>
     </section>
   );

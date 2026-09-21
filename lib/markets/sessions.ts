@@ -159,7 +159,11 @@ function addDays(year: number, month: number, day: number, delta: number) {
 }
 
 export function detectUserTimeZone() {
-  return getUserTimeZone();
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || getUserTimeZone();
+  } catch {
+    return getUserTimeZone();
+  }
 }
 
 export function formatTimeZoneShort(date: Date, timeZone: string): string {
