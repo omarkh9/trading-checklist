@@ -2,20 +2,25 @@
 
 import { TradeForm } from "@/components/trade-journal/TradeForm";
 import { tradeToFormData } from "@/lib/trades/trade-form";
+import type { TradingAccount } from "@/lib/types/account";
 import type { Trade, TradeFormData } from "@/lib/types/trade";
 import { X } from "lucide-react";
 import { useEffect } from "react";
 
 type TradeEditModalProps = {
   trade: Trade;
-  currentBalance: number;
-  onSave: (data: TradeFormData) => void;
+  accounts: TradingAccount[];
+  accountBalances: Record<string, number>;
+  defaultAccountId: string;
+  onSave: (data: TradeFormData) => void | Promise<void>;
   onClose: () => void;
 };
 
 export function TradeEditModal({
   trade,
-  currentBalance,
+  accounts,
+  accountBalances,
+  defaultAccountId,
   onSave,
   onClose,
 }: TradeEditModalProps) {
@@ -43,16 +48,16 @@ export function TradeEditModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="edit-trade-title"
-        className="fixed inset-x-3 top-[max(0.75rem,env(safe-area-inset-top))] z-50 mx-auto flex max-h-[min(92vh,920px)] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-border bg-surface-raised shadow-2xl sm:inset-x-6"
+        className="fixed inset-x-3 top-[max(0.75rem,env(safe-area-inset-top))] z-50 mx-auto flex max-h-[min(92vh,920px)] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-indigo-400/25 bg-[#0c0c16] shadow-[0_20px_60px_rgba(0,0,0,0.55)] sm:inset-x-6"
       >
-        <div className="flex shrink-0 items-center justify-between gap-4 border-b border-border px-5 py-4">
+        <div className="flex shrink-0 items-center justify-between gap-4 border-b border-indigo-400/15 px-5 py-4">
           <h3 id="edit-trade-title" className="text-lg font-semibold text-zinc-100">
             Update Trade — {trade.pair}
           </h3>
           <button
             type="button"
             onClick={onClose}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border text-zinc-400 transition-colors hover:bg-surface-overlay hover:text-zinc-100"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-zinc-400 transition-all duration-300 hover:border-indigo-400/40 hover:bg-indigo-500/10 hover:text-zinc-100"
             aria-label="Close"
           >
             <X className="h-5 w-5" />
@@ -63,12 +68,14 @@ export function TradeEditModal({
           <TradeForm
             key={trade.id}
             embedded
-            currentBalance={currentBalance}
+            accounts={accounts}
+            accountBalances={accountBalances}
+            defaultAccountId={trade.accountId || defaultAccountId}
             initialData={tradeToFormData(trade)}
             submitLabel="Save Changes"
             onCancel={onClose}
-            onSubmit={(data) => {
-              onSave(data);
+            onSubmit={async (data) => {
+              await onSave(data);
               onClose();
             }}
           />

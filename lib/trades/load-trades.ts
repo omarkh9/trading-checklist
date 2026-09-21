@@ -1,5 +1,6 @@
-import { TRADES_STORAGE_KEY } from "@/lib/storage/keys";
+import { decodeNotesWithMeta, emptyJournalMeta } from "@/lib/trades/journal-meta";
 import type { Trade } from "@/lib/types/trade";
+import { dateKeyFromDate as localDateKeyFromDate, zonedDateKey } from "@/lib/time";
 
 function toChartImage(value: unknown): string | null {
   if (typeof value !== "string" || !value) return null;
@@ -7,12 +8,26 @@ function toChartImage(value: unknown): string | null {
 }
 
 export function normalizeTrade(trade: Trade): Trade {
+  const decoded = decodeNotesWithMeta(trade.notes ?? "");
+  const meta = {
+    ...emptyJournalMeta(),
+    exitPrice: trade.exitPrice || decoded.meta.exitPrice,
+    emotionBefore: trade.emotionBefore ?? decoded.meta.emotionBefore,
+    emotionAfter: trade.emotionAfter ?? decoded.meta.emotionAfter,
+    ruleScore: trade.ruleScore ?? decoded.meta.ruleScore,
+    checkedRuleIds:
+      trade.checkedRuleIds?.length > 0
+        ? trade.checkedRuleIds
+        : decoded.meta.checkedRuleIds,
+  };
+
   return {
     ...trade,
     higherTimeFrame: toChartImage(trade.higherTimeFrame),
     middleTimeFrame: toChartImage(trade.middleTimeFrame),
     lowerTimeFrame: toChartImage(trade.lowerTimeFrame),
     entry: toChartImage(trade.entry),
+    exitPrice: meta.exitPrice ?? "",
     pnlMode: trade.pnlMode ?? "dollar",
     pnlInput: trade.pnlInput ?? "",
     pnlDollars: typeof trade.pnlDollars === "number" ? trade.pnlDollars : 0,
@@ -20,35 +35,24 @@ export function normalizeTrade(trade: Trade): Trade {
     riskPercent: trade.riskPercent ?? "1",
     fixedLotSize: trade.fixedLotSize ?? "",
     lotSize: trade.lotSize ?? "",
+    strategy: trade.strategy ?? "",
+    notes: decoded.notes,
+    emotionBefore: meta.emotionBefore,
+    emotionAfter: meta.emotionAfter,
+    ruleScore: meta.ruleScore,
+    checkedRuleIds: meta.checkedRuleIds,
     accountBalanceAtEntry:
       typeof trade.accountBalanceAtEntry === "number"
         ? trade.accountBalanceAtEntry
         : 0,
+    accountId: trade.accountId ?? "",
   };
 }
 
-export function loadTrades(): Trade[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(TRADES_STORAGE_KEY);
-    const parsed = raw ? (JSON.parse(raw) as Trade[]) : [];
-    return parsed.map(normalizeTrade);
-  } catch {
-    return [];
-  }
-}
-
 export function tradeDateKey(iso: string): string {
-  const date = new Date(iso);
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+  return zonedDateKey(iso);
 }
 
 export function dateKeyFromDate(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+  return localDateKeyFromDate(date);
 }

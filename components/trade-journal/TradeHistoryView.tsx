@@ -2,23 +2,40 @@
 
 import { TradeHistoryGrid } from "@/components/trade-journal/TradeHistoryGrid";
 import { usePersistedTrades } from "@/components/trade-journal/usePersistedTrades";
+import { DeskCard } from "@/components/ui/DeskCard";
 
 export function TradeHistoryView() {
-  const { trades, startingBalance, isLoaded, handleUpdate, handleDelete } =
-    usePersistedTrades();
+  const {
+    trades,
+    accounts,
+    accountBalances,
+    isLoaded,
+    error,
+    handleUpdate,
+    handleDelete,
+  } = usePersistedTrades();
 
   if (!isLoaded) {
-    return <div className="h-64 animate-pulse rounded-xl bg-surface-raised" />;
+    return <div className="h-64 animate-pulse rounded-2xl bg-[#0c0c16]/80" />;
   }
 
   return (
-    <section className="rounded-xl border border-border bg-surface-raised p-6">
+    <DeskCard>
+      {error && (
+        <p className="mb-6 rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">
+          {error}
+        </p>
+      )}
       <TradeHistoryGrid
         trades={trades}
-        startingBalance={startingBalance}
+        accounts={accounts}
+        accountBalances={accountBalances}
+        fallbackAccountId={accounts[0]?.id ?? ""}
         onDelete={handleDelete}
         onUpdate={handleUpdate}
+        variant="table"
+        emptyHint="Log a trade from the journal to populate this table for the active account."
       />
-    </section>
+    </DeskCard>
   );
 }

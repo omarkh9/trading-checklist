@@ -2,6 +2,25 @@
 @tailwind components;
 @tailwind utilities;
 
+:root,
+html.dark {
+  color-scheme: dark;
+  --surface: #0a0a0f;
+  --surface-raised: #12121a;
+  --surface-overlay: #1a1a24;
+  --desk: #0c0c16;
+  --desk-muted: #0a0a12;
+}
+
+html.light {
+  color-scheme: light;
+  --surface: #f4f6fb;
+  --surface-raised: #e8ebf4;
+  --surface-overlay: #ffffff;
+  --desk: #ffffff;
+  --desk-muted: #f3f5fb;
+}
+
 @layer base {
   * {
     @apply border-border-subtle;
@@ -9,6 +28,10 @@
 
   body {
     @apply overflow-x-hidden bg-surface text-zinc-100 antialiased;
+  }
+
+  html.light body {
+    @apply text-zinc-900;
   }
 
   ::-webkit-scrollbar {
@@ -24,6 +47,10 @@
     @apply rounded-full bg-zinc-700;
   }
 
+  html.light ::-webkit-scrollbar-thumb {
+    @apply bg-zinc-300;
+  }
+
   ::-webkit-scrollbar-thumb:hover {
     @apply bg-zinc-600;
   }
@@ -33,4 +60,79 @@
   .text-gradient {
     @apply bg-gradient-to-r from-indigo-400 to-violet-400 bg-clip-text text-transparent;
   }
+
+  .desk-atmosphere,
+  .dashboard-atmosphere {
+    background:
+      radial-gradient(ellipse 80% 45% at 12% -8%, rgba(99, 102, 241, 0.18), transparent 52%),
+      radial-gradient(ellipse 55% 40% at 92% 0%, rgba(16, 185, 129, 0.08), transparent 48%);
+  }
+
+  html.light .desk-atmosphere,
+  html.light .dashboard-atmosphere {
+    background:
+      radial-gradient(ellipse 80% 45% at 12% -8%, rgba(99, 102, 241, 0.12), transparent 52%),
+      radial-gradient(ellipse 55% 40% at 92% 0%, rgba(16, 185, 129, 0.06), transparent 48%);
+  }
+}
+
+html.light .text-zinc-50,
+html.light .text-zinc-100 {
+  color: #18181b;
+}
+
+html.light .text-zinc-200 {
+  color: #27272a;
+}
+
+html.light .text-zinc-300 {
+  color: #3f3f46;
+}
+
+html.light .text-zinc-400 {
+  color: #52525b;
+}
+
+html.light .text-zinc-500 {
+  color: #71717a;
+}
+
+html.light .text-zinc-600 {
+  color: #a1a1aa;
+}
+
+html.light .bg-\[\#0c0c16\],
+html.light .bg-\[\#0c0c16\]\/90,
+html.light .bg-\[\#0c0c16\]\/85,
+html.light .bg-\[\#0c0c16\]\/80,
+html.light .bg-\[\#0c0c16\]\/70 {
+  background-color: #ffffff;
+}
+
+html.light .bg-\[\#12121a\],
+html.light .bg-\[\#0a0a12\] {
+  background-color: #eef1f8;
+}
+
+html.light .bg-surface {
+  background-color: var(--surface);
+}
+
+html.light .border-white\/10,
+html.light .border-white\/5 {
+  border-color: rgb(24 24 27 / 0.12);
+}
+
+html.light .bg-white\/\[0\.03\],
+html.light .bg-white\/\[0\.02\],
+html.light .bg-white\/5 {
+  background-color: rgb(24 24 27 / 0.04);
+}
+
+html.light .ring-offset-\[\#0c0c16\] {
+  --tw-ring-offset-color: #ffffff;
+}
+
+html.light .placeholder\:text-zinc-600::placeholder {
+  color: #a1a1aa;
 }

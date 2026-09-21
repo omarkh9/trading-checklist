@@ -1,3 +1,5 @@
+import type { TradeEmotion } from "@/lib/types/emotion";
+
 export type Direction = "Long" | "Short";
 export type Outcome = "Win" | "Loss" | "Breakeven";
 export type PnlMode = "dollar" | "percent";
@@ -12,6 +14,7 @@ export type Trade = {
   entry: string | null;
   direction: Direction;
   entryPrice: string;
+  exitPrice: string;
   stopLoss: string;
   takeProfit: string;
   outcome: Outcome;
@@ -23,13 +26,21 @@ export type Trade = {
   fixedLotSize: string;
   lotSize: string;
   accountBalanceAtEntry: number;
+  accountId: string;
+  strategy: string;
   notes: string;
+  emotionBefore: TradeEmotion | null;
+  emotionAfter: TradeEmotion | null;
+  ruleScore: number | null;
+  checkedRuleIds: string[];
   beforeChart: string | null;
   afterChart: string | null;
   createdAt: string;
 };
 
-export type TradeFormData = Omit<Trade, "id" | "createdAt">;
+export type TradeFormData = Omit<Trade, "id" | "createdAt"> & {
+  createdAt?: string;
+};
 
 export const emptyTradeForm = (): TradeFormData => ({
   pair: "",
@@ -39,6 +50,7 @@ export const emptyTradeForm = (): TradeFormData => ({
   entry: null,
   direction: "Long",
   entryPrice: "",
+  exitPrice: "",
   stopLoss: "",
   takeProfit: "",
   outcome: "Win",
@@ -50,7 +62,13 @@ export const emptyTradeForm = (): TradeFormData => ({
   fixedLotSize: "",
   lotSize: "",
   accountBalanceAtEntry: 0,
+  accountId: "",
+  strategy: "",
   notes: "",
+  emotionBefore: null,
+  emotionAfter: null,
+  ruleScore: null,
+  checkedRuleIds: [],
   beforeChart: null,
   afterChart: null,
 });

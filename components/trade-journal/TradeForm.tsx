@@ -1,33 +1,149 @@
 "use client";
 
 import { ImageDropzone } from "@/components/trade-journal/ImageDropzone";
-import { formatBalance } from "@/lib/trades/account-balance";
+import { EmotionPicker } from "@/components/trade-journal/EmotionPicker";
+import { RuleScorePanel } from "@/components/trade-journal/RuleScorePanel";
+import { VoiceNoteField } from "@/components/trade-journal/VoiceNoteField";
+import { useCachedChecklist } from "@/components/pre-trade-checklist/useCachedChecklist";
+import { useCachedTrades } from "@/components/trade-journal/useCachedTrades";
+import { useWorkspaceSettings } from "@/components/workspace/WorkspaceProvider";
+import { formatBalance, tradesForAccount } from "@/lib/trades/account-balance";
+import {
+  ASSET_CLASS_LABELS,
+  listKnownSymbols,
+  resolveAsset,
+} from "@/lib/trades/assets";
+import {
+  analyzePositionRisk,
+  formatPips,
+  formatUsdCompact,
+} from "@/lib/trades/contract-math";
 import { calculateLotSize, formatLotSize } from "@/lib/trades/lot-size";
-import { formatPnlDollars, resolvePnlDollars } from "@/lib/trades/pnl";
+import { tradeDateKey } from "@/lib/trades/load-trades";
+import {
+  formatPnlDollars,
+  parseNumericInput,
+  resolveTradeResult,
+} from "@/lib/trades/pnl";
+import { computeRuleScore } from "@/lib/trades/rule-score";
 import {
   emptyTradeForm,
-  type Direction,
-  type Outcome,
   type PnlMode,
   type RiskSizeMode,
   type TradeFormData,
 } from "@/lib/types/trade";
-import { Save } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import type { TradingAccount } from "@/lib/types/account";
+import { withDailyChecks } from "@/lib/types/checklist";
+import { DeskCard } from "@/components/ui/DeskCard";
+import { desk } from "@/lib/ui/desk";
+import { formatCalendarDateLabel, isoTimestampForDateKey, localDateKey } from "@/lib/time";
+import { ChevronDown, Save } from "lucide-react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 
 type TradeFormProps = {
-  currentBalance: number;
-  onSubmit: (data: TradeFormData) => void;
+  accounts: TradingAccount[];
+  accountBalances: Record<string, number>;
+  defaultAccountId: string;
+  onSubmit: (data: TradeFormData) => void | Promise<void>;
   initialData?: TradeFormData;
   onCancel?: () => void;
   submitLabel?: string;
   embedded?: boolean;
+  entryDateKey?: string;
 };
 
-const inputClass =
-  "w-full rounded-lg border border-border bg-surface-overlay px-3 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none transition-colors focus:border-accent/50 focus:ring-1 focus:ring-accent/30";
+const KNOWN_SYMBOLS = listKnownSymbols();
 
-const labelClass = "mb-1.5 block text-sm font-medium text-zinc-400";
+const inputClass = desk.input;
+const labelClass = desk.label;
+
+function DeskSelect<T extends string>({
+  id,
+  value,
+  options,
+  onChange,
+}: {
+  id: string;
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (value: T) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const selected = options.find((option) => option.value === value);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      setOpen(false);
+    };
+
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown, true);
+    };
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className={`relative ${open ? "z-30" : ""}`}>
+      <button
+        id={id}
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((isOpen) => !isOpen)}
+        className={`${inputClass} flex items-center justify-between gap-2 text-left`}
+      >
+        <span>{selected?.label}</span>
+        <ChevronDown
+          className={`h-4 w-4 shrink-0 text-zinc-500 transition-transform ${
+            open ? "rotate-180" : ""
+          }`}
+        />
+      </button>
+      {open && (
+        <ul
+          role="listbox"
+          aria-labelledby={id}
+          className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-indigo-400/20 bg-[#0c0c16] py-1 shadow-[0_12px_32px_rgba(0,0,0,0.55)]"
+        >
+          {options.map((option) => {
+            const isSelected = option.value === value;
+            return (
+              <li key={option.value} role="option" aria-selected={isSelected}>
+                <button
+                  type="button"
+                  className={`w-full px-3 py-2 text-left text-sm transition-colors ${
+                    isSelected
+                      ? "bg-indigo-500/20 text-indigo-200"
+                      : "text-zinc-200 hover:bg-white/[0.06] hover:text-zinc-50"
+                  }`}
+                  onClick={() => {
+                    onChange(option.value);
+                    setOpen(false);
+                  }}
+                >
+                  {option.label}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 function ToggleGroup<T extends string>({
   value,
@@ -39,7 +155,7 @@ function ToggleGroup<T extends string>({
   onChange: (value: T) => void;
 }) {
   return (
-    <div className="flex rounded-lg border border-border bg-surface-overlay p-1">
+    <div className="flex rounded-lg border border-white/10 bg-white/[0.03] p-1">
       {options.map((option) => (
         <button
           key={option.id}
@@ -47,7 +163,7 @@ function ToggleGroup<T extends string>({
           onClick={() => onChange(option.id)}
           className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
             value === option.id
-              ? "bg-accent text-white"
+              ? "bg-indigo-500 text-white shadow-[0_0_16px_rgba(99,102,241,0.35)]"
               : "text-zinc-400 hover:text-zinc-200"
           }`}
         >
@@ -58,355 +174,635 @@ function ToggleGroup<T extends string>({
   );
 }
 
-export function TradeForm({
-  currentBalance,
+export const TradeForm = memo(function TradeForm({
+  accounts,
+  accountBalances,
+  defaultAccountId,
   onSubmit,
   initialData,
   onCancel,
   submitLabel = "Save Trade",
   embedded = false,
+  entryDateKey,
 }: TradeFormProps) {
-  const [form, setForm] = useState<TradeFormData>(
-    initialData ?? emptyTradeForm()
+  const { settings } = useWorkspaceSettings();
+  const {
+    rules: checklistRules,
+    session: checklistSession,
+    isLoaded: checklistLoaded,
+  } = useCachedChecklist();
+  const { trades: allTrades } = useCachedTrades();
+  const [form, setForm] = useState<TradeFormData>(() => ({
+    ...(initialData ?? emptyTradeForm()),
+    accountId: initialData?.accountId || defaultAccountId,
+    riskPercent:
+      initialData?.riskPercent || String(settings.defaultRiskPercent),
+  }));
+  const [isSaving, setIsSaving] = useState(false);
+  const [manualPnl, setManualPnl] = useState(
+    () => Boolean(initialData?.pnlInput?.trim()) && !initialData?.exitPrice
   );
+  const seededRef = useRef(Boolean(initialData));
 
   useEffect(() => {
-    setForm(initialData ?? emptyTradeForm());
-  }, [initialData]);
+    if (initialData) {
+      setForm({
+        ...initialData,
+        accountId: initialData.accountId || defaultAccountId,
+      });
+      setManualPnl(
+        Boolean(initialData.pnlInput?.trim()) && !initialData.exitPrice
+      );
+      seededRef.current = true;
+      return;
+    }
+    setForm((prev) => ({
+      ...prev,
+      accountId: defaultAccountId || prev.accountId,
+    }));
+  }, [initialData, defaultAccountId]);
+
+  useEffect(() => {
+    if (seededRef.current || !checklistLoaded) return;
+    seededRef.current = true;
+    setForm((prev) => ({
+      ...prev,
+      riskPercent: prev.riskPercent || String(settings.defaultRiskPercent),
+      checkedRuleIds:
+        prev.checkedRuleIds.length > 0
+          ? prev.checkedRuleIds
+          : checklistSession.checkedRuleIds,
+    }));
+  }, [checklistLoaded, checklistSession.checkedRuleIds, settings.defaultRiskPercent]);
 
   const update = <K extends keyof TradeFormData>(
     key: K,
     value: TradeFormData[K]
   ) => setForm((prev) => ({ ...prev, [key]: value }));
 
-  const resolvedPnl = useMemo(
-    () =>
-      resolvePnlDollars(
-        form.outcome,
-        form.pnlMode,
-        form.pnlInput,
-        currentBalance
-      ),
-    [form.outcome, form.pnlMode, form.pnlInput, currentBalance]
-  );
+  const currentBalance = accountBalances[form.accountId] ?? 0;
+  const fallbackId = accounts[0]?.id ?? "";
+  const todayPnl = useMemo(() => {
+    const today = localDateKey();
+    return tradesForAccount(allTrades, form.accountId, fallbackId)
+      .filter((trade) => tradeDateKey(trade.createdAt) === today)
+      .reduce((sum, trade) => sum + (trade.pnlDollars ?? 0), 0);
+  }, [allTrades, fallbackId, form.accountId]);
+
+  const riskNumeric = parseNumericInput(form.riskPercent);
+  const cappedRisk =
+    riskNumeric == null
+      ? settings.defaultRiskPercent
+      : Math.min(riskNumeric, settings.maxRiskPercent);
+  const riskCapped =
+    riskNumeric != null && riskNumeric > settings.maxRiskPercent + 0.0001;
 
   const calculatedLot = useMemo(
     () =>
       calculateLotSize({
+        pair: form.pair,
         riskSizeMode: form.riskSizeMode,
-        riskPercent: form.riskPercent,
+        riskPercent: String(cappedRisk),
         fixedLotSize: form.fixedLotSize,
         entryPrice: form.entryPrice,
         stopLoss: form.stopLoss,
         accountBalance: currentBalance,
       }),
     [
+      form.pair,
       form.riskSizeMode,
-      form.riskPercent,
       form.fixedLotSize,
       form.entryPrice,
       form.stopLoss,
+      cappedRisk,
       currentBalance,
     ]
   );
+
+  const lotsForPnl =
+    form.riskSizeMode === "fixed"
+      ? parseNumericInput(form.fixedLotSize)
+      : calculatedLot;
+
+  const tradeResult = useMemo(
+    () =>
+      resolveTradeResult({
+        pair: form.pair,
+        direction: form.direction,
+        entryPrice: form.entryPrice,
+        exitPrice: form.exitPrice,
+        lots: lotsForPnl,
+        outcome: form.outcome,
+        pnlMode: form.pnlMode,
+        pnlInput: form.pnlInput,
+        balanceBeforeTrade: currentBalance,
+        preferAuto: !manualPnl,
+      }),
+    [
+      currentBalance,
+      form.direction,
+      form.entryPrice,
+      form.exitPrice,
+      form.outcome,
+      form.pair,
+      form.pnlInput,
+      form.pnlMode,
+      lotsForPnl,
+      manualPnl,
+    ]
+  );
+
+  const resolvedAsset = useMemo(() => resolveAsset(form.pair), [form.pair]);
+
+  const positionRisk = useMemo(() => {
+    const entry = parseNumericInput(form.entryPrice);
+    const stop = parseNumericInput(form.stopLoss);
+    const takeProfit = parseNumericInput(form.takeProfit);
+    if (entry === null || stop === null) return null;
+    return analyzePositionRisk({
+      pair: form.pair,
+      entryPrice: entry,
+      stopLoss: stop,
+      takeProfit,
+    });
+  }, [form.pair, form.entryPrice, form.stopLoss, form.takeProfit]);
+
+  const sizedRiskUsd =
+    calculatedLot != null && positionRisk
+      ? calculatedLot * positionRisk.riskPerLotUsd
+      : null;
+  const sizedRewardUsd =
+    calculatedLot != null && positionRisk?.rewardPerLotUsd != null
+      ? calculatedLot * positionRisk.rewardPerLotUsd
+      : null;
 
   const displayLotSize =
     form.riskSizeMode === "fixed"
       ? form.fixedLotSize || "—"
       : formatLotSize(calculatedLot);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.pair.trim()) return;
+  const checklistItems = useMemo(
+    () =>
+      withDailyChecks(checklistRules, {
+        ...checklistSession,
+        checkedRuleIds: form.checkedRuleIds,
+      }),
+    [checklistRules, checklistSession, form.checkedRuleIds]
+  );
+  const ruleScore = computeRuleScore(checklistRules, form.checkedRuleIds);
+  const dailyLossLimit =
+    currentBalance > 0
+      ? currentBalance * (settings.dailyLossLimitPercent / 100)
+      : 0;
+  const dailyLimitHit =
+    dailyLossLimit > 0 && todayPnl <= -dailyLossLimit;
 
-    onSubmit({
-      ...form,
-      pnlDollars: resolvedPnl,
-      lotSize: displayLotSize === "—" ? "" : displayLotSize,
-      accountBalanceAtEntry: currentBalance,
-    });
-    if (!initialData) {
-      setForm(emptyTradeForm());
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.pair.trim() || isSaving) return;
+
+    setIsSaving(true);
+    try {
+      await onSubmit({
+        ...form,
+        strategy: form.strategy.trim(),
+        outcome: tradeResult.outcome,
+        pnlDollars: tradeResult.pnlDollars,
+        pnlInput: tradeResult.autoCalculated
+          ? Math.abs(tradeResult.pnlDollars).toFixed(2)
+          : form.pnlInput,
+        pnlMode: tradeResult.autoCalculated ? "dollar" : form.pnlMode,
+        lotSize: displayLotSize === "—" ? "" : displayLotSize,
+        riskPercent: String(cappedRisk),
+        accountBalanceAtEntry: currentBalance,
+        accountId: form.accountId || defaultAccountId,
+        ruleScore,
+        createdAt: entryDateKey
+          ? isoTimestampForDateKey(entryDateKey)
+          : form.createdAt,
+      });
+      if (!initialData) {
+        seededRef.current = false;
+        setForm({
+          ...emptyTradeForm(),
+          accountId: form.accountId || defaultAccountId,
+          riskPercent: String(settings.defaultRiskPercent),
+        });
+        setManualPnl(false);
+      }
+    } catch {
+      // Persist errors are shown by the journal/history views.
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  const showPnlFields = form.outcome !== "Breakeven";
+  const showPnlFields = tradeResult.outcome !== "Breakeven" || manualPnl;
 
-  return (
-    <form
-      onSubmit={handleSubmit}
-      className={
-        embedded
-          ? "p-0"
-          : "rounded-xl border border-border bg-surface-raised p-6"
-      }
-    >
-      <h3 className="text-lg font-semibold text-zinc-100">Log New Trade</h3>
-      <p className="mt-1 text-sm text-zinc-500">
-        Attach chart screenshots for each timeframe, then capture execution,
-        risk, and outcome details below.
+  const formBody = (
+    <>
+      <h3 className={desk.title}>
+        {entryDateKey
+          ? `Log trade for ${formatCalendarDateLabel(entryDateKey)}`
+          : "Log New Trade"}
+      </h3>
+      <p className={desk.subtitle}>
+        Charts on the left, execution details and review on the right. P/L and
+        lot size update from prices, size, and the live account balance.
       </p>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <ImageDropzone
-          label="Higher Time Frame"
-          value={form.higherTimeFrame}
-          onChange={(v) => update("higherTimeFrame", v)}
-        />
-        <ImageDropzone
-          label="Middle Time Frame"
-          value={form.middleTimeFrame}
-          onChange={(v) => update("middleTimeFrame", v)}
-        />
-        <ImageDropzone
-          label="Lower Time Frame"
-          value={form.lowerTimeFrame}
-          onChange={(v) => update("lowerTimeFrame", v)}
-        />
-        <ImageDropzone
-          label="Entry"
-          value={form.entry}
-          onChange={(v) => update("entry", v)}
-        />
-      </div>
+      {dailyLimitHit && (
+        <p className="mt-4 rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+          Daily loss limit ({settings.dailyLossLimitPercent}%) is already tagged
+          on this account. Size down or stand down before adding risk.
+        </p>
+      )}
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <div>
-          <label htmlFor="pair" className={labelClass}>
-            Pair / Ticker
-          </label>
-          <input
-            id="pair"
-            type="text"
-            required
-            placeholder="e.g. ES, BTCUSD"
-            value={form.pair}
-            onChange={(e) => update("pair", e.target.value.toUpperCase())}
-            className={inputClass}
-          />
-        </div>
-
-        <div>
-          <label htmlFor="direction" className={labelClass}>
-            Direction
-          </label>
-          <select
-            id="direction"
-            value={form.direction}
-            onChange={(e) => update("direction", e.target.value as Direction)}
-            className={inputClass}
-          >
-            <option value="Long">Long</option>
-            <option value="Short">Short</option>
-          </select>
-        </div>
-
-        <div>
-          <label htmlFor="outcome" className={labelClass}>
-            Outcome
-          </label>
-          <select
-            id="outcome"
-            value={form.outcome}
-            onChange={(e) => update("outcome", e.target.value as Outcome)}
-            className={inputClass}
-          >
-            <option value="Win">Win</option>
-            <option value="Loss">Loss</option>
-            <option value="Breakeven">Breakeven</option>
-          </select>
-        </div>
-
-        <div>
-          <label htmlFor="entryPrice" className={labelClass}>
-            Entry Price
-          </label>
-          <input
-            id="entryPrice"
-            type="text"
-            inputMode="decimal"
-            placeholder="0.00"
-            value={form.entryPrice}
-            onChange={(e) => update("entryPrice", e.target.value)}
-            className={inputClass}
-          />
-        </div>
-
-        <div>
-          <label htmlFor="stopLoss" className={labelClass}>
-            Stop Loss
-          </label>
-          <input
-            id="stopLoss"
-            type="text"
-            inputMode="decimal"
-            placeholder="0.00"
-            value={form.stopLoss}
-            onChange={(e) => update("stopLoss", e.target.value)}
-            className={inputClass}
-          />
-        </div>
-
-        <div>
-          <label htmlFor="takeProfit" className={labelClass}>
-            Take Profit
-          </label>
-          <input
-            id="takeProfit"
-            type="text"
-            inputMode="decimal"
-            placeholder="0.00"
-            value={form.takeProfit}
-            onChange={(e) => update("takeProfit", e.target.value)}
-            className={inputClass}
-          />
-        </div>
-      </div>
-
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
-        <div className="rounded-lg border border-border bg-surface-overlay/40 p-4">
-          <p className="text-sm font-medium text-zinc-200">Profit / Loss</p>
-          <p className="mt-1 text-xs text-zinc-500">
-            Enter the result as dollars or as a percent of your current balance (
-            {formatBalance(currentBalance)}).
-          </p>
-
-          {showPnlFields ? (
-            <div className="mt-4 space-y-3">
-              <ToggleGroup<PnlMode>
-                value={form.pnlMode}
-                options={[
-                  { id: "dollar", label: "$ Amount" },
-                  { id: "percent", label: "% Percent" },
-                ]}
-                onChange={(value) => update("pnlMode", value)}
-              />
-              <input
-                type="text"
-                inputMode="decimal"
-                placeholder={
-                  form.pnlMode === "dollar" ? "e.g. 250" : "e.g. 1.5"
-                }
-                value={form.pnlInput}
-                onChange={(e) => update("pnlInput", e.target.value)}
-                className={inputClass}
-              />
-              <p className="text-sm text-zinc-400">
-                Resolved P/L:{" "}
-                <span
-                  className={
-                    resolvedPnl >= 0 ? "text-emerald-400" : "text-rose-400"
-                  }
-                >
-                  {formatPnlDollars(resolvedPnl)}
-                </span>
-                {form.pnlMode === "percent" && form.pnlInput.trim() && (
-                  <span className="text-zinc-500">
-                    {" "}
-                    ({form.pnlInput}% of balance)
-                  </span>
-                )}
-              </p>
-            </div>
-          ) : (
-            <p className="mt-4 text-sm text-zinc-500">
-              Break-even trades apply $0 P/L to your account.
-            </p>
-          )}
-        </div>
-
-        <div className="rounded-lg border border-border bg-surface-overlay/40 p-4">
-          <p className="text-sm font-medium text-zinc-200">Lot Size</p>
-          <p className="mt-1 text-xs text-zinc-500">
-            Use a fixed lot size or risk a percentage of balance based on entry
-            and stop distance.
-          </p>
-
-          <div className="mt-4 space-y-3">
-            <ToggleGroup<RiskSizeMode>
-              value={form.riskSizeMode}
-              options={[
-                { id: "fixed", label: "Fixed Size" },
-                { id: "percent", label: "Risk %" },
-              ]}
-              onChange={(value) => update("riskSizeMode", value)}
+      <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
+        <div className="space-y-4">
+          <p className={desk.label}>Multi-timeframe charts</p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <ImageDropzone
+              compact
+              label="Higher Time Frame"
+              value={form.higherTimeFrame}
+              onChange={(v) => update("higherTimeFrame", v)}
             />
-
-            {form.riskSizeMode === "fixed" ? (
-              <input
-                type="text"
-                inputMode="decimal"
-                placeholder="Fixed lot / contracts"
-                value={form.fixedLotSize}
-                onChange={(e) => update("fixedLotSize", e.target.value)}
-                className={inputClass}
-              />
-            ) : (
-              <input
-                type="text"
-                inputMode="decimal"
-                placeholder="Risk % of balance (e.g. 1)"
-                value={form.riskPercent}
-                onChange={(e) => update("riskPercent", e.target.value)}
-                className={inputClass}
-              />
-            )}
-
-            <div className="rounded-lg bg-surface-overlay px-3 py-2">
-              <p className="text-xs text-zinc-500">Calculated lot size</p>
-              <p className="mt-1 font-mono text-lg text-zinc-100">
-                {displayLotSize}
-              </p>
-            </div>
+            <ImageDropzone
+              compact
+              label="Middle Time Frame"
+              value={form.middleTimeFrame}
+              onChange={(v) => update("middleTimeFrame", v)}
+            />
+            <ImageDropzone
+              compact
+              label="Lower Time Frame"
+              value={form.lowerTimeFrame}
+              onChange={(v) => update("lowerTimeFrame", v)}
+            />
+            <ImageDropzone
+              compact
+              label="Entry"
+              value={form.entry}
+              onChange={(v) => update("entry", v)}
+            />
+            <ImageDropzone
+              compact
+              label="Before Chart (Setup)"
+              value={form.beforeChart}
+              onChange={(v) => update("beforeChart", v)}
+            />
+            <ImageDropzone
+              compact
+              label="After Chart (Result)"
+              value={form.afterChart}
+              onChange={(v) => update("afterChart", v)}
+            />
           </div>
         </div>
-      </div>
 
-      <div className="mt-4">
-        <label htmlFor="notes" className={labelClass}>
-          Notes
-        </label>
-        <textarea
-          id="notes"
-          rows={3}
-          placeholder="Setup rationale, emotions, lessons learned..."
-          value={form.notes}
-          onChange={(e) => update("notes", e.target.value)}
-          className={`${inputClass} resize-none`}
-        />
-      </div>
+        <div className="space-y-5">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="trade-account" className={labelClass}>
+                Trading account
+              </label>
+              <DeskSelect
+                id="trade-account"
+                value={form.accountId || defaultAccountId}
+                onChange={(value) => update("accountId", value)}
+                options={
+                  accounts.length > 0
+                    ? accounts.map((account) => ({
+                        value: account.id,
+                        label: account.name,
+                      }))
+                    : [
+                        {
+                          value: defaultAccountId || "main",
+                          label: "Main",
+                        },
+                      ]
+                }
+              />
+            </div>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-2">
-        <ImageDropzone
-          label="Before Chart (Setup)"
-          value={form.beforeChart}
-          onChange={(v) => update("beforeChart", v)}
-        />
-        <ImageDropzone
-          label="After Chart (Result)"
-          value={form.afterChart}
-          onChange={(v) => update("afterChart", v)}
-        />
+            <div>
+              <label htmlFor="pair" className={labelClass}>
+                Pair / Ticker
+              </label>
+              <input
+                id="pair"
+                type="text"
+                required
+                placeholder="e.g. EURUSD, XAUUSD, BTCUSD"
+                value={form.pair}
+                onChange={(e) => update("pair", e.target.value.toUpperCase())}
+                className={inputClass}
+                list="known-assets"
+              />
+              <datalist id="known-assets">
+                {KNOWN_SYMBOLS.map((symbol) => (
+                  <option key={symbol} value={symbol} />
+                ))}
+              </datalist>
+              {form.pair.trim() && (
+                <p className="mt-1.5 text-xs text-zinc-500">
+                  {resolvedAsset.recognized ? (
+                    <>
+                      {resolvedAsset.spec.name} ·{" "}
+                      {ASSET_CLASS_LABELS[resolvedAsset.spec.assetClass]}
+                    </>
+                  ) : (
+                    "Unrecognized symbol — sizing as 1 unit per lot"
+                  )}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label htmlFor="strategy" className={labelClass}>
+                Strategy / Setup
+              </label>
+              <input
+                id="strategy"
+                type="text"
+                autoComplete="off"
+                spellCheck={false}
+                value={form.strategy}
+                onChange={(e) => update("strategy", e.target.value)}
+                className={inputClass}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="direction" className={labelClass}>
+                Direction
+              </label>
+              <DeskSelect
+                id="direction"
+                value={form.direction}
+                onChange={(value) => update("direction", value)}
+                options={[
+                  { value: "Long", label: "Long" },
+                  { value: "Short", label: "Short" },
+                ]}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="entryPrice" className={labelClass}>
+                Entry Price
+              </label>
+              <input
+                id="entryPrice"
+                type="text"
+                inputMode="decimal"
+                placeholder="0.00"
+                value={form.entryPrice}
+                onChange={(e) => update("entryPrice", e.target.value)}
+                className={inputClass}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="exitPrice" className={labelClass}>
+                Exit Price
+              </label>
+              <input
+                id="exitPrice"
+                type="text"
+                inputMode="decimal"
+                placeholder="0.00"
+                value={form.exitPrice}
+                onChange={(e) => update("exitPrice", e.target.value)}
+                className={inputClass}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="stopLoss" className={labelClass}>
+                Stop Loss
+              </label>
+              <input
+                id="stopLoss"
+                type="text"
+                inputMode="decimal"
+                placeholder="0.00"
+                value={form.stopLoss}
+                onChange={(e) => update("stopLoss", e.target.value)}
+                className={inputClass}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="takeProfit" className={labelClass}>
+                Take Profit
+              </label>
+              <input
+                id="takeProfit"
+                type="text"
+                inputMode="decimal"
+                placeholder="0.00"
+                value={form.takeProfit}
+                onChange={(e) => update("takeProfit", e.target.value)}
+                className={inputClass}
+              />
+            </div>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className={`${desk.panel} border-indigo-400/15`}>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-zinc-100">Profit / Loss</p>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    Auto-calculated from entry, exit, lot size, and asset specs.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setManualPnl((value) => !value)}
+                  className="text-[11px] font-semibold uppercase tracking-[0.12em] text-indigo-300 hover:text-white"
+                >
+                  {manualPnl ? "Use auto" : "Manual"}
+                </button>
+              </div>
+
+              {manualPnl && showPnlFields ? (
+                <div className="mt-4 space-y-3">
+                  <ToggleGroup<PnlMode>
+                    value={form.pnlMode}
+                    options={[
+                      { id: "dollar", label: "$ Amount" },
+                      { id: "percent", label: "% Percent" },
+                    ]}
+                    onChange={(value) => update("pnlMode", value)}
+                  />
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder={
+                      form.pnlMode === "dollar" ? "e.g. 250" : "e.g. 1.5"
+                    }
+                    value={form.pnlInput}
+                    onChange={(e) => update("pnlInput", e.target.value)}
+                    className={inputClass}
+                  />
+                </div>
+              ) : (
+                <p className="mt-4 text-sm text-zinc-500">
+                  {tradeResult.autoCalculated
+                    ? "Filled from price distance × contract value × lots."
+                    : "Add entry, exit, and size to auto-calc, or switch to manual."}
+                </p>
+              )}
+
+              <div className="mt-4 rounded-lg border border-white/10 bg-[#0a0a12] px-3 py-2">
+                <p className="text-xs text-zinc-500">
+                  {tradeResult.autoCalculated ? "Auto P/L" : "Resolved P/L"} ·{" "}
+                  {tradeResult.outcome}
+                </p>
+                <p
+                  className={`mt-1 font-mono text-lg ${
+                    tradeResult.pnlDollars >= 0
+                      ? "text-emerald-400"
+                      : "text-rose-400"
+                  }`}
+                >
+                  {formatPnlDollars(tradeResult.pnlDollars)}
+                </p>
+                <p className="mt-1 text-[11px] text-zinc-500">
+                  New balance {formatBalance(currentBalance + tradeResult.pnlDollars)}
+                </p>
+              </div>
+            </div>
+
+            <div className={`${desk.panel} border-indigo-400/15`}>
+              <p className="text-sm font-semibold text-zinc-100">
+                Automated position size
+              </p>
+              <p className="mt-1 text-xs text-zinc-500">
+                Risk {cappedRisk}% of {formatBalance(currentBalance)}. Stop
+                distance sets the exact lot size.
+              </p>
+
+              <div className="mt-4 space-y-3">
+                <ToggleGroup<RiskSizeMode>
+                  value={form.riskSizeMode}
+                  options={[
+                    { id: "fixed", label: "Fixed Size" },
+                    { id: "percent", label: "Risk %" },
+                  ]}
+                  onChange={(value) => update("riskSizeMode", value)}
+                />
+
+                {form.riskSizeMode === "fixed" ? (
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="Fixed lot / contracts"
+                    value={form.fixedLotSize}
+                    onChange={(e) => update("fixedLotSize", e.target.value)}
+                    className={inputClass}
+                  />
+                ) : (
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="Risk % of balance (e.g. 1)"
+                    value={form.riskPercent}
+                    onChange={(e) => update("riskPercent", e.target.value)}
+                    className={inputClass}
+                  />
+                )}
+                {riskCapped && (
+                  <p className="text-[11px] text-amber-300">
+                    Capped at the {settings.maxRiskPercent}% max-risk guardrail.
+                  </p>
+                )}
+
+                <div className="rounded-lg border border-white/10 bg-[#0a0a12] px-3 py-2">
+                  <p className="text-xs text-zinc-500">Calculated lot size</p>
+                  <p className="mt-1 font-mono text-lg text-zinc-100">
+                    {displayLotSize}
+                  </p>
+                  {positionRisk && form.pair.trim() && (
+                    <div className="mt-2 space-y-1 text-xs text-zinc-500">
+                      <p>
+                        {formatPips(positionRisk.stopPips, positionRisk.spec)}{" "}
+                        {positionRisk.spec.pipSize >= 1 ? "pts" : "pips"} stop
+                      </p>
+                      {sizedRiskUsd != null && (
+                        <p>
+                          Risk at this size: {formatUsdCompact(sizedRiskUsd)}
+                          {sizedRewardUsd != null && (
+                            <>
+                              {" "}
+                              · Reward: {formatUsdCompact(sizedRewardUsd)}
+                            </>
+                          )}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <RuleScorePanel
+            items={checklistItems}
+            score={ruleScore}
+            onToggle={(id) =>
+              setForm((prev) => {
+                const checked = new Set(prev.checkedRuleIds);
+                if (checked.has(id)) checked.delete(id);
+                else checked.add(id);
+                return { ...prev, checkedRuleIds: [...checked] };
+              })
+            }
+          />
+
+          <div className={`${desk.panel} border-indigo-400/15 space-y-5`}>
+            <EmotionPicker
+              label="Before entry"
+              hint="How did you feel as you clicked into the trade?"
+              value={form.emotionBefore}
+              onChange={(value) => update("emotionBefore", value)}
+            />
+            <EmotionPicker
+              label="After entry"
+              hint="How did you feel once the trade was live or closed?"
+              value={form.emotionAfter}
+              onChange={(value) => update("emotionAfter", value)}
+            />
+          </div>
+
+          <VoiceNoteField
+            value={form.notes}
+            onChange={(value) => update("notes", value)}
+          />
+        </div>
       </div>
 
       <div className="mt-6 flex justify-end gap-3">
         {onCancel && (
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-lg border border-border px-5 py-2.5 text-sm font-medium text-zinc-300 transition-colors hover:bg-surface-overlay"
-          >
+          <button type="button" onClick={onCancel} className={desk.btnGhost}>
             Cancel
           </button>
         )}
-        <button
-          type="submit"
-          className="inline-flex items-center gap-2 rounded-lg bg-accent px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-accent-hover"
-        >
+        <button type="submit" disabled={isSaving} className={desk.btnPrimary}>
           <Save className="h-4 w-4" />
-          {submitLabel}
+          {isSaving ? "Saving..." : submitLabel}
         </button>
       </div>
+    </>
+  );
+
+  return (
+    <form onSubmit={handleSubmit}>
+      {embedded ? formBody : <DeskCard>{formBody}</DeskCard>}
     </form>
   );
-}
+});

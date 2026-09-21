@@ -1,87 +1,108 @@
 "use client";
 
-import { TRADES_STORAGE_KEY } from "@/lib/storage/keys";
+import { useAccounts } from "@/components/accounts/AccountProvider";
+import { useCachedTrades } from "@/components/trade-journal/useCachedTrades";
 import {
+  deleteTrade,
+  insertTrade,
+  updateTrade,
+} from "@/lib/supabase/trades";
+import {
+  balancesByAccount,
   computeCurrentBalance,
-  loadAccountSettings,
-  saveAccountSettings,
+  fallbackAccountId,
+  tradesForAccount,
 } from "@/lib/trades/account-balance";
-import { loadTrades } from "@/lib/trades/load-trades";
-import type { Trade, TradeFormData } from "@/lib/types/trade";
-import { useEffect, useMemo, useState } from "react";
+import type { TradeFormData } from "@/lib/types/trade";
+import { useCallback, useMemo, useState } from "react";
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Something went wrong.";
+}
 
 export function usePersistedTrades() {
-  const [trades, setTrades] = useState<Trade[]>([]);
-  const [startingBalance, setStartingBalance] = useState(10_000);
-  const [isLoaded, setIsLoaded] = useState(false);
+  const {
+    accounts,
+    activeAccount,
+    isLoaded: accountsLoaded,
+    error: accountsError,
+    setActiveAccountId,
+  } = useAccounts();
+  const {
+    trades: allTrades,
+    isLoaded: tradesLoaded,
+    error: tradesError,
+  } = useCachedTrades();
+  const [mutationError, setMutationError] = useState<string | null>(null);
 
-  const refresh = () => {
-    setTrades(loadTrades());
-    setStartingBalance(loadAccountSettings().startingBalance);
-  };
+  const fallbackId = fallbackAccountId(accounts);
+  const activeAccountId = activeAccount?.id ?? "";
 
-  useEffect(() => {
-    refresh();
-    setIsLoaded(true);
+  const trades = useMemo(
+    () => tradesForAccount(allTrades, activeAccountId, fallbackId),
+    [allTrades, activeAccountId, fallbackId]
+  );
 
-    const onStorage = () => refresh();
-    window.addEventListener("storage", onStorage);
-    window.addEventListener("focus", onStorage);
-
-    return () => {
-      window.removeEventListener("storage", onStorage);
-      window.removeEventListener("focus", onStorage);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!isLoaded) return;
-    localStorage.setItem(TRADES_STORAGE_KEY, JSON.stringify(trades));
-  }, [trades, isLoaded]);
-
-  useEffect(() => {
-    if (!isLoaded) return;
-    saveAccountSettings({ startingBalance });
-  }, [startingBalance, isLoaded]);
+  const startingBalance = activeAccount?.startingBalance ?? 0;
 
   const currentBalance = useMemo(
     () => computeCurrentBalance(startingBalance, trades),
     [startingBalance, trades]
   );
 
-  const handleSubmit = (data: TradeFormData) => {
-    const trade: Trade = {
-      ...data,
-      id: crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
-    };
-    setTrades((prev) => [trade, ...prev]);
-  };
+  const accountBalances = useMemo(
+    () => balancesByAccount(accounts, allTrades),
+    [accounts, allTrades]
+  );
 
-  const handleUpdate = (id: string, data: TradeFormData) => {
-    setTrades((prev) =>
-      prev.map((trade) =>
-        trade.id === id
-          ? {
-              ...data,
-              id: trade.id,
-              createdAt: trade.createdAt,
-            }
-          : trade
-      )
-    );
-  };
+  const handleSubmit = useCallback(
+    async (data: TradeFormData) => {
+      setMutationError(null);
+      const accountId = data.accountId || activeAccountId;
+      try {
+        await insertTrade({ ...data, accountId });
+        if (accountId && accountId !== activeAccountId) {
+          setActiveAccountId(accountId);
+        }
+      } catch (cause) {
+        const message = errorMessage(cause);
+        setMutationError(message);
+        throw cause;
+      }
+    },
+    [activeAccountId, setActiveAccountId]
+  );
 
-  const handleDelete = (id: string) => {
-    setTrades((prev) => prev.filter((t) => t.id !== id));
-  };
+  const handleUpdate = useCallback(async (id: string, data: TradeFormData) => {
+    setMutationError(null);
+    try {
+      await updateTrade(id, data);
+    } catch (cause) {
+      const message = errorMessage(cause);
+      setMutationError(message);
+      throw cause;
+    }
+  }, []);
+
+  const handleDelete = useCallback(async (id: string) => {
+    setMutationError(null);
+    try {
+      await deleteTrade(id);
+    } catch (cause) {
+      setMutationError(errorMessage(cause));
+    }
+  }, []);
 
   return {
     trades,
+    allTrades,
+    accounts,
+    activeAccount,
     startingBalance,
-    setStartingBalance,
     currentBalance,
-    isLoaded,
+    accountBalances,
+    isLoaded: tradesLoaded && accountsLoaded,
+    error: mutationError ?? tradesError ?? accountsError,
     handleSubmit,
     handleUpdate,
     handleDelete,

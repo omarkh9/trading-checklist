@@ -1,6 +1,11 @@
 "use client";
 
-import { SessionStatus, Sidebar, SidebarPanel } from "@/components/Sidebar";
+import { AccountProvider } from "@/components/accounts/AccountProvider";
+import { AccountSwitcher } from "@/components/accounts/AccountSwitcher";
+import { UserMenu } from "@/components/auth/UserMenu";
+import { CompactMarketClock } from "@/components/dashboard/CompactMarketClock";
+import { Sidebar, SidebarPanel } from "@/components/Sidebar";
+import { ThemeToggle } from "@/components/workspace/ThemeToggle";
 import { Menu } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -34,6 +39,7 @@ export function DashboardShell({
   }, [mobileMenuOpen]);
 
   return (
+    <AccountProvider>
     <div className="flex h-screen min-w-0 overflow-hidden bg-surface">
       <Sidebar />
 
@@ -46,7 +52,7 @@ export function DashboardShell({
             onClick={() => setMobileMenuOpen(false)}
           />
           <aside
-            className="fixed inset-y-0 left-0 z-50 flex w-[min(100vw-3rem,280px)] flex-col border-r border-border bg-surface-raised shadow-xl md:hidden"
+            className="fixed inset-y-0 left-0 z-50 flex w-[min(100vw-3rem,280px)] flex-col border-r border-indigo-400/15 bg-[#0c0c16] shadow-[0_20px_60px_rgba(0,0,0,0.55)] md:hidden"
             aria-label="Mobile navigation"
           >
             <SidebarPanel
@@ -58,12 +64,12 @@ export function DashboardShell({
       )}
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="flex h-auto min-h-16 shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border bg-surface-raised/80 px-4 py-3 backdrop-blur-sm sm:px-8 sm:py-0">
+        <header className="flex h-auto min-h-16 shrink-0 flex-wrap items-center justify-between gap-3 border-b border-indigo-400/15 bg-[#0c0c16]/85 px-4 py-3 backdrop-blur-sm sm:px-8 sm:py-0">
           <div className="flex min-w-0 flex-1 items-center gap-3">
             <button
               type="button"
               onClick={() => setMobileMenuOpen(true)}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border text-zinc-300 transition-colors hover:bg-surface-overlay md:hidden"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-zinc-300 transition-all duration-300 hover:border-indigo-400/40 hover:bg-indigo-500/10 md:hidden"
               aria-label="Open navigation menu"
               aria-expanded={mobileMenuOpen}
             >
@@ -80,23 +86,20 @@ export function DashboardShell({
           </div>
 
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            <CompactMarketClock />
+            <AccountSwitcher />
+            <ThemeToggle />
             <div className="md:hidden">
-              <SessionStatus variant="compact" />
-            </div>
-            <div className="hidden text-right sm:block">
-              <p className="text-sm font-medium text-zinc-300">Trader</p>
-              <p className="text-xs text-zinc-500">Pro Account</p>
-            </div>
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-sm font-semibold text-white ring-2 ring-surface-overlay">
-              T
+              <UserMenu />
             </div>
           </div>
         </header>
 
-        <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-4 sm:p-8">
+        <main className="desk-atmosphere min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-4 sm:p-8">
           {children}
         </main>
       </div>
     </div>
+    </AccountProvider>
   );
 }
