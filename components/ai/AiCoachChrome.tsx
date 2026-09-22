@@ -28,25 +28,17 @@ export function AiCoachOverlay() {
   const { coachOpen, setCoachOpen } = useAiDesk();
   if (pathname === "/coach") return null;
 
+  if (!coachOpen) return null;
+
   return (
-    <div
-      className={`fixed inset-0 z-[60] md:hidden ${
-        coachOpen ? "pointer-events-auto" : "pointer-events-none"
-      }`}
-    >
+    <div className="pointer-events-none fixed inset-0 z-[60] md:hidden">
       <button
         type="button"
         aria-label="Close coach"
         onClick={() => setCoachOpen(false)}
-        className={`absolute inset-0 bg-black/60 transition-opacity duration-300 ${
-          coachOpen ? "opacity-100" : "opacity-0"
-        }`}
+        className="pointer-events-auto absolute inset-0 bg-black/60"
       />
-      <div
-        className={`absolute inset-y-0 right-0 flex w-[min(100vw,420px)] flex-col border-l border-indigo-400/15 bg-[#0c0c16] shadow-[0_20px_60px_rgba(0,0,0,0.5)] transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-          coachOpen ? "translate-x-0" : "translate-x-full"
-        }`}
-      >
+      <div className="pointer-events-auto absolute inset-y-0 right-0 flex w-[min(100vw,420px)] flex-col border-l border-indigo-400/15 bg-[#0c0c16] shadow-[0_20px_60px_rgba(0,0,0,0.5)]">
         <AiCoachPanel variant="overlay" onClose={() => setCoachOpen(false)} />
       </div>
     </div>
