@@ -10,6 +10,7 @@ import {
 } from "@/lib/trades/account-balance";
 import { ASSET_CLASS_LABELS, resolveAsset } from "@/lib/trades/assets";
 import { formatLocalDateTime, timestampMs } from "@/lib/time";
+import { formatStrategyTag } from "@/lib/trades/load-trades";
 import { formatPnlDollars } from "@/lib/trades/pnl";
 import type { TradingAccount } from "@/lib/types/account";
 import type { Direction, Outcome, Trade, TradeFormData } from "@/lib/types/trade";
@@ -175,7 +176,7 @@ export const TradeHistoryGrid = memo(function TradeHistoryGrid({
                         {trade.pair}
                         {trade.strategy.trim() && (
                           <p className="mt-0.5 text-[11px] font-normal text-zinc-500">
-                            {trade.strategy}
+                            {formatStrategyTag(trade.strategy)}
                           </p>
                         )}
                       </td>
@@ -305,7 +306,7 @@ export const TradeHistoryGrid = memo(function TradeHistoryGrid({
                     </span>
                     {strategy && (
                       <span className={`${badgeClass} max-w-[11rem] bg-indigo-500/15 text-indigo-300 ring-indigo-400/30`}>
-                        <span className="truncate">{strategy}</span>
+                        <span className="truncate">{formatStrategyTag(strategy)}</span>
                       </span>
                     )}
                   </div>

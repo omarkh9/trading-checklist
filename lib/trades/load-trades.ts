@@ -20,6 +20,40 @@ function preferRuleScore(
   return fallback;
 }
 
+const LEADING_STRATEGY_TAG_RE = /^#([A-Za-z0-9][A-Za-z0-9_-]*)\b/;
+
+function strategySlug(value: string): string {
+  return value.trim().replace(/^#/, "").replace(/\s+/g, "");
+}
+
+export function splitStrategyFromNotes(
+  strategy: string,
+  notes: string
+): { strategy: string; notes: string } {
+  const named = strategy.trim();
+  const text = notes.trim();
+  const match = text.match(LEADING_STRATEGY_TAG_RE);
+  if (!match) {
+    return { strategy: named, notes: text };
+  }
+
+  const tag = match[1];
+  const rest = text.slice(match[0].length).trim();
+  const namedSlug = strategySlug(named);
+
+  if (!namedSlug || namedSlug.toLowerCase() === tag.toLowerCase()) {
+    return { strategy: named || tag, notes: rest };
+  }
+
+  return { strategy: named, notes: text };
+}
+
+export function formatStrategyTag(strategy: string): string {
+  const trimmed = strategy.trim();
+  if (!trimmed) return "";
+  return trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
+}
+
 export function normalizeTrade(trade: Trade): Trade {
   const decoded = decodeNotesWithMeta(trade.notes ?? "");
   const checkedRuleIds =
@@ -41,6 +75,7 @@ export function normalizeTrade(trade: Trade): Trade {
     ruleScore,
     checkedRuleIds,
   };
+  const split = splitStrategyFromNotes(trade.strategy ?? "", decoded.notes);
 
   return {
     ...trade,
@@ -56,8 +91,8 @@ export function normalizeTrade(trade: Trade): Trade {
     riskPercent: trade.riskPercent ?? "1",
     fixedLotSize: trade.fixedLotSize ?? "",
     lotSize: trade.lotSize ?? "",
-    strategy: trade.strategy ?? "",
-    notes: decoded.notes,
+    strategy: split.strategy,
+    notes: split.notes,
     emotionBefore: meta.emotionBefore,
     emotionAfter: meta.emotionAfter,
     ruleScore: meta.ruleScore,

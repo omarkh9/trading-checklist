@@ -4,6 +4,7 @@ import { ChartLightbox } from "@/components/trade-journal/ChartLightbox";
 import { RuleScoreStat } from "@/components/trade-journal/RuleScoreStat";
 import { formatLocalDateTime } from "@/lib/time";
 import { ASSET_CLASS_LABELS, resolveAsset } from "@/lib/trades/assets";
+import { formatStrategyTag, splitStrategyFromNotes } from "@/lib/trades/load-trades";
 import { formatPnlDollars } from "@/lib/trades/pnl";
 import { emotionEmoji, emotionLabel } from "@/lib/types/emotion";
 import type { Direction, Outcome, Trade } from "@/lib/types/trade";
@@ -91,6 +92,10 @@ type TradeDetailCardProps = {
 };
 
 export function TradeDetailCard({ trade }: TradeDetailCardProps) {
+  const { strategy, notes } = splitStrategyFromNotes(
+    trade.strategy,
+    trade.notes
+  );
   const asset = resolveAsset(trade.pair);
   const pnlColor =
     trade.pnlDollars > 0
@@ -133,9 +138,9 @@ export function TradeDetailCard({ trade }: TradeDetailCardProps) {
           >
             {trade.outcome}
           </span>
-          {trade.strategy.trim() && (
+          {strategy && (
             <span className="inline-flex max-w-[11rem] items-center rounded-full bg-indigo-500/15 px-2 py-0.5 text-[11px] font-medium text-indigo-300 ring-1 ring-indigo-400/30">
-              <span className="truncate">{trade.strategy.trim()}</span>
+              <span className="truncate">{formatStrategyTag(strategy)}</span>
             </span>
           )}
         </div>
@@ -227,12 +232,23 @@ export function TradeDetailCard({ trade }: TradeDetailCardProps) {
             </div>
           </div>
 
+          {strategy && (
+            <div className="mt-4 rounded-lg border border-indigo-400/20 bg-indigo-500/10 px-3 py-2.5">
+              <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">
+                Strategy Setup
+              </p>
+              <span className="mt-2 inline-flex max-w-full items-center rounded-full bg-indigo-500/15 px-2.5 py-0.5 text-xs font-medium text-indigo-200 ring-1 ring-indigo-400/30">
+                <span className="truncate">{formatStrategyTag(strategy)}</span>
+              </span>
+            </div>
+          )}
+
           <div className="mt-4">
             <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">
               Notes
             </p>
             <p className="mt-2 text-sm leading-relaxed text-zinc-300">
-              {trade.notes.trim() || "No notes for this trade."}
+              {notes || "No notes for this trade."}
             </p>
           </div>
         </div>
