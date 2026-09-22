@@ -14,11 +14,15 @@ html.dark {
 
 html.light {
   color-scheme: light;
-  --surface: #e2e6ee;
-  --surface-raised: #eaedf3;
-  --surface-overlay: #f1f3f8;
-  --desk: #eef1f6;
-  --desk-muted: #e4e8f0;
+  --surface: #f8fafc;
+  --surface-raised: #e2e8f0;
+  --surface-overlay: #f1f5f9;
+  --desk: #f1f5f9;
+  --desk-muted: #e2e8f0;
+  --ink: #1e293b;
+  --ink-muted: #475569;
+  --ink-faint: #64748b;
+  --line: rgb(148 163 184 / 0.35);
   --pnl-win: #047857;
   --pnl-loss: #be123c;
   --pnl-even: #0369a1;
@@ -34,7 +38,7 @@ html.light {
   }
 
   html.light body {
-    @apply text-zinc-900;
+    color: var(--ink);
   }
 
   ::-webkit-scrollbar {
@@ -51,7 +55,7 @@ html.light {
   }
 
   html.light ::-webkit-scrollbar-thumb {
-    @apply bg-zinc-300;
+    background-color: #cbd5e1;
   }
 
   ::-webkit-scrollbar-thumb:hover {
@@ -74,34 +78,36 @@ html.light {
   html.light .desk-atmosphere,
   html.light .dashboard-atmosphere {
     background:
-      radial-gradient(ellipse 80% 45% at 12% -8%, rgba(99, 102, 241, 0.12), transparent 52%),
-      radial-gradient(ellipse 55% 40% at 92% 0%, rgba(16, 185, 129, 0.06), transparent 48%);
+      radial-gradient(ellipse 80% 45% at 12% -8%, rgba(99, 102, 241, 0.08), transparent 52%),
+      radial-gradient(ellipse 55% 40% at 92% 0%, rgba(16, 185, 129, 0.04), transparent 48%);
   }
 }
 
 html.light .text-zinc-50,
-html.light .text-zinc-100 {
-  color: #18181b;
+html.light .text-zinc-100,
+html.light .text-zinc-900,
+html.light .text-black {
+  color: var(--ink);
 }
 
 html.light .text-zinc-200 {
-  color: #27272a;
+  color: #334155;
 }
 
 html.light .text-zinc-300 {
-  color: #3f3f46;
+  color: var(--ink-muted);
 }
 
 html.light .text-zinc-400 {
-  color: #52525b;
+  color: var(--ink-faint);
 }
 
 html.light .text-zinc-500 {
-  color: #71717a;
+  color: #64748b;
 }
 
 html.light .text-zinc-600 {
-  color: #a1a1aa;
+  color: #94a3b8;
 }
 
 html.light .bg-\[\#0c0c16\],
@@ -126,13 +132,13 @@ html.light .bg-surface {
 
 html.light .border-white\/10,
 html.light .border-white\/5 {
-  border-color: rgb(15 23 42 / 0.14);
+  border-color: var(--line);
 }
 
 html.light .bg-white\/\[0\.03\],
 html.light .bg-white\/\[0\.02\],
 html.light .bg-white\/5 {
-  background-color: rgb(15 23 42 / 0.06);
+  background-color: rgb(226 232 240 / 0.7);
 }
 
 html.light .ring-offset-\[\#0c0c16\] {
@@ -226,7 +232,7 @@ html.light .border-blue-400\/55 {
 }
 
 html.light .placeholder\:text-zinc-600::placeholder {
-  color: #a1a1aa;
+  color: #94a3b8;
 }
 
 html.dark select,
@@ -245,12 +251,12 @@ html:not(.light) option {
 html.light select {
   color-scheme: light;
   background-color: var(--surface-overlay);
-  color: #18181b;
+  color: var(--ink);
 }
 
 html.light option {
   background-color: var(--surface-overlay);
-  color: #18181b;
+  color: var(--ink);
 }
 
 html.light section.economic-calendar {
@@ -263,15 +269,15 @@ html.light section.economic-calendar {
 }
 
 html.light .economic-calendar .economic-calendar-nav {
-  background-color: var(--surface-overlay);
-  border-color: rgb(15 23 42 / 0.16);
-  color: #3f3f46;
+  background-color: var(--surface);
+  border-color: var(--line);
+  color: var(--ink-muted);
 }
 
 html.light .economic-calendar .economic-calendar-day:not(.is-selected) {
-  background-color: var(--surface-overlay);
-  border-color: rgb(15 23 42 / 0.14);
-  color: #3f3f46;
+  background-color: var(--surface);
+  border-color: var(--line);
+  color: var(--ink-muted);
 }
 
 html.light .economic-calendar .economic-calendar-day.is-today:not(.is-selected) {
@@ -285,12 +291,12 @@ html.light .economic-calendar .economic-calendar-head {
 }
 
 html.light .economic-calendar table {
-  border-top-color: rgb(15 23 42 / 0.14);
+  border-top-color: var(--line);
 }
 
 html.light .economic-calendar tbody tr {
-  background-color: var(--surface-overlay);
-  border-top-color: rgb(15 23 42 / 0.1);
+  background-color: var(--surface);
+  border-top-color: rgb(148 163 184 / 0.22);
 }
 
 html.light .economic-calendar tbody tr:nth-child(even) {
