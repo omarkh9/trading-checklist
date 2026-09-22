@@ -122,7 +122,7 @@ export function AuthForm({ mode }: AuthFormProps) {
     setIsSubmitting(true);
     resetMessages();
     try {
-      await resendConfirmationEmail(email);
+      await resendConfirmationEmail(normalizedEmail);
       setNeedsConfirmation(true);
       setInfo(
         "If this account still needs to be activated, we sent a new confirmation link. Open it, then sign in."
@@ -167,7 +167,7 @@ export function AuthForm({ mode }: AuthFormProps) {
     try {
       if (isSignup) {
         const data = await signUpWithEmail(
-          email,
+          normalizedEmail,
           password,
           getAuthCallbackUrl(nextPath)
         );
@@ -182,10 +182,10 @@ export function AuthForm({ mode }: AuthFormProps) {
           return;
         }
       } else {
-        await signInWithEmail(email, password);
+        await signInWithEmail(normalizedEmail, password);
       }
 
-      window.location.assign(getRedirectUrl(nextPath));
+      window.location.assign(nextPath);
     } catch (cause) {
       const alreadyResent =
         cause instanceof Error && cause.name === "AuthNeedsConfirmationError";
@@ -208,7 +208,7 @@ export function AuthForm({ mode }: AuthFormProps) {
         );
         if (!alreadyResent) {
           try {
-            await resendConfirmationEmail(email);
+            await resendConfirmationEmail(normalizedEmail);
             setInfo(
               "We sent a new confirmation link. Open it, then sign in. You can also reset your password."
             );
