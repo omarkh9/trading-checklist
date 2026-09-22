@@ -184,10 +184,10 @@ export function EconomicCalendar({ compact = false }: { compact?: boolean }) {
   };
 
   return (
-    <section className="economic-calendar relative min-w-0 overflow-hidden rounded-2xl border border-indigo-400/20 bg-[#0c0c16]/90 shadow-[0_8px_32px_rgba(0,0,0,0.35)]">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-amber-400 via-indigo-400 to-rose-400" />
+    <section className="economic-calendar relative z-0 min-w-0 overflow-hidden rounded-2xl border border-indigo-400/20 bg-[#0c0c16]/90 shadow-[0_8px_32px_rgba(0,0,0,0.35)]">
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-0 h-0.5 bg-gradient-to-r from-amber-400 via-indigo-400 to-rose-400" />
 
-      <div className="relative px-4 pb-3 pt-5 sm:px-5">
+      <div className="economic-calendar-header relative z-20 px-4 pb-3 pt-5 sm:px-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h3 className="text-lg font-semibold tracking-tight text-zinc-50">
@@ -207,12 +207,12 @@ export function EconomicCalendar({ compact = false }: { compact?: boolean }) {
           </a>
         </div>
 
-        <div className="mt-4 flex items-center gap-2">
+        <div className="date-selector relative z-20 mt-4 flex items-center gap-2">
           <button
             type="button"
             onClick={() => goDay(-1)}
             disabled={!canPrev}
-            className="economic-calendar-nav flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-zinc-300 transition-colors hover:border-indigo-400/40 hover:bg-indigo-500/10 disabled:cursor-not-allowed disabled:opacity-30"
+            className="economic-calendar-nav relative z-[25] flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-white/10 bg-white/5 text-zinc-300 transition-colors hover:border-indigo-400/40 hover:bg-indigo-500/10 disabled:cursor-not-allowed disabled:opacity-30"
             aria-label="Previous day"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -229,7 +229,7 @@ export function EconomicCalendar({ compact = false }: { compact?: boolean }) {
             type="button"
             onClick={() => goDay(1)}
             disabled={!canNext}
-            className="economic-calendar-nav flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-zinc-300 transition-colors hover:border-indigo-400/40 hover:bg-indigo-500/10 disabled:cursor-not-allowed disabled:opacity-30"
+            className="economic-calendar-nav relative z-[25] flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-white/10 bg-white/5 text-zinc-300 transition-colors hover:border-indigo-400/40 hover:bg-indigo-500/10 disabled:cursor-not-allowed disabled:opacity-30"
             aria-label="Next day"
           >
             <ChevronRight className="h-4 w-4" />
@@ -237,7 +237,7 @@ export function EconomicCalendar({ compact = false }: { compact?: boolean }) {
         </div>
 
         {dayKeys.length > 1 && (
-          <div className="mt-3 flex gap-1 overflow-x-auto pb-1">
+          <div className="date-selector relative z-20 mt-3 flex gap-1 overflow-x-auto pb-1">
             {dayKeys.map((key) => {
               const selected = key === activeDay;
               const isToday = key === todayKey;
@@ -246,7 +246,7 @@ export function EconomicCalendar({ compact = false }: { compact?: boolean }) {
                   key={key}
                   type="button"
                   onClick={() => setSelectedDay(key)}
-                  className={`economic-calendar-day flex min-w-[2.75rem] flex-1 flex-col items-center rounded-md px-1 py-1.5 text-center transition-colors ${
+                  className={`date-pill economic-calendar-day relative z-[25] flex min-w-[2.75rem] flex-1 cursor-pointer flex-col items-center rounded-md px-1 py-1.5 text-center transition-colors ${
                     selected
                       ? "is-selected bg-indigo-500 text-white shadow-[0_0_12px_rgba(99,102,241,0.28)]"
                       : isToday
@@ -275,7 +275,7 @@ export function EconomicCalendar({ compact = false }: { compact?: boolean }) {
         </p>
       ) : (
         <div
-          className={`min-w-0 overflow-x-auto ${
+          className={`relative z-0 min-w-0 overflow-x-auto ${
             compact ? "max-h-[28rem]" : "max-h-[36rem]"
           } overflow-y-auto`}
         >

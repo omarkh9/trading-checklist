@@ -259,6 +259,25 @@ html.light option {
   color: var(--ink);
 }
 
+.economic-calendar {
+  pointer-events: auto;
+}
+
+.economic-calendar .date-selector,
+.economic-calendar-header {
+  position: relative;
+  z-index: 20;
+  pointer-events: auto;
+}
+
+.economic-calendar button,
+.economic-calendar .date-pill {
+  position: relative;
+  z-index: 25;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
 html.light section.economic-calendar {
   --ff-impact-low: #b45309;
   --ff-impact-holiday: #52525b;
