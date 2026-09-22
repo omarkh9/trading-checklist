@@ -1,5 +1,6 @@
 "use client";
 
+import { ChartLightbox } from "@/components/trade-journal/ChartLightbox";
 import { RuleScoreStat } from "@/components/trade-journal/RuleScoreStat";
 import { formatLocalDateTime } from "@/lib/time";
 import { ASSET_CLASS_LABELS, resolveAsset } from "@/lib/trades/assets";
@@ -7,6 +8,8 @@ import { formatPnlDollars } from "@/lib/trades/pnl";
 import { emotionEmoji, emotionLabel } from "@/lib/types/emotion";
 import type { Direction, Outcome, Trade } from "@/lib/types/trade";
 import { assetClassBadgeClass } from "@/lib/ui/desk";
+import { Expand } from "lucide-react";
+import { useState } from "react";
 
 const outcomeBadgeClass: Record<Outcome, string> = {
   Win: "bg-emerald-500/15 text-emerald-400 ring-emerald-500/30",
@@ -42,6 +45,8 @@ function ChartPreview({
   label: string;
   src: string | null;
 }) {
+  const [open, setOpen] = useState(false);
+
   if (!src) {
     return (
       <div className="flex h-36 items-center justify-center rounded-lg border border-dashed border-white/10 bg-white/[0.02]">
@@ -57,14 +62,26 @@ function ChartPreview({
       <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">
         {label}
       </p>
-      <div className="overflow-hidden rounded-lg border border-white/10">
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="group relative block w-full overflow-hidden rounded-lg border border-white/10 text-left"
+        aria-label={`Enlarge ${label}`}
+      >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={src}
           alt={label}
-          className="h-36 w-full object-cover transition-transform hover:scale-[1.02]"
+          className="h-36 w-full object-cover transition-transform group-hover:scale-[1.02]"
         />
-      </div>
+        <span className="pointer-events-none absolute bottom-2 right-2 inline-flex items-center gap-1 rounded-md bg-black/65 px-1.5 py-1 text-[10px] font-medium text-zinc-100 opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+          <Expand className="h-3 w-3" />
+          Enlarge
+        </span>
+      </button>
+      {open ? (
+        <ChartLightbox label={label} src={src} onClose={() => setOpen(false)} />
+      ) : null}
     </div>
   );
 }

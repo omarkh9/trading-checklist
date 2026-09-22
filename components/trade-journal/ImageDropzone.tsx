@@ -1,6 +1,7 @@
 "use client";
 
-import { ImagePlus, X } from "lucide-react";
+import { ChartLightbox } from "@/components/trade-journal/ChartLightbox";
+import { Expand, ImagePlus, X } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
 
 type ImageDropzoneProps = {
@@ -13,6 +14,7 @@ type ImageDropzoneProps = {
 export function ImageDropzone({ label, value, onChange, compact = false }: ImageDropzoneProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [open, setOpen] = useState(false);
   const previewHeight = compact ? "h-32" : "h-44";
 
   const handleFile = useCallback(
@@ -54,21 +56,43 @@ export function ImageDropzone({ label, value, onChange, compact = false }: Image
       <div className="space-y-2">
         <p className="text-sm font-medium text-zinc-300">{label}</p>
         <div className="group relative overflow-hidden rounded-xl border border-indigo-400/20 bg-[#0c0c16]">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={value}
-            alt={label}
-            className={`${previewHeight} w-full object-cover`}
-          />
           <button
             type="button"
-            onClick={() => onChange(null)}
+            onClick={() => setOpen(true)}
+            className="block w-full text-left"
+            aria-label={`Enlarge ${label}`}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={value}
+              alt={label}
+              className={`${previewHeight} w-full object-cover`}
+            />
+            <span className="pointer-events-none absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-md bg-black/65 px-1.5 py-1 text-[10px] font-medium text-zinc-100 opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+              <Expand className="h-3 w-3" />
+              Enlarge
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              setOpen(false);
+              onChange(null);
+            }}
             className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-lg bg-black/60 text-zinc-300 opacity-0 backdrop-blur-sm transition-opacity hover:bg-black/80 hover:text-white group-hover:opacity-100"
             aria-label={`Remove ${label}`}
           >
             <X className="h-4 w-4" />
           </button>
         </div>
+        {open ? (
+          <ChartLightbox
+            label={label}
+            src={value}
+            onClose={() => setOpen(false)}
+          />
+        ) : null}
       </div>
     );
   }
