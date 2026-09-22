@@ -217,7 +217,7 @@ function DaySummaryCards({
   metric: CalendarDisplayMetric;
 }) {
   return (
-    <div className="grid gap-3 sm:grid-cols-3">
+    <div className="grid gap-3 sm:grid-cols-2">
       <div
         className={`rounded-lg border px-3 py-2.5 ${dayToneCardClass[stats.tone]}`}
       >
@@ -236,14 +236,6 @@ function DaySummaryCards({
         </p>
         <p className="mt-1 font-mono text-lg font-semibold text-zinc-100">
           {formatTradeCount(stats.tradeCount)}
-        </p>
-      </div>
-      <div className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5">
-        <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-400">
-          Win rate
-        </p>
-        <p className="mt-1 font-mono text-lg font-semibold text-zinc-100">
-          {formatWinRate(stats.winRate)}
         </p>
       </div>
     </div>
