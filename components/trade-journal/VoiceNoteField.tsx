@@ -1,6 +1,11 @@
 "use client";
 
 import { desk } from "@/lib/ui/desk";
+import {
+  appendTranscript,
+  pickBestTranscript,
+  TRADING_VOICE_GRAMMAR,
+} from "@/lib/trades/voice-transcript";
 import { Mic, Square } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
@@ -8,6 +13,8 @@ type SpeechRecognitionLike = {
   lang: string;
   continuous: boolean;
   interimResults: boolean;
+  maxAlternatives: number;
+  grammars?: unknown;
   start: () => void;
   stop: () => void;
   abort: () => void;
@@ -20,7 +27,8 @@ type SpeechRecognitionEventLike = {
   resultIndex: number;
   results: ArrayLike<{
     isFinal: boolean;
-    0: { transcript: string };
+    length: number;
+    [index: number]: { transcript: string };
   }>;
 };
 
@@ -39,12 +47,32 @@ function getSpeechRecognition():
   );
 }
 
-function joinNotes(...parts: string[]) {
-  return parts
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .join(" ")
-    .replace(/\s+/g, " ");
+function attachTradingGrammar(recognition: SpeechRecognitionLike) {
+  const speechWindow = window as Window & {
+    SpeechGrammarList?: new () => {
+      addFromString: (grammar: string, weight?: number) => void;
+    };
+    webkitSpeechGrammarList?: new () => {
+      addFromString: (grammar: string, weight?: number) => void;
+    };
+  };
+  const GrammarList =
+    speechWindow.SpeechGrammarList ?? speechWindow.webkitSpeechGrammarList;
+  if (!GrammarList) return;
+  const list = new GrammarList();
+  list.addFromString(TRADING_VOICE_GRAMMAR, 1);
+  recognition.grammars = list;
+}
+
+function alternativesFor(
+  result: SpeechRecognitionEventLike["results"][number]
+): string[] {
+  const texts: string[] = [];
+  for (let index = 0; index < result.length; index += 1) {
+    const text = result[index]?.transcript?.trim();
+    if (text) texts.push(text);
+  }
+  return texts;
 }
 
 type VoiceNoteFieldProps = {
@@ -66,8 +94,10 @@ export function VoiceNoteField({
 }: VoiceNoteFieldProps) {
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const listeningRef = useRef(false);
-  const baseTextRef = useRef("");
-  const finalTextRef = useRef("");
+  const committedRef = useRef("");
+  const sessionFinalRef = useRef("");
+  const interimRef = useRef("");
+  const processedIndexRef = useRef(0);
   const [listening, setListening] = useState(false);
   const [supported, setSupported] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -81,12 +111,31 @@ export function VoiceNoteField({
   }, []);
 
   const publish = (interim = "") => {
-    onChange(joinNotes(baseTextRef.current, finalTextRef.current, interim));
+    interimRef.current = interim;
+    onChange(
+      appendTranscript(
+        appendTranscript(committedRef.current, sessionFinalRef.current),
+        interim
+      )
+    );
+  };
+
+  const commitSession = () => {
+    const pending = appendTranscript(
+      sessionFinalRef.current,
+      interimRef.current
+    );
+    committedRef.current = appendTranscript(committedRef.current, pending);
+    sessionFinalRef.current = "";
+    interimRef.current = "";
+    processedIndexRef.current = 0;
+    publish();
   };
 
   const stop = () => {
     listeningRef.current = false;
     setListening(false);
+    commitSession();
     recognitionRef.current?.stop();
   };
 
@@ -94,21 +143,32 @@ export function VoiceNoteField({
     recognition.lang = "en-US";
     recognition.continuous = true;
     recognition.interimResults = true;
+    recognition.maxAlternatives = 3;
+    attachTradingGrammar(recognition);
 
     recognition.onresult = (event) => {
-      let sessionFinals = "";
+      if (event.results.length < processedIndexRef.current) {
+        processedIndexRef.current = 0;
+      }
       let interim = "";
-      for (let index = 0; index < event.results.length; index += 1) {
+      const start = Math.max(event.resultIndex, processedIndexRef.current);
+
+      for (let index = start; index < event.results.length; index += 1) {
         const result = event.results[index];
-        const transcript = result[0]?.transcript?.trim();
+        const transcript = pickBestTranscript(alternativesFor(result));
         if (!transcript) continue;
+
         if (result.isFinal) {
-          sessionFinals = joinNotes(sessionFinals, transcript);
+          sessionFinalRef.current = appendTranscript(
+            sessionFinalRef.current,
+            transcript
+          );
+          processedIndexRef.current = index + 1;
         } else {
-          interim = joinNotes(interim, transcript);
+          interim = appendTranscript(interim, transcript);
         }
       }
-      finalTextRef.current = sessionFinals;
+
       publish(interim);
     };
 
@@ -124,14 +184,11 @@ export function VoiceNoteField({
     };
 
     recognition.onend = () => {
+      commitSession();
       if (!listeningRef.current) {
         setListening(false);
         return;
       }
-
-      baseTextRef.current = joinNotes(baseTextRef.current, finalTextRef.current);
-      finalTextRef.current = "";
-      publish();
 
       window.setTimeout(() => {
         if (!listeningRef.current || recognitionRef.current !== recognition) {
@@ -143,7 +200,7 @@ export function VoiceNoteField({
           listeningRef.current = false;
           setListening(false);
         }
-      }, 80);
+      }, 120);
     };
   };
 
@@ -161,8 +218,10 @@ export function VoiceNoteField({
     }
 
     setError(null);
-    baseTextRef.current = value.trim();
-    finalTextRef.current = "";
+    committedRef.current = value.trim();
+    sessionFinalRef.current = "";
+    interimRef.current = "";
+    processedIndexRef.current = 0;
     const recognition = new Recognition();
     recognitionRef.current = recognition;
     attachHandlers(recognition);
@@ -203,7 +262,14 @@ export function VoiceNoteField({
         rows={rows}
         placeholder={placeholder}
         value={value}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={(event) => {
+          if (listeningRef.current) {
+            committedRef.current = event.target.value.trim();
+            sessionFinalRef.current = "";
+            interimRef.current = "";
+          }
+          onChange(event.target.value);
+        }}
         className={`${desk.input} resize-none`}
       />
       <p className="mt-1.5 text-xs text-zinc-400">
