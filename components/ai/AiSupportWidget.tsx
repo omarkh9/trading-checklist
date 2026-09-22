@@ -17,12 +17,12 @@ export function AiSupportWidget() {
   const { supportOpen, setSupportOpen, toggleSupport, support, context } =
     useAiDesk();
 
-  if (pathname === "/coach") return null;
+  if (pathname === "/coach" || pathname === "/calendar") return null;
 
   return (
-    <div className="pointer-events-none fixed bottom-5 right-5 z-[70] flex flex-col items-end gap-3">
+    <div className="pointer-events-none fixed bottom-5 left-4 z-[70] md:left-[17.25rem]">
       <div
-        className={`pointer-events-auto w-[min(100vw-1.5rem,400px)] origin-bottom-right overflow-hidden rounded-2xl border border-indigo-400/20 bg-[#0c0c16] shadow-[0_24px_80px_rgba(0,0,0,0.45)] transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+        className={`pointer-events-auto absolute bottom-16 left-0 w-[min(100vw-1.5rem,400px)] origin-bottom-left overflow-hidden rounded-2xl border border-indigo-400/20 bg-[#0c0c16] shadow-[0_24px_80px_rgba(0,0,0,0.45)] transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
           supportOpen
             ? "translate-y-0 scale-100 opacity-100"
             : "pointer-events-none translate-y-4 scale-95 opacity-0"

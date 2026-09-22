@@ -525,7 +525,7 @@ export function TradeCalendar() {
         <div className="relative overflow-hidden rounded-2xl border border-indigo-400/20 bg-[#0c0c16]/90 p-4 shadow-[0_8px_32px_rgba(0,0,0,0.35)] sm:p-6">
           <div className="pointer-events-none absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-indigo-400 via-violet-400 to-emerald-400" />
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-indigo-500/10 via-transparent to-transparent" />
-          <div className="relative">
+          <div className="relative z-10">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
               <div>

@@ -14,6 +14,7 @@ import {
   type NewsImpact,
 } from "@/lib/news/calendar";
 import { resolveDisplayTimeZone } from "@/lib/settings/workspace";
+import { LiveFeedBadge } from "@/components/dashboard/SidebarLiveStatus";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
@@ -162,9 +163,14 @@ export function EconomicCalendar({ compact = false }: { compact?: boolean }) {
   const dayKeys = useMemo(() => {
     const all = groupEventsByDay(events, timeZone);
     const keys = [...all.keys()].sort();
-    if (keys.length === 0) return [];
+    if (keys.length === 0) {
+      return enumerateDateKeys(
+        shiftDateKey(todayKey, -1),
+        shiftDateKey(todayKey, 5)
+      );
+    }
     return enumerateDateKeys(keys[0], keys[keys.length - 1]);
-  }, [events, timeZone]);
+  }, [events, timeZone, todayKey]);
 
   const activeDay = useMemo(() => {
     if (selectedDay && dayKeys.includes(selectedDay)) return selectedDay;
@@ -196,6 +202,9 @@ export function EconomicCalendar({ compact = false }: { compact?: boolean }) {
             <p className="mt-1 text-sm text-zinc-500">
               Forex Factory · {timeZone.replace(/_/g, " ")}
             </p>
+            <div className="mt-2">
+              <LiveFeedBadge active={!error} />
+            </div>
           </div>
           <a
             href={forexFactoryDayUrl(activeDay)}
@@ -269,7 +278,7 @@ export function EconomicCalendar({ compact = false }: { compact?: boolean }) {
 
       {isLoading ? (
         <div className="mx-4 mb-5 h-52 animate-pulse rounded-xl bg-white/[0.03] sm:mx-5" />
-      ) : error ? (
+      ) : error && events.length === 0 ? (
         <p className="mx-4 mb-5 rounded-xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-300 sm:mx-5">
           {error}
         </p>

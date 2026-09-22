@@ -260,7 +260,17 @@ html.light option {
 }
 
 .economic-calendar {
+  isolation: isolate;
   pointer-events: auto;
+}
+
+.economic-calendar .live-feed-badge {
+  position: relative;
+  left: 0;
+  right: auto;
+  display: flex;
+  justify-content: flex-start;
+  margin-right: auto;
 }
 
 .economic-calendar .date-selector,

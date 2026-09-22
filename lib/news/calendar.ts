@@ -106,8 +106,11 @@ export async function fetchForexFactoryCalendar(): Promise<EconomicEvent[]> {
   for (const url of FEED_URLS) {
     try {
       const response = await fetch(url, {
-        headers: { Accept: "application/json" },
-        next: { revalidate: 300 },
+        headers: {
+          Accept: "application/json, text/plain, */*",
+          "User-Agent": "EdgeLogCalendar/1.0",
+        },
+        cache: "no-store",
       });
       if (!response.ok) {
         lastError = new Error(`Calendar feed failed (${response.status})`);

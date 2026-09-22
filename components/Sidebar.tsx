@@ -3,7 +3,6 @@
 import { UserMenu } from "@/components/auth/UserMenu";
 import { useOwner } from "@/components/auth/useOwner";
 import { CompactMarketClock } from "@/components/dashboard/CompactMarketClock";
-import { SidebarLiveStatus } from "@/components/dashboard/SidebarLiveStatus";
 import { navItems } from "@/lib/navigation";
 import { Activity, X } from "lucide-react";
 import Link from "next/link";
@@ -92,7 +91,6 @@ export function SidebarPanel({ onNavigate, onClose }: SidebarPanelProps) {
         {settingsItem ? renderLink(settingsItem) : null}
         <div className="market-session-card px-0.5 pt-3">
           <CompactMarketClock />
-          <SidebarLiveStatus />
         </div>
       </nav>
 
