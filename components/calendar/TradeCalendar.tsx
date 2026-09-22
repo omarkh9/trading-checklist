@@ -7,7 +7,6 @@ import {
   buildStartingEquityByDay,
   computeDayStats,
   computePeriodStats,
-  formatCompactPnl,
   formatDayMetric,
   formatTradeCount,
   formatWeekHeading,
@@ -639,7 +638,7 @@ export function TradeCalendar() {
                   " ring-2 ring-indigo-300/80 ring-offset-2 ring-offset-[#0c0c16]";
               }
 
-              const metricLabel = stats ? formatCompactPnl(stats.netPnl) : "";
+              const metricLabel = stats ? formatDayMetric(stats, metric) : "";
               const ariaLabel = stats
                 ? `${date.getDate()}, ${metricLabel}, ${formatTradeCount(stats.tradeCount)}. Click to journal trades for this day.`
                 : `${date.getDate()}, no trades. Click to journal trades for this day.`;
