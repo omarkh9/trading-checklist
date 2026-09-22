@@ -1,4 +1,4 @@
-import { calculatePnlFromPrices } from "@/lib/trades/contract-math";
+import { calculatePnlFromPrices, roundMoney } from "@/lib/trades/contract-math";
 import type { Direction, Outcome, PnlMode, Trade } from "@/lib/types/trade";
 
 export function parseNumericInput(value: string): number | null {
@@ -28,7 +28,7 @@ export function resolvePnlDollars(
       ? balanceBeforeTrade * (raw / 100)
       : raw;
 
-  return outcome === "Loss" ? -magnitude : magnitude;
+  return roundMoney(outcome === "Loss" ? -magnitude : magnitude);
 }
 
 export function formatPnlDollars(value: number): string {
@@ -49,6 +49,7 @@ export function estimatePnlFromPrices(input: {
   entryPrice: string;
   exitPrice: string;
   lots: number | null;
+  quoteToUsd?: number | null;
 }): number | null {
   const entry = parseNumericInput(input.entryPrice);
   const exit = parseNumericInput(input.exitPrice);
@@ -62,6 +63,7 @@ export function estimatePnlFromPrices(input: {
     entryPrice: entry,
     exitPrice: exit,
     lots: input.lots,
+    quoteToUsd: input.quoteToUsd,
   });
 
   return computed?.pnlUsd ?? null;
@@ -93,6 +95,7 @@ export function resolveTradeResult(input: {
   entryPrice: string;
   exitPrice: string;
   lots: number | null;
+  quoteToUsd?: number | null;
   outcome: Outcome;
   pnlMode: PnlMode;
   pnlInput: string;
@@ -108,6 +111,7 @@ export function resolveTradeResult(input: {
           entryPrice: input.entryPrice,
           exitPrice: input.exitPrice,
           lots: input.lots,
+          quoteToUsd: input.quoteToUsd,
         });
 
   if (autoPnl != null) {

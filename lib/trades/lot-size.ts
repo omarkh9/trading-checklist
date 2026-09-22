@@ -1,5 +1,5 @@
 import { resolveAsset } from "@/lib/trades/assets";
-import { usdValuePerPriceUnit } from "@/lib/trades/contract-math";
+import { snapLots, usdValuePerPriceUnit } from "@/lib/trades/contract-math";
 import type { Direction, RiskSizeMode } from "@/lib/types/trade";
 import { parseNumericInput } from "@/lib/trades/pnl";
 
@@ -67,7 +67,8 @@ export function calculatePositionSize(
   if (riskPerLot <= 0) return null;
 
   const riskAmount = input.accountBalance * (riskPercent / 100);
-  const lots = riskAmount / riskPerLot;
+  const lots = snapLots(riskAmount / riskPerLot, spec.lotStep);
+  if (lots <= 0) return null;
   return {
     lots,
     riskAmount,

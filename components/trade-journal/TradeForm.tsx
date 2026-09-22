@@ -18,6 +18,7 @@ import {
   formatPips,
   formatUsdCompact,
 } from "@/lib/trades/contract-math";
+import { loadQuoteToUsd } from "@/lib/trades/fx-rates";
 import { calculateLotSize, formatLotSize } from "@/lib/trades/lot-size";
 import { tradeDateKey } from "@/lib/trades/load-trades";
 import {
@@ -216,6 +217,7 @@ export const TradeForm = memo(function TradeForm({
   const [manualPnl, setManualPnl] = useState(
     () => Boolean(initialData?.pnlInput?.trim()) && !initialData?.exitPrice
   );
+  const [quoteToUsd, setQuoteToUsd] = useState<number | null>(null);
 
   useEffect(() => {
     if (initialData) {
@@ -291,6 +293,24 @@ export const TradeForm = memo(function TradeForm({
   const riskCapped =
     riskNumeric != null && riskNumeric > settings.maxRiskPercent + 0.0001;
 
+  const quoteCurrency = resolveAsset(form.pair).spec.quoteCurrency;
+  const needsQuoteConversion =
+    resolveAsset(form.pair).spec.usdConversion === "quote-to-usd";
+
+  useEffect(() => {
+    if (!needsQuoteConversion) {
+      setQuoteToUsd(null);
+      return;
+    }
+    let cancelled = false;
+    void loadQuoteToUsd(quoteCurrency).then((rate) => {
+      if (!cancelled) setQuoteToUsd(rate);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [needsQuoteConversion, quoteCurrency]);
+
   const calculatedLot = useMemo(
     () =>
       calculateLotSize({
@@ -301,6 +321,7 @@ export const TradeForm = memo(function TradeForm({
         entryPrice: form.entryPrice,
         stopLoss: form.stopLoss,
         accountBalance: currentBalance,
+        quoteToUsd,
       }),
     [
       form.pair,
@@ -310,6 +331,7 @@ export const TradeForm = memo(function TradeForm({
       form.stopLoss,
       cappedRisk,
       currentBalance,
+      quoteToUsd,
     ]
   );
 
@@ -332,6 +354,7 @@ export const TradeForm = memo(function TradeForm({
         entryPrice: form.entryPrice,
         exitPrice: exitForPnl,
         lots: lotsForPnl,
+        quoteToUsd,
         outcome: form.outcome,
         pnlMode: form.pnlMode,
         pnlInput: form.pnlInput,
@@ -349,6 +372,7 @@ export const TradeForm = memo(function TradeForm({
       form.pnlMode,
       lotsForPnl,
       manualPnl,
+      quoteToUsd,
     ]
   );
 
@@ -375,8 +399,9 @@ export const TradeForm = memo(function TradeForm({
       entryPrice: entry,
       stopLoss: stop,
       takeProfit,
+      quoteToUsd,
     });
-  }, [form.pair, form.entryPrice, form.stopLoss, form.takeProfit]);
+  }, [form.pair, form.entryPrice, form.stopLoss, form.takeProfit, quoteToUsd]);
 
   const sizedRiskUsd =
     lotsForPnl != null && positionRisk
@@ -853,7 +878,13 @@ export const TradeForm = memo(function TradeForm({
                     : !exitForPnl
                       ? " · add exit, TP, or stop to auto-calc"
                       : tradeResult.autoCalculated && exitSourceLabel
-                        ? ` · from ${exitSourceLabel}`
+                        ? ` · from ${exitSourceLabel}${
+                            needsQuoteConversion && quoteToUsd
+                              ? ` · ${quoteCurrency}/USD ${quoteToUsd.toFixed(4)}`
+                              : needsQuoteConversion
+                                ? ` · ${quoteCurrency} converted to USD`
+                                : ""
+                          }`
                         : ""}
                 </p>
                 {(sizedRiskUsd != null || rewardRiskRatio != null) && (
