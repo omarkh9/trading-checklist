@@ -59,10 +59,8 @@ export function CompactMarketClock({
   const clock = getMarketClock(now, userTimeZone);
   const hasSession = clock.activeSessions.length > 0;
   const sessionLabel = clock.isOpen
-    ? hasSession
-      ? clock.label.replace("Asia / ", "")
-      : "Between sessions"
-    : "Closed";
+    ? clock.label.replace("Asia / ", "")
+    : "Market Closed";
   const zoneLabel =
     clock.userTimeZoneLong && clock.userTimeZoneShort
       ? `${clock.userTimeZoneLong} / ${clock.userTimeZoneShort}`

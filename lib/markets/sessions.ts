@@ -35,8 +35,8 @@ export const MARKET_SESSIONS: MarketSession[] = [
     id: "sydney",
     name: "Asia / Sydney",
     timeZone: "Australia/Sydney",
-    openHour: 9,
-    closeHour: 18,
+    openHour: 8,
+    closeHour: 17,
   },
   {
     id: "tokyo",
@@ -359,11 +359,11 @@ export function getMarketClock(
   date: Date = new Date(),
   userTimeZone = detectUserTimeZone()
 ): MarketClock {
-  const closed = isForexWeekendClosed(date);
+  const weekendClosed = isForexWeekendClosed(date);
   const sessions = MARKET_SESSIONS.map((session) => ({
     id: session.id,
     name: session.name,
-    active: !closed && isSessionActive(date, session),
+    active: !weekendClosed && isSessionActive(date, session),
     localRange: localRangeForSession(date, session, userTimeZone),
   }));
 
@@ -371,17 +371,25 @@ export function getMarketClock(
   const isOverlap = activeSessions.length > 1;
   const zoneShort = formatTimeZoneShort(date, userTimeZone);
   const zoneLong = formatTimeZoneLong(date, userTimeZone);
+  const hasSession = activeSessions.length > 0;
 
-  if (closed) {
-    const opens = nextNyBoundary(date, NY_WEEKEND_CLOSE_HOUR, 0);
+  if (weekendClosed || !hasSession) {
+    const opens = weekendClosed
+      ? nextNyBoundary(date, NY_WEEKEND_CLOSE_HOUR, 0)
+      : MARKET_SESSIONS.map((session) => nextSessionBoundary(date, session))
+          .filter((item) => item.kind === "open" && item.at.getTime() > date.getTime())
+          .sort((a, b) => a.at.getTime() - b.at.getTime())[0]?.at;
+
     return {
       isOpen: false,
       isOverlap: false,
       label: "Market Closed",
       activeSessions: [],
       sessions,
-      nextChangeKind: "open",
-      nextChangeLabel: `Opens ${formatChangeTime(opens, date, userTimeZone)}`,
+      nextChangeKind: opens ? "open" : null,
+      nextChangeLabel: opens
+        ? `Opens ${formatChangeTime(opens, date, userTimeZone)}`
+        : null,
       userTimeZone,
       userTimeZoneShort: zoneShort,
       userTimeZoneLong: zoneLong,
@@ -392,25 +400,20 @@ export function getMarketClock(
     at: nextNyBoundary(date, NY_WEEKEND_CLOSE_HOUR, 5),
     kind: "close" as const,
   };
-  const bounds = MARKET_SESSIONS.map((session) =>
-    nextSessionBoundary(date, session)
-  );
 
-  const upcoming =
-    activeSessions.length > 0
-      ? [...activeSessions.map((session) => nextSessionBoundary(date, session)), weekendClose]
-          .filter((item) => item.at.getTime() > date.getTime())
-          .sort((a, b) => a.at.getTime() - b.at.getTime())[0]
-      : bounds
-          .filter((item) => item.kind === "open" && item.at.getTime() > date.getTime())
-          .sort((a, b) => a.at.getTime() - b.at.getTime())[0];
+  const upcoming = [
+    ...activeSessions.map((session) => nextSessionBoundary(date, session)),
+    weekendClose,
+  ]
+    .filter((item) => item.at.getTime() > date.getTime())
+    .sort((a, b) => a.at.getTime() - b.at.getTime())[0];
 
   return {
     isOpen: true,
     isOverlap,
     label: isOverlap
       ? buildLabel(activeSessions)
-      : (activeSessions[0]?.name.replace(/^Asia \/ /, "") ?? "Between sessions"),
+      : (activeSessions[0]?.name.replace(/^Asia \/ /, "") ?? "Market Closed"),
     activeSessions,
     sessions,
     nextChangeKind: upcoming?.kind ?? null,
