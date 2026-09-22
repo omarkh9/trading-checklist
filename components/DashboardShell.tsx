@@ -2,10 +2,14 @@
 
 import { AccountProvider } from "@/components/accounts/AccountProvider";
 import { AccountSwitcher } from "@/components/accounts/AccountSwitcher";
+import { AiCoachDock, AiCoachOverlay } from "@/components/ai/AiCoachChrome";
+import { AiDeskProvider, useAiDesk } from "@/components/ai/AiDesk";
+import { AiSupportWidget } from "@/components/ai/AiSupportWidget";
 import { UserMenu } from "@/components/auth/UserMenu";
 import { Sidebar, SidebarPanel } from "@/components/Sidebar";
 import { ThemeToggle } from "@/components/workspace/ThemeToggle";
-import { Menu } from "lucide-react";
+import { Menu, Sparkles } from "lucide-react";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 type DashboardShellProps = {
@@ -14,11 +18,35 @@ type DashboardShellProps = {
   description?: string;
 };
 
-export function DashboardShell({
+function CoachHeaderButton() {
+  const pathname = usePathname();
+  const { coachOpen, toggleCoach } = useAiDesk();
+  if (pathname === "/coach") return null;
+
+  return (
+    <button
+      type="button"
+      onClick={toggleCoach}
+      aria-pressed={coachOpen}
+      className={`flex h-10 items-center gap-2 rounded-lg border px-3 text-sm font-medium transition-all duration-300 ${
+        coachOpen
+          ? "border-indigo-400/40 bg-indigo-500/15 text-indigo-100"
+          : "border-white/10 bg-white/5 text-zinc-300 hover:border-indigo-400/40 hover:bg-indigo-500/10 hover:text-white"
+      }`}
+    >
+      <Sparkles className="h-4 w-4" />
+      <span className="hidden sm:inline">Coach</span>
+    </button>
+  );
+}
+
+function DashboardFrame({
   children,
   title,
   description,
 }: DashboardShellProps) {
+  const pathname = usePathname();
+  const isCoach = pathname === "/coach";
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -38,7 +66,6 @@ export function DashboardShell({
   }, [mobileMenuOpen]);
 
   return (
-    <AccountProvider>
     <div className="flex h-screen min-w-0 overflow-hidden bg-surface">
       <Sidebar />
 
@@ -85,6 +112,7 @@ export function DashboardShell({
           </div>
 
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            <CoachHeaderButton />
             <AccountSwitcher />
             <ThemeToggle />
             <div className="md:hidden">
@@ -93,11 +121,36 @@ export function DashboardShell({
           </div>
         </header>
 
-        <main className="desk-atmosphere min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-4 sm:p-8">
+        <main
+          className={`desk-atmosphere min-w-0 flex-1 ${
+            isCoach
+              ? "flex flex-col overflow-hidden p-0"
+              : "overflow-x-hidden overflow-y-auto p-4 sm:p-8"
+          }`}
+        >
           {children}
         </main>
       </div>
+
+      <AiCoachDock />
+      <AiCoachOverlay />
+      <AiSupportWidget />
     </div>
+  );
+}
+
+export function DashboardShell({
+  children,
+  title,
+  description,
+}: DashboardShellProps) {
+  return (
+    <AccountProvider>
+      <AiDeskProvider>
+        <DashboardFrame title={title} description={description}>
+          {children}
+        </DashboardFrame>
+      </AiDeskProvider>
     </AccountProvider>
   );
 }

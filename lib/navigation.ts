@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   NotebookPen,
   Settings,
+  Sparkles,
 } from "lucide-react";
 
 export type NavItem = {
@@ -45,6 +46,11 @@ export const navItems: NavItem[] = [
     label: "Analytics",
     href: "/analytics",
     icon: BarChart3,
+  },
+  {
+    label: "AI Coach",
+    href: "/coach",
+    icon: Sparkles,
   },
   {
     label: "Settings",
