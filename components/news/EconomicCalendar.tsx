@@ -18,10 +18,10 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 const IMPACT_FILL: Record<NewsImpact, string> = {
-  High: "#E53935",
-  Medium: "#FB8C00",
-  Low: "#FDD835",
-  Holiday: "#9E9E9E",
+  High: "var(--ff-impact-high, #E53935)",
+  Medium: "var(--ff-impact-medium, #FB8C00)",
+  Low: "var(--ff-impact-low, #FDD835)",
+  Holiday: "var(--ff-impact-holiday, #9E9E9E)",
 };
 
 const CURRENCY_TONE: Record<string, string> = {
@@ -76,7 +76,7 @@ function ImpactMark({ impact }: { impact: NewsImpact }) {
             width="3"
             height={3 + index * 3}
             rx="0.4"
-            fill={index < active ? fill : "rgba(255,255,255,0.12)"}
+            fill={index < active ? fill : "var(--ff-impact-idle, rgba(255,255,255,0.12))"}
           />
         ))}
       </svg>
@@ -184,7 +184,7 @@ export function EconomicCalendar({ compact = false }: { compact?: boolean }) {
   };
 
   return (
-    <section className="relative min-w-0 overflow-hidden rounded-2xl border border-indigo-400/20 bg-[#0c0c16]/90 shadow-[0_8px_32px_rgba(0,0,0,0.35)]">
+    <section className="economic-calendar relative min-w-0 overflow-hidden rounded-2xl border border-indigo-400/20 bg-[#0c0c16]/90 shadow-[0_8px_32px_rgba(0,0,0,0.35)]">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-amber-400 via-indigo-400 to-rose-400" />
 
       <div className="relative px-4 pb-3 pt-5 sm:px-5">
@@ -212,7 +212,7 @@ export function EconomicCalendar({ compact = false }: { compact?: boolean }) {
             type="button"
             onClick={() => goDay(-1)}
             disabled={!canPrev}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-zinc-300 transition-colors hover:border-indigo-400/40 hover:bg-indigo-500/10 disabled:cursor-not-allowed disabled:opacity-30"
+            className="economic-calendar-nav flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-zinc-300 transition-colors hover:border-indigo-400/40 hover:bg-indigo-500/10 disabled:cursor-not-allowed disabled:opacity-30"
             aria-label="Previous day"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -229,7 +229,7 @@ export function EconomicCalendar({ compact = false }: { compact?: boolean }) {
             type="button"
             onClick={() => goDay(1)}
             disabled={!canNext}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-zinc-300 transition-colors hover:border-indigo-400/40 hover:bg-indigo-500/10 disabled:cursor-not-allowed disabled:opacity-30"
+            className="economic-calendar-nav flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-zinc-300 transition-colors hover:border-indigo-400/40 hover:bg-indigo-500/10 disabled:cursor-not-allowed disabled:opacity-30"
             aria-label="Next day"
           >
             <ChevronRight className="h-4 w-4" />
@@ -246,11 +246,11 @@ export function EconomicCalendar({ compact = false }: { compact?: boolean }) {
                   key={key}
                   type="button"
                   onClick={() => setSelectedDay(key)}
-                  className={`flex min-w-[2.75rem] flex-1 flex-col items-center rounded-md px-1 py-1.5 text-center transition-colors ${
+                  className={`economic-calendar-day flex min-w-[2.75rem] flex-1 flex-col items-center rounded-md px-1 py-1.5 text-center transition-colors ${
                     selected
-                      ? "bg-indigo-500 text-white shadow-[0_0_12px_rgba(99,102,241,0.28)]"
+                      ? "is-selected bg-indigo-500 text-white shadow-[0_0_12px_rgba(99,102,241,0.28)]"
                       : isToday
-                        ? "border border-indigo-400/40 bg-indigo-500/10 text-indigo-200"
+                        ? "is-today border border-indigo-400/40 bg-indigo-500/10 text-indigo-200"
                         : "border border-white/10 bg-white/[0.03] text-zinc-400 hover:text-zinc-200"
                   }`}
                 >
@@ -280,7 +280,7 @@ export function EconomicCalendar({ compact = false }: { compact?: boolean }) {
           } overflow-y-auto`}
         >
           <table className="w-full min-w-[36rem] border-t border-white/10 text-left text-[12px]">
-            <thead className="sticky top-0 z-10 bg-[#12121a]">
+            <thead className="economic-calendar-head sticky top-0 z-10 bg-[#12121a]">
               <tr className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
                 <th className="px-3 py-2 font-semibold">Time</th>
                 <th className="px-2 py-2 font-semibold">Cur</th>

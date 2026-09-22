@@ -161,6 +161,83 @@ html.light option {
   color: #18181b;
 }
 
+html.light section.economic-calendar {
+  --ff-impact-low: #b45309;
+  --ff-impact-holiday: #52525b;
+  --ff-impact-idle: rgb(24 24 27 / 0.2);
+  background-color: #e8ebf4;
+  border-color: rgb(79 70 229 / 0.28);
+  box-shadow: 0 8px 28px rgb(15 23 42 / 0.08);
+}
+
+html.light .economic-calendar .economic-calendar-nav {
+  background-color: #ffffff;
+  border-color: rgb(24 24 27 / 0.16);
+  color: #3f3f46;
+}
+
+html.light .economic-calendar .economic-calendar-day:not(.is-selected) {
+  background-color: #ffffff;
+  border-color: rgb(24 24 27 / 0.14);
+  color: #3f3f46;
+}
+
+html.light .economic-calendar .economic-calendar-day.is-today:not(.is-selected) {
+  background-color: rgb(99 102 241 / 0.12);
+  border-color: rgb(79 70 229 / 0.4);
+  color: #3730a3;
+}
+
+html.light .economic-calendar .economic-calendar-head {
+  background-color: #dce2ee;
+}
+
+html.light .economic-calendar table {
+  border-top-color: rgb(24 24 27 / 0.14);
+}
+
+html.light .economic-calendar tbody tr {
+  background-color: #f8f9fc;
+  border-top-color: rgb(24 24 27 / 0.1);
+}
+
+html.light .economic-calendar tbody tr:nth-child(even) {
+  background-color: #eef1f8;
+}
+
+html.light .economic-calendar .text-emerald-300 {
+  color: #047857;
+}
+
+html.light .economic-calendar .text-indigo-300 {
+  color: #4338ca;
+}
+
+html.light .economic-calendar .text-violet-300 {
+  color: #6d28d9;
+}
+
+html.light .economic-calendar .text-rose-300 {
+  color: #be123c;
+}
+
+html.light .economic-calendar .text-amber-300 {
+  color: #b45309;
+}
+
+html.light .economic-calendar .text-red-300 {
+  color: #b91c1c;
+}
+
+html.light .economic-calendar .text-orange-200,
+html.light .economic-calendar .text-orange-300 {
+  color: #c2410c;
+}
+
+html.light .economic-calendar .text-teal-300 {
+  color: #0f766e;
+}
+
 html.dark input,
 html.dark textarea,
 html:not(.light) input,
