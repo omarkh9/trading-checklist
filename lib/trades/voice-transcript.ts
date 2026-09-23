@@ -16,7 +16,12 @@ const PAIR_WORDS: Array<[RegExp, string]> = [
   [/\bs(?:and|&)?p\s*500\b/gi, "SPX500"],
 ];
 
+const ARABIC_SCRIPT = /[\u0600-\u06FF]/;
+
 const TRADING_PHRASES: Array<[RegExp, string]> = [
+  [/ستوب\s*لوس/g, "stop loss"],
+  [/تيك\s*بروفيت/g, "take profit"],
+  [/بريك\s*ايفن/g, "breakeven"],
   [/\b(?:r\s*[\s:/.-]\s*r|are\s+are|risk\s+(?:to\s+)?reward)\b/gi, "R:R"],
   [/\b(?:one|1)\s+r\b/gi, "1R"],
   [/\b(?:two|2)\s+r\b/gi, "2R"],
@@ -66,6 +71,11 @@ export function pickBestTranscript(alternatives: string[]): string {
     .map((item) => correctTradingTranscript(item))
     .filter(Boolean);
   if (cleaned.length === 0) return "";
+  if (cleaned.some((item) => ARABIC_SCRIPT.test(item))) {
+    return cleaned.reduce((best, current) =>
+      current.length > best.length ? current : best
+    );
+  }
   return cleaned.reduce((best, current) =>
     scoreTradingTranscript(current) > scoreTradingTranscript(best)
       ? current
