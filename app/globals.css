@@ -264,6 +264,23 @@ html.light option {
   pointer-events: auto;
 }
 
+.market-session-card,
+.sidebar-status-indicator,
+.live-feed-badge {
+  position: relative;
+  top: auto;
+  right: auto;
+  bottom: auto;
+  left: auto;
+  z-index: 1;
+}
+
+.sidebar-status-indicator,
+.market-session-card .live-feed-badge {
+  display: flex;
+  margin-top: 0.5rem;
+}
+
 .economic-calendar .live-feed-badge {
   position: relative;
   left: 0;

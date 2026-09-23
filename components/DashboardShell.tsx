@@ -4,7 +4,7 @@ import { AccountProvider } from "@/components/accounts/AccountProvider";
 import { AccountSwitcher } from "@/components/accounts/AccountSwitcher";
 import { AiCoachDock, AiCoachOverlay } from "@/components/ai/AiCoachChrome";
 import { AiDeskProvider, useAiDesk } from "@/components/ai/AiDesk";
-import { AiSupportWidget } from "@/components/ai/AiSupportWidget";
+import { AiSupportWidget, SupportHeaderButton } from "@/components/ai/AiSupportWidget";
 import { UserMenu } from "@/components/auth/UserMenu";
 import { Sidebar, SidebarPanel } from "@/components/Sidebar";
 import { ThemeToggle } from "@/components/workspace/ThemeToggle";
@@ -113,6 +113,7 @@ function DashboardFrame({
 
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
             <CoachHeaderButton />
+            <SupportHeaderButton />
             <AccountSwitcher />
             <ThemeToggle />
             <div className="md:hidden">

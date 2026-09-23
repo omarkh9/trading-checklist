@@ -3,6 +3,7 @@
 import { UserMenu } from "@/components/auth/UserMenu";
 import { useOwner } from "@/components/auth/useOwner";
 import { CompactMarketClock } from "@/components/dashboard/CompactMarketClock";
+import { LiveFeedBadge } from "@/components/dashboard/SidebarLiveStatus";
 import { navItems } from "@/lib/navigation";
 import { Activity, X } from "lucide-react";
 import Link from "next/link";
@@ -86,11 +87,16 @@ export function SidebarPanel({ onNavigate, onClose }: SidebarPanelProps) {
         )}
       </div>
 
-      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-        {primaryItems.map(renderLink)}
-        {settingsItem ? renderLink(settingsItem) : null}
-        <div className="market-session-card px-0.5 pt-3">
+      <nav className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 py-4">
+        <div className="space-y-1">
+          {primaryItems.map(renderLink)}
+          {settingsItem ? renderLink(settingsItem) : null}
+        </div>
+        <div className="market-session-card mt-auto px-0.5 pt-4">
           <CompactMarketClock />
+          <div className="sidebar-status-indicator mt-2 px-0.5">
+            <LiveFeedBadge />
+          </div>
         </div>
       </nav>
 
