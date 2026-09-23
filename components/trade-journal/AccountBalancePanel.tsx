@@ -9,6 +9,7 @@ import {
   nextAccountName,
 } from "@/lib/types/account";
 import { desk } from "@/lib/ui/desk";
+import { useConfirm } from "@/components/ui/ConfirmProvider";
 import { NumericDraftInput } from "@/components/ui/NumberField";
 import {
   formatNumericDraft,
@@ -51,6 +52,7 @@ export const AccountBalancePanel = memo(function AccountBalancePanel({
     unlinkMt5Account,
     deleteAccount,
   } = useAccounts();
+  const confirm = useConfirm();
 
   const [name, setName] = useState(activeAccount?.name ?? "");
   const [startingBalanceDraft, setStartingBalanceDraft] = useState(
@@ -116,9 +118,11 @@ export const AccountBalancePanel = memo(function AccountBalancePanel({
 
   const unlinkMt5 = async () => {
     if (!activeAccount || !mt5Linked || mt5Busy) return;
-    const confirmed = window.confirm(
-      "Unlink this MT5 account? Live balance and trade sync will stop."
-    );
+    const confirmed = await confirm({
+      title: "Unlink this MT5 account?",
+      description: "Live balance and trade sync will stop.",
+      confirmLabel: "Yes, Unlink",
+    });
     if (!confirmed) return;
     setMt5Busy(true);
     try {
@@ -150,9 +154,11 @@ export const AccountBalancePanel = memo(function AccountBalancePanel({
 
   const handleDelete = async (id: string, accountName: string) => {
     if (accounts.length <= 1 || busy) return;
-    const confirmed = window.confirm(
-      `Delete ${accountName} and its trades? This cannot be undone.`
-    );
+    const confirmed = await confirm({
+      title: `Delete ${accountName}?`,
+      description:
+        "This account and all of its trades will be permanently removed. This cannot be undone.",
+    });
     if (!confirmed) return;
     setBusy(true);
     try {

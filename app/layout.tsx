@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { PwaRegister } from "@/components/PwaRegister";
+import { ConfirmProvider } from "@/components/ui/ConfirmProvider";
 import { WorkspaceProvider } from "@/components/workspace/WorkspaceProvider";
 import { THEME_BOOTSTRAP_SCRIPT } from "@/lib/settings/workspace";
 import {
@@ -120,7 +121,9 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
         <PwaRegister />
-        <WorkspaceProvider>{children}</WorkspaceProvider>
+        <WorkspaceProvider>
+          <ConfirmProvider>{children}</ConfirmProvider>
+        </WorkspaceProvider>
       </body>
     </html>
   );

@@ -6,6 +6,7 @@ import { formatLocalDateTime } from "@/lib/time";
 import { formatPnlDollars } from "@/lib/trades/pnl";
 import type { Direction, Outcome, Trade } from "@/lib/types/trade";
 import { assetClassBadgeClass } from "@/lib/ui/desk";
+import { useConfirm } from "@/components/ui/ConfirmProvider";
 import { ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import { useState } from "react";
 
@@ -30,7 +31,16 @@ function formatDate(iso: string) {
 }
 
 export function TradeTable({ trades, onDelete }: TradeTableProps) {
+  const confirm = useConfirm();
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const requestDelete = async (trade: Trade) => {
+    const ok = await confirm({
+      title: "Delete this trade?",
+      description: `${trade.pair} ${trade.direction} will be permanently removed from the journal. This cannot be undone.`,
+    });
+    if (ok) onDelete(trade.id);
+  };
 
   if (trades.length === 0) {
     return (
@@ -161,7 +171,7 @@ export function TradeTable({ trades, onDelete }: TradeTableProps) {
                           )}
                           <button
                             type="button"
-                            onClick={() => onDelete(trade.id)}
+                            onClick={() => void requestDelete(trade)}
                             className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 opacity-0 transition-all hover:bg-rose-500/10 hover:text-rose-400 group-hover:opacity-100"
                             aria-label="Delete trade"
                           >

@@ -15,8 +15,9 @@ import { formatPnlDollars } from "@/lib/trades/pnl";
 import type { TradingAccount } from "@/lib/types/account";
 import type { Direction, Outcome, Trade, TradeFormData } from "@/lib/types/trade";
 import { assetClassBadgeClass } from "@/lib/ui/desk";
+import { useConfirm } from "@/components/ui/ConfirmProvider";
 import { Eye, Pencil, Trash2 } from "lucide-react";
-import { memo, useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 
 type FilterTab = "All" | Outcome;
 
@@ -58,9 +59,21 @@ export const TradeHistoryGrid = memo(function TradeHistoryGrid({
   variant = "cards",
   emptyHint,
 }: TradeHistoryGridProps) {
+  const confirm = useConfirm();
   const [activeFilter, setActiveFilter] = useState<FilterTab>("All");
   const [viewTradeId, setViewTradeId] = useState<string | null>(null);
   const [editTradeId, setEditTradeId] = useState<string | null>(null);
+
+  const requestDelete = useCallback(
+    async (trade: Trade) => {
+      const ok = await confirm({
+        title: "Delete this trade?",
+        description: `${trade.pair} ${trade.direction} will be permanently removed from the journal. This cannot be undone.`,
+      });
+      if (ok) await onDelete(trade.id);
+    },
+    [confirm, onDelete]
+  );
 
   const sortedTrades = useMemo(
     () =>
@@ -238,7 +251,7 @@ export const TradeHistoryGrid = memo(function TradeHistoryGrid({
                           </button>
                           <button
                             type="button"
-                            onClick={() => onDelete(trade.id)}
+                            onClick={() => void requestDelete(trade)}
                             className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-rose-500/15 hover:text-rose-300"
                             aria-label={`Delete ${trade.pair}`}
                           >
@@ -349,7 +362,7 @@ export const TradeHistoryGrid = memo(function TradeHistoryGrid({
                   </button>
                   <button
                     type="button"
-                    onClick={() => onDelete(trade.id)}
+                    onClick={() => void requestDelete(trade)}
                     className="inline-flex shrink-0 items-center justify-center rounded-lg border border-white/10 px-3 py-2 text-zinc-400 transition-all duration-300 hover:border-rose-500/30 hover:bg-rose-500/10 hover:text-rose-400"
                     aria-label={`Delete ${trade.pair} trade`}
                   >

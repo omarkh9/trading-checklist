@@ -2,6 +2,7 @@
 
 import { ConfidenceMeter } from "@/components/pre-trade-checklist/ConfidenceMeter";
 import { usePersistedChecklist } from "@/components/pre-trade-checklist/usePersistedChecklist";
+import { useConfirm } from "@/components/ui/ConfirmProvider";
 import { DeskCard } from "@/components/ui/DeskCard";
 import { formatCalendarDateLabel } from "@/lib/time";
 import { SUGGESTED_RULES, type ChecklistItem } from "@/lib/types/checklist";
@@ -309,6 +310,7 @@ export const PreTradeChecklist = memo(function PreTradeChecklist() {
     moveRule,
   } = usePersistedChecklist();
 
+  const confirm = useConfirm();
   const [newRuleLabel, setNewRuleLabel] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingLabel, setEditingLabel] = useState("");
@@ -370,10 +372,17 @@ export const PreTradeChecklist = memo(function PreTradeChecklist() {
   );
 
   const handleDelete = useCallback(
-    (id: string) => {
-      void removeRule(id);
+    async (id: string) => {
+      const rule = rules.find((item) => item.id === id);
+      const ok = await confirm({
+        title: "Delete this rule?",
+        description: rule
+          ? `"${rule.label}" will be removed from your pre-trade checklist.`
+          : "This checklist rule will be removed.",
+      });
+      if (ok) await removeRule(id);
     },
-    [removeRule]
+    [confirm, removeRule, rules]
   );
 
   const handleMove = useCallback(

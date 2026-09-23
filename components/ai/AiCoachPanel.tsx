@@ -3,6 +3,7 @@
 import { ChatComposer } from "@/components/ai/ChatComposer";
 import { ChatThread } from "@/components/ai/ChatThread";
 import { useAiDesk } from "@/components/ai/AiDesk";
+import { useConfirm } from "@/components/ui/ConfirmProvider";
 import { Sparkles, Trash2, X } from "lucide-react";
 
 const SUGGESTIONS = [
@@ -18,6 +19,7 @@ type AiCoachPanelProps = {
 
 export function AiCoachPanel({ variant, onClose }: AiCoachPanelProps) {
   const { coach, context } = useAiDesk();
+  const confirm = useConfirm();
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-[#0c0c16]">
@@ -39,7 +41,16 @@ export function AiCoachPanel({ variant, onClose }: AiCoachPanelProps) {
         </div>
         <button
           type="button"
-          onClick={coach.clear}
+          onClick={() => {
+            void confirm({
+              title: "Clear this conversation?",
+              description:
+                "Coach messages in this session will be removed.",
+              confirmLabel: "Yes, Clear",
+            }).then((ok) => {
+              if (ok) coach.clear();
+            });
+          }}
           className="flex h-9 w-9 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-white/5 hover:text-zinc-200"
           aria-label="Clear conversation"
         >
