@@ -7,6 +7,7 @@ import { useCachedTrades } from "@/components/trade-journal/useCachedTrades";
 import { ThemeToggle } from "@/components/workspace/ThemeToggle";
 import { useWorkspaceSettings } from "@/components/workspace/WorkspaceProvider";
 import { DeskCard } from "@/components/ui/DeskCard";
+import { NumberField } from "@/components/ui/NumberField";
 import {
   listTimeZones,
   resolveDisplayTimeZone,
@@ -64,17 +65,15 @@ export function SettingsHub() {
             <label className={desk.label} htmlFor="default-risk">
               Default risk %
             </label>
-            <input
+            <NumberField
               id="default-risk"
-              type="number"
               min={0}
               max={100}
               step="0.1"
               value={settings.defaultRiskPercent}
-              onChange={(event) =>
-                setSettings({
-                  defaultRiskPercent: Number(event.target.value) || 0,
-                })
+              emptyValue={0}
+              onCommit={(defaultRiskPercent) =>
+                setSettings({ defaultRiskPercent })
               }
               className={desk.input}
             />
@@ -83,18 +82,14 @@ export function SettingsHub() {
             <label className={desk.label} htmlFor="max-risk">
               Max risk %
             </label>
-            <input
+            <NumberField
               id="max-risk"
-              type="number"
               min={0}
               max={100}
               step="0.1"
               value={settings.maxRiskPercent}
-              onChange={(event) =>
-                setSettings({
-                  maxRiskPercent: Number(event.target.value) || 0,
-                })
-              }
+              emptyValue={0}
+              onCommit={(maxRiskPercent) => setSettings({ maxRiskPercent })}
               className={desk.input}
             />
           </div>
@@ -102,17 +97,15 @@ export function SettingsHub() {
             <label className={desk.label} htmlFor="daily-loss">
               Daily loss limit %
             </label>
-            <input
+            <NumberField
               id="daily-loss"
-              type="number"
               min={0}
               max={100}
               step="0.1"
               value={settings.dailyLossLimitPercent}
-              onChange={(event) =>
-                setSettings({
-                  dailyLossLimitPercent: Number(event.target.value) || 0,
-                })
+              emptyValue={0}
+              onCommit={(dailyLossLimitPercent) =>
+                setSettings({ dailyLossLimitPercent })
               }
               className={desk.input}
             />

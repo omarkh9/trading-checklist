@@ -38,6 +38,7 @@ import {
 import type { TradingAccount } from "@/lib/types/account";
 import { withDailyChecks } from "@/lib/types/checklist";
 import { DeskCard } from "@/components/ui/DeskCard";
+import { NumericDraftInput } from "@/components/ui/NumberField";
 import { desk } from "@/lib/ui/desk";
 import { formatCalendarDateLabel, isoTimestampForDateKey, localDateKey } from "@/lib/time";
 import { ChevronDown, Save } from "lucide-react";
@@ -706,10 +707,8 @@ export const TradeForm = memo(function TradeForm({
               <label htmlFor="lotSize" className={labelClass}>
                 Lot size
               </label>
-              <input
+              <NumericDraftInput
                 id="lotSize"
-                type="text"
-                inputMode="decimal"
                 placeholder={
                   calculatedLot != null ? formatLotSize(calculatedLot) : "e.g. 0.10"
                 }
@@ -718,8 +717,7 @@ export const TradeForm = memo(function TradeForm({
                     ? form.fixedLotSize
                     : form.lotSize
                 }
-                onChange={(e) => {
-                  const next = e.target.value;
+                onValueChange={(next) => {
                   if (form.riskSizeMode === "fixed") {
                     update("fixedLotSize", next);
                     update("lotSize", next);
@@ -740,13 +738,11 @@ export const TradeForm = memo(function TradeForm({
               <label htmlFor="entryPrice" className={labelClass}>
                 Entry Price
               </label>
-              <input
+              <NumericDraftInput
                 id="entryPrice"
-                type="text"
-                inputMode="decimal"
                 placeholder="0.00"
                 value={form.entryPrice}
-                onChange={(e) => update("entryPrice", e.target.value)}
+                onValueChange={(next) => update("entryPrice", next)}
                 className={inputClass}
               />
             </div>
@@ -755,13 +751,11 @@ export const TradeForm = memo(function TradeForm({
               <label htmlFor="exitPrice" className={labelClass}>
                 Exit Price
               </label>
-              <input
+              <NumericDraftInput
                 id="exitPrice"
-                type="text"
-                inputMode="decimal"
                 placeholder="0.00"
                 value={form.exitPrice}
-                onChange={(e) => update("exitPrice", e.target.value)}
+                onValueChange={(next) => update("exitPrice", next)}
                 className={inputClass}
               />
             </div>
@@ -770,13 +764,11 @@ export const TradeForm = memo(function TradeForm({
               <label htmlFor="stopLoss" className={labelClass}>
                 Stop Loss
               </label>
-              <input
+              <NumericDraftInput
                 id="stopLoss"
-                type="text"
-                inputMode="decimal"
                 placeholder="0.00"
                 value={form.stopLoss}
-                onChange={(e) => update("stopLoss", e.target.value)}
+                onValueChange={(next) => update("stopLoss", next)}
                 className={inputClass}
               />
             </div>
@@ -785,13 +777,11 @@ export const TradeForm = memo(function TradeForm({
               <label htmlFor="takeProfit" className={labelClass}>
                 Take Profit
               </label>
-              <input
+              <NumericDraftInput
                 id="takeProfit"
-                type="text"
-                inputMode="decimal"
                 placeholder="0.00"
                 value={form.takeProfit}
-                onChange={(e) => update("takeProfit", e.target.value)}
+                onValueChange={(next) => update("takeProfit", next)}
                 className={inputClass}
               />
             </div>
@@ -828,16 +818,14 @@ export const TradeForm = memo(function TradeForm({
                     update("pnlMode", value);
                   }}
                 />
-                <input
-                  type="text"
-                  inputMode="decimal"
+                <NumericDraftInput
                   placeholder={
                     pnlModeValue === "dollar" ? "e.g. 250" : "e.g. 1.5"
                   }
                   value={pnlInputValue}
-                  onChange={(e) => {
+                  onValueChange={(next) => {
                     setManualPnl(true);
-                    update("pnlInput", e.target.value);
+                    update("pnlInput", next);
                   }}
                   className={inputClass}
                 />
@@ -923,21 +911,17 @@ export const TradeForm = memo(function TradeForm({
                 />
 
                 {form.riskSizeMode === "fixed" ? (
-                  <input
-                    type="text"
-                    inputMode="decimal"
+                  <NumericDraftInput
                     placeholder="Fixed lot / contracts"
                     value={form.fixedLotSize}
-                    onChange={(e) => update("fixedLotSize", e.target.value)}
+                    onValueChange={(next) => update("fixedLotSize", next)}
                     className={inputClass}
                   />
                 ) : (
-                  <input
-                    type="text"
-                    inputMode="decimal"
+                  <NumericDraftInput
                     placeholder="Risk % of balance (e.g. 1)"
                     value={form.riskPercent}
-                    onChange={(e) => update("riskPercent", e.target.value)}
+                    onValueChange={(next) => update("riskPercent", next)}
                     className={inputClass}
                   />
                 )}

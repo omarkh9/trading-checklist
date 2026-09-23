@@ -9,30 +9,20 @@ import {
   nextAccountName,
 } from "@/lib/types/account";
 import { desk } from "@/lib/ui/desk";
-import { parseNumericInput } from "@/lib/trades/pnl";
+import { NumericDraftInput } from "@/components/ui/NumberField";
+import {
+  formatNumericDraft,
+  parseNumericDraft,
+} from "@/lib/forms/numeric-input";
 import { Plus, Trash2, Unlink } from "lucide-react";
 import { memo, useEffect, useState } from "react";
 
 function toBalanceDraft(value: number) {
-  return Number.isFinite(value) ? String(value) : "";
-}
-
-function normalizeBalanceDraft(value: string) {
-  const cleaned = value.replace(/[^\d.]/g, "");
-  if (!cleaned) return "";
-
-  const dot = cleaned.indexOf(".");
-  const wholeRaw = dot === -1 ? cleaned : cleaned.slice(0, dot);
-  const fraction = dot === -1 ? "" : cleaned.slice(dot + 1).replace(/\./g, "");
-  const whole = wholeRaw.replace(/^0+(?=\d)/, "");
-
-  if (dot === -1) return whole;
-  return `${whole || "0"}.${fraction}`;
+  return formatNumericDraft(value);
 }
 
 function parseBalanceDraft(value: string) {
-  if (!value.trim()) return 0;
-  const parsed = parseNumericInput(value);
+  const parsed = parseNumericDraft(value);
   return parsed != null && parsed >= 0 ? parsed : 0;
 }
 
@@ -69,7 +59,7 @@ export const AccountBalancePanel = memo(function AccountBalancePanel({
   const [mt5Open, setMt5Open] = useState(false);
   const [mt5Busy, setMt5Busy] = useState(false);
   const [newName, setNewName] = useState("");
-  const [newBalance, setNewBalance] = useState(10_000);
+  const [newBalanceDraft, setNewBalanceDraft] = useState("10000");
   const [isCreating, setIsCreating] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -146,11 +136,10 @@ export const AccountBalancePanel = memo(function AccountBalancePanel({
     try {
       await createAccount({
         name: newName.trim() || nextAccountName(accounts),
-        startingBalance:
-          Number.isFinite(newBalance) && newBalance >= 0 ? newBalance : 0,
+        startingBalance: parseBalanceDraft(newBalanceDraft),
       });
       setNewName("");
-      setNewBalance(10_000);
+      setNewBalanceDraft("10000");
       setIsCreating(false);
     } catch {
       // Surface via AccountProvider error on the journal.
@@ -204,15 +193,11 @@ export const AccountBalancePanel = memo(function AccountBalancePanel({
           <label htmlFor="starting-balance" className={desk.label}>
             Starting Balance
           </label>
-          <input
+          <NumericDraftInput
             id="starting-balance"
-            type="text"
-            inputMode="decimal"
             placeholder="0"
             value={startingBalanceDraft}
-            onChange={(e) =>
-              setStartingBalanceDraft(normalizeBalanceDraft(e.target.value))
-            }
+            onValueChange={setStartingBalanceDraft}
             onBlur={() => void persistStartingBalance()}
             className={desk.input}
           />
@@ -413,15 +398,11 @@ export const AccountBalancePanel = memo(function AccountBalancePanel({
               onChange={(e) => setNewName(e.target.value)}
               className={desk.input}
             />
-            <input
-              type="number"
+            <NumericDraftInput
               min={0}
-              step="0.01"
-              value={newBalance}
-              onChange={(e) => {
-                const next = parseFloat(e.target.value);
-                setNewBalance(Number.isFinite(next) && next >= 0 ? next : 0);
-              }}
+              placeholder="Starting balance"
+              value={newBalanceDraft}
+              onValueChange={setNewBalanceDraft}
               className={desk.input}
             />
             <div className="flex gap-2">

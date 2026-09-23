@@ -37,6 +37,16 @@ html.light {
     @apply overflow-x-hidden bg-surface text-zinc-100 antialiased;
   }
 
+  input[type="number"] {
+    appearance: textfield;
+  }
+
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    appearance: none;
+    margin: 0;
+  }
+
   html.light body {
     color: var(--ink);
   }

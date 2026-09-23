@@ -14,6 +14,7 @@ import {
 } from "@/lib/trades/lot-size";
 import { parseNumericInput } from "@/lib/trades/pnl";
 import type { Direction } from "@/lib/types/trade";
+import { NumericDraftInput } from "@/components/ui/NumberField";
 import { desk } from "@/lib/ui/desk";
 import { useMemo, useState } from "react";
 
@@ -139,12 +140,10 @@ export function PositionSizer({
           <label className={desk.label} htmlFor="sizer-risk">
             Risk %
           </label>
-          <input
+          <NumericDraftInput
             id="sizer-risk"
-            type="text"
-            inputMode="decimal"
             value={riskPercent}
-            onChange={(event) => setRiskPercent(event.target.value)}
+            onValueChange={setRiskPercent}
             className={desk.input}
           />
           {overCap && (
@@ -157,13 +156,11 @@ export function PositionSizer({
           <label className={desk.label} htmlFor="sizer-entry">
             Entry
           </label>
-          <input
+          <NumericDraftInput
             id="sizer-entry"
-            type="text"
-            inputMode="decimal"
             placeholder="0.00"
             value={entryPrice}
-            onChange={(event) => setEntryPrice(event.target.value)}
+            onValueChange={setEntryPrice}
             className={desk.input}
           />
         </div>
@@ -171,13 +168,11 @@ export function PositionSizer({
           <label className={desk.label} htmlFor="sizer-stop">
             Stop loss
           </label>
-          <input
+          <NumericDraftInput
             id="sizer-stop"
-            type="text"
-            inputMode="decimal"
             placeholder="0.00"
             value={stopLoss}
-            onChange={(event) => setStopLoss(event.target.value)}
+            onValueChange={setStopLoss}
             className={desk.input}
           />
         </div>

@@ -1,9 +1,9 @@
+import { parseNumericDraft } from "@/lib/forms/numeric-input";
 import { calculatePnlFromPrices, roundMoney } from "@/lib/trades/contract-math";
 import type { Direction, Outcome, PnlMode, Trade } from "@/lib/types/trade";
 
 export function parseNumericInput(value: string): number | null {
-  const parsed = parseFloat(value.replace(/,/g, ""));
-  return Number.isFinite(parsed) ? parsed : null;
+  return parseNumericDraft(value);
 }
 
 export function outcomeFromPnl(value: number): Outcome {
