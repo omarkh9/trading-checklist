@@ -485,31 +485,32 @@ export const TradeForm = memo(function TradeForm({
     if (!form.pair.trim() || isSaving) return;
 
     setIsSaving(true);
+    const payload = {
+      ...form,
+      strategy: form.strategy.trim(),
+      outcome: tradeResult.outcome,
+      pnlDollars: tradeResult.pnlDollars,
+      pnlInput: tradeResult.autoCalculated
+        ? Math.abs(tradeResult.pnlDollars).toFixed(2)
+        : form.pnlInput,
+      pnlMode: tradeResult.autoCalculated ? "dollar" : form.pnlMode,
+      lotSize:
+        displayLotSize === "—"
+          ? formatLotSize(lotsForPnl) === "—"
+            ? form.lotSize
+            : formatLotSize(lotsForPnl)
+          : displayLotSize,
+      riskPercent: String(cappedRisk),
+      accountBalanceAtEntry: currentBalance,
+      accountId: form.accountId || defaultAccountId,
+      checkedRuleIds: activeCheckedIds,
+      ruleScore,
+      createdAt: entryDateKey
+        ? isoTimestampForDateKey(entryDateKey)
+        : form.createdAt,
+    };
     try {
-      await onSubmit({
-        ...form,
-        strategy: form.strategy.trim(),
-        outcome: tradeResult.outcome,
-        pnlDollars: tradeResult.pnlDollars,
-        pnlInput: tradeResult.autoCalculated
-          ? Math.abs(tradeResult.pnlDollars).toFixed(2)
-          : form.pnlInput,
-        pnlMode: tradeResult.autoCalculated ? "dollar" : form.pnlMode,
-        lotSize:
-          displayLotSize === "—"
-            ? formatLotSize(lotsForPnl) === "—"
-              ? form.lotSize
-              : formatLotSize(lotsForPnl)
-            : displayLotSize,
-        riskPercent: String(cappedRisk),
-        accountBalanceAtEntry: currentBalance,
-        accountId: form.accountId || defaultAccountId,
-        checkedRuleIds: activeCheckedIds,
-        ruleScore,
-        createdAt: entryDateKey
-          ? isoTimestampForDateKey(entryDateKey)
-          : form.createdAt,
-      });
+      const pending = onSubmit(payload);
       if (!initialData) {
         setForm({
           ...emptyTradeForm(),
@@ -517,7 +518,9 @@ export const TradeForm = memo(function TradeForm({
           riskPercent: String(settings.defaultRiskPercent),
         });
         setManualPnl(false);
+        setIsSaving(false);
       }
+      await pending;
     } catch {
       // Persist errors are shown by the journal/history views.
     } finally {

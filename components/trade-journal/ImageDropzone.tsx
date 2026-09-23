@@ -1,6 +1,7 @@
 "use client";
 
 import { ChartLightbox } from "@/components/trade-journal/ChartLightbox";
+import { compressChartImage } from "@/lib/trades/chart-image";
 import { Expand, ImagePlus, X } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
 
@@ -15,6 +16,7 @@ export function ImageDropzone({ label, value, onChange, compact = false }: Image
   const inputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [open, setOpen] = useState(false);
+  const [compressing, setCompressing] = useState(false);
   const previewHeight = compact ? "h-32" : "h-44";
 
   const handleFile = useCallback(
@@ -22,7 +24,14 @@ export function ImageDropzone({ label, value, onChange, compact = false }: Image
       if (!file.type.startsWith("image/")) return;
 
       const reader = new FileReader();
-      reader.onload = () => onChange(reader.result as string);
+      reader.onload = () => {
+        const raw = String(reader.result ?? "");
+        if (!raw) return;
+        setCompressing(true);
+        void compressChartImage(raw)
+          .then((next) => onChange(next))
+          .finally(() => setCompressing(false));
+      };
       reader.readAsDataURL(file);
     },
     [onChange]
@@ -124,7 +133,7 @@ export function ImageDropzone({ label, value, onChange, compact = false }: Image
           <ImagePlus className="h-5 w-5" />
         </div>
         <p className="mt-3 text-sm font-medium text-zinc-400">
-          Drop image here or click to browse
+          {compressing ? "Optimizing image…" : "Drop image here or click to browse"}
         </p>
         <p className="mt-1 text-xs text-zinc-600">PNG, JPG, WEBP</p>
         <input

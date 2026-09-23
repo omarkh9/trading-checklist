@@ -1,5 +1,5 @@
 import { ensureTradingAccountPersisted } from "@/lib/supabase/accounts";
-import { createClient } from "@/lib/supabase/client";
+import { requireUserSession } from "@/lib/supabase/session";
 import type { TradeInsert, TradeRow, TradeUpdate } from "@/lib/supabase/database.types";
 import {
   readTradeAccountMap,
@@ -7,8 +7,13 @@ import {
   tradesForAccount,
   writeTradeAccountMapEntry,
 } from "@/lib/trades/account-balance";
+import {
+  chartPayloadBytes,
+  compressTradeCharts,
+} from "@/lib/trades/chart-image";
 import { asScore, asStringArray, decodeNotesWithMeta, encodeNotesWithMeta } from "@/lib/trades/journal-meta";
 import { normalizeTrade } from "@/lib/trades/load-trades";
+import { formDataToTrade } from "@/lib/trades/trade-form";
 import {
   getCachedTrades,
   loadTradesCache,
@@ -16,6 +21,9 @@ import {
   upsertTradeInCache,
 } from "@/lib/trades/trades-cache";
 import type { Trade, TradeFormData } from "@/lib/types/trade";
+
+const HEAVY_CHART_CHARS = 420_000;
+const confirmedAccountIds = new Set<string>();
 
 function throwIfError(error: { message: string } | null) {
   if (error) throw new Error(error.message);
@@ -66,14 +74,7 @@ function persistStrategyInNotes(strategy: string | undefined, notes: string | un
 }
 
 async function requireUserId() {
-  const supabase = createClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-  throwIfError(error);
-  if (!user) throw new Error("You must be signed in to manage trades.");
-  return { supabase, userId: user.id };
+  return requireUserSession();
 }
 
 function applyAccountFallback(trade: Trade, map: Record<string, string>): Trade {
@@ -266,112 +267,150 @@ async function attachPersistedAccountId<
 >(payload: T, accountId: string | null | undefined): Promise<T> {
   const requested = accountId?.trim() || payload.account_id || "";
   if (!requested) return withoutAccountId(payload) as T;
+  if (confirmedAccountIds.has(requested)) {
+    return { ...payload, account_id: requested };
+  }
   const persisted = await ensureTradingAccountPersisted(requested);
   if (!persisted) return withoutAccountId(payload) as T;
+  confirmedAccountIds.add(persisted);
   return { ...payload, account_id: persisted };
 }
 
-export async function insertTrade(data: TradeFormData): Promise<Trade> {
-  const { supabase, userId } = await requireUserId();
-  let payload: TradeInsert = await attachPersistedAccountId(
-    tradeFormToInsert(data, userId),
-    data.accountId
-  );
-  let { data: row, error } = await supabase
-    .from("trades")
-    .insert(payload)
-    .select()
-    .single();
-
-  if (isAccountForeignKeyViolation(error) && payload.account_id) {
-    payload = await attachPersistedAccountId(payload, payload.account_id);
-    const retry = await supabase
-      .from("trades")
-      .insert(payload)
-      .select()
-      .single();
-    row = retry.data;
-    error = retry.error;
-  }
-
-  if (isMissingAccountColumn(error)) {
-    payload = withoutAccountId(payload);
-    const retry = await supabase
-      .from("trades")
-      .insert(payload)
-      .select()
-      .single();
-    row = retry.data;
-    error = retry.error;
-  }
-
-  if (isMissingStrategyColumn(error)) {
-    payload = {
-      ...withoutStrategy(payload),
-      notes: persistStrategyInNotes(payload.strategy, payload.notes),
+function splitHeavyCharts<T extends TradeInsert | TradeUpdate>(payload: T) {
+  const before = payload.before_chart ?? null;
+  const after = payload.after_chart ?? null;
+  if (chartPayloadBytes(before, after) <= HEAVY_CHART_CHARS) {
+    return {
+      payload,
+      deferred: null as { before_chart: string | null; after_chart: string | null } | null,
     };
-    const retry = await supabase
-      .from("trades")
-      .insert(payload)
-      .select()
-      .single();
-    row = retry.data;
-    error = retry.error;
   }
+  return {
+    payload: { ...payload, before_chart: null, after_chart: null } as T,
+    deferred: { before_chart: before, after_chart: after },
+  };
+}
 
-  throwIfError(error);
-  if (!row) throw new Error("Trade was not saved.");
-  const accountId = payload.account_id || data.accountId;
-  if (accountId) writeTradeAccountMapEntry(row.id, accountId);
-  const created = applyAccountFallback(
-    normalizeTrade(tradeFromRow(row)),
+async function insertPayload(
+  supabase: Awaited<ReturnType<typeof requireUserId>>["supabase"],
+  payload: TradeInsert
+) {
+  return supabase.from("trades").insert(payload);
+}
+
+async function updatePayload(
+  supabase: Awaited<ReturnType<typeof requireUserId>>["supabase"],
+  id: string,
+  userId: string,
+  payload: TradeUpdate
+) {
+  return supabase.from("trades").update(payload).eq("id", id).eq("user_id", userId);
+}
+
+async function persistChartsLater(
+  supabase: Awaited<ReturnType<typeof requireUserId>>["supabase"],
+  id: string,
+  userId: string,
+  charts: { before_chart: string | null; after_chart: string | null }
+) {
+  void supabase.from("trades").update(charts).eq("id", id).eq("user_id", userId);
+}
+
+export async function insertTrade(data: TradeFormData): Promise<Trade> {
+  const prepared = await compressTradeCharts(data);
+  const id = crypto.randomUUID();
+  const createdAt = prepared.createdAt || new Date().toISOString();
+  const optimistic = applyAccountFallback(
+    normalizeTrade(formDataToTrade({ ...prepared, createdAt }, id, createdAt)),
     readTradeAccountMap()
   );
-  upsertTradeInCache(created);
-  return created;
+  upsertTradeInCache(optimistic);
+  if (optimistic.accountId) writeTradeAccountMapEntry(id, optimistic.accountId);
+
+  try {
+    const { supabase, userId } = await requireUserId();
+    let payload: TradeInsert = await attachPersistedAccountId(
+      { ...tradeFormToInsert(prepared, userId), id, created_at: createdAt },
+      prepared.accountId
+    );
+    const split = splitHeavyCharts(payload);
+    payload = split.payload;
+
+    let { error } = await insertPayload(supabase, payload);
+
+    if (isAccountForeignKeyViolation(error) && payload.account_id) {
+      confirmedAccountIds.delete(payload.account_id);
+      payload = await attachPersistedAccountId(payload, payload.account_id);
+      error = (await insertPayload(supabase, payload)).error;
+    }
+
+    if (isMissingAccountColumn(error)) {
+      payload = withoutAccountId(payload);
+      error = (await insertPayload(supabase, payload)).error;
+    }
+
+    if (isMissingStrategyColumn(error)) {
+      payload = {
+        ...withoutStrategy(payload),
+        notes: persistStrategyInNotes(payload.strategy, payload.notes),
+      };
+      error = (await insertPayload(supabase, payload)).error;
+    }
+
+    throwIfError(error);
+    if (split.deferred) {
+      persistChartsLater(supabase, id, userId, split.deferred);
+    }
+    return optimistic;
+  } catch (cause) {
+    removeTradesFromCache([id]);
+    throw cause;
+  }
 }
 
 export async function updateTrade(
   id: string,
   data: TradeFormData
 ): Promise<Trade> {
+  const existing = getCachedTrades()?.find((trade) => trade.id === id);
+  const prepared = await compressTradeCharts(data);
+  const updated = applyAccountFallback(
+    normalizeTrade(
+      formDataToTrade(
+        prepared,
+        id,
+        existing?.createdAt || prepared.createdAt || new Date().toISOString()
+      )
+    ),
+    readTradeAccountMap()
+  );
+  upsertTradeInCache(updated);
+
   const { supabase, userId } = await requireUserId();
   let payload: TradeUpdate = await attachPersistedAccountId(
-    tradeFormToUpdate(data),
-    data.accountId
+    tradeFormToUpdate(prepared),
+    prepared.accountId
   );
-  let { data: row, error } = await supabase
-    .from("trades")
-    .update(payload)
-    .eq("id", id)
-    .eq("user_id", userId)
-    .select()
-    .single();
+  if (existing?.beforeChart === prepared.beforeChart) {
+    delete payload.before_chart;
+  }
+  if (existing?.afterChart === prepared.afterChart) {
+    delete payload.after_chart;
+  }
+  const split = splitHeavyCharts(payload);
+  payload = split.payload;
+
+  let { error } = await updatePayload(supabase, id, userId, payload);
 
   if (isAccountForeignKeyViolation(error) && payload.account_id) {
+    confirmedAccountIds.delete(payload.account_id);
     payload = await attachPersistedAccountId(payload, payload.account_id);
-    const retry = await supabase
-      .from("trades")
-      .update(payload)
-      .eq("id", id)
-      .eq("user_id", userId)
-      .select()
-      .single();
-    row = retry.data;
-    error = retry.error;
+    error = (await updatePayload(supabase, id, userId, payload)).error;
   }
 
   if (isMissingAccountColumn(error)) {
     payload = withoutAccountId(payload);
-    const retry = await supabase
-      .from("trades")
-      .update(payload)
-      .eq("id", id)
-      .eq("user_id", userId)
-      .select()
-      .single();
-    row = retry.data;
-    error = retry.error;
+    error = (await updatePayload(supabase, id, userId, payload)).error;
   }
 
   if (isMissingStrategyColumn(error)) {
@@ -379,26 +418,18 @@ export async function updateTrade(
       ...withoutStrategy(payload),
       notes: persistStrategyInNotes(payload.strategy, payload.notes),
     };
-    const retry = await supabase
-      .from("trades")
-      .update(payload)
-      .eq("id", id)
-      .eq("user_id", userId)
-      .select()
-      .single();
-    row = retry.data;
-    error = retry.error;
+    error = (await updatePayload(supabase, id, userId, payload)).error;
   }
 
-  throwIfError(error);
-  if (!row) throw new Error("Trade was not updated.");
-  const accountId = payload.account_id || data.accountId;
+  if (error) {
+    if (existing) upsertTradeInCache(existing);
+    throwIfError(error);
+  }
+  const accountId = payload.account_id || prepared.accountId;
   if (accountId) writeTradeAccountMapEntry(id, accountId);
-  const updated = applyAccountFallback(
-    normalizeTrade(tradeFromRow(row)),
-    readTradeAccountMap()
-  );
-  upsertTradeInCache(updated);
+  if (split.deferred) {
+    persistChartsLater(supabase, id, userId, split.deferred);
+  }
   return updated;
 }
 

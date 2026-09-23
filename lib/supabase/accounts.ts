@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
+import { requireUserSession } from "@/lib/supabase/session";
 import type {
   TradingAccountInsert,
   TradingAccountRow,
@@ -94,15 +95,10 @@ function mt5FieldsFromUnknown(value: Partial<TradingAccount> | null | undefined)
   };
 }
 
+const persistedAccountIds = new Set<string>();
+
 async function requireUserId() {
-  const supabase = createClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-  throwIfError(error);
-  if (!user) throw new Error("You must be signed in to manage trading accounts.");
-  return { supabase, userId: user.id };
+  return requireUserSession();
 }
 
 function accountFromRow(row: TradingAccountRow): TradingAccount {
@@ -387,9 +383,13 @@ async function insertRemoteAccount(
 
 export async function ensureTradingAccountPersisted(accountId: string) {
   if (!accountId) return "";
+  if (persistedAccountIds.has(accountId)) return accountId;
   const { supabase, userId } = await requireUserId();
   const existing = await findRemoteAccountById(supabase, userId, accountId);
-  if (existing) return existing.id;
+  if (existing) {
+    persistedAccountIds.add(existing.id);
+    return existing.id;
+  }
 
   const local =
     cachedAccounts?.find((account) => account.id === accountId) ??
@@ -402,6 +402,7 @@ export async function ensureTradingAccountPersisted(accountId: string) {
       cachedAccounts.map((account) => (account.id === accountId ? row : account))
     );
   }
+  if (row?.id) persistedAccountIds.add(row.id);
   return row?.id ?? "";
 }
 
