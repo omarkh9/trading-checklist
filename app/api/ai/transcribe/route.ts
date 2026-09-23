@@ -74,10 +74,17 @@ export async function POST(request: Request) {
     return Response.json({ ok: false, error: "unsupported_type" }, { status: 415 });
   }
 
+  const language = String(form.get("language") ?? "")
+    .trim()
+    .toLowerCase();
+
   const payload = new FormData();
   payload.append("file", file, file.name || fileNameFor(type));
   payload.append("model", config.model);
   payload.append("prompt", VOICE_TRANSCRIBE_PROMPT);
+  if (language === "ar" || language === "en") {
+    payload.append("language", language);
+  }
 
   try {
     const response = await fetch(`${config.baseUrl}/audio/transcriptions`, {

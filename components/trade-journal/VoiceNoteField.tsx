@@ -2,6 +2,12 @@
 
 import { desk } from "@/lib/ui/desk";
 import {
+  langsForMode,
+  readVoiceLangMode,
+  writeVoiceLangMode,
+  type VoiceLangMode,
+} from "@/lib/trades/voice-lang";
+import {
   appendTranscript,
   pickBestTranscript,
   TRADING_VOICE_GRAMMAR,
@@ -45,16 +51,6 @@ function getSpeechRecognition():
     speechWindow.webkitSpeechRecognition ??
     null
   );
-}
-
-function voiceLangChain() {
-  const raw = (
-    (typeof navigator !== "undefined" &&
-      (navigator.languages?.[0] || navigator.language)) ||
-    "en-US"
-  ).trim();
-  const primary = raw.toLowerCase().startsWith("ar") ? "ar" : raw || "en-US";
-  return [...new Set([primary, "ar", "en-US", "en-GB"])];
 }
 
 function attachTradingGrammar(recognition: SpeechRecognitionLike) {
@@ -106,12 +102,16 @@ function fileNameFor(type: string) {
   return "note.webm";
 }
 
-async function transcribeBlob(blob: Blob): Promise<{
+async function transcribeBlob(
+  blob: Blob,
+  language?: string
+): Promise<{
   text: string;
   fallback: boolean;
 }> {
   const body = new FormData();
   body.append("file", blob, fileNameFor(blob.type));
+  if (language) body.append("language", language);
   const response = await fetch("/api/ai/transcribe", {
     method: "POST",
     body,
@@ -157,6 +157,9 @@ export function VoiceNoteField({
   const interimRef = useRef("");
   const processedIndexRef = useRef(0);
   const langIndexRef = useRef(0);
+  const sessionRef = useRef(0);
+  const modeRef = useRef<VoiceLangMode>("en");
+  const [voiceMode, setVoiceMode] = useState<VoiceLangMode>("en");
   const [listening, setListening] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const [supported, setSupported] = useState(true);
@@ -164,6 +167,9 @@ export function VoiceNoteField({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const mode = readVoiceLangMode();
+    modeRef.current = mode;
+    setVoiceMode(mode);
     const canListen = Boolean(getSpeechRecognition());
     const canRecord =
       typeof navigator !== "undefined" &&
@@ -180,6 +186,7 @@ export function VoiceNoteField({
       });
     return () => {
       listeningRef.current = false;
+      sessionRef.current += 1;
       recognitionRef.current?.abort();
       stopMic();
     };
@@ -242,7 +249,10 @@ export function VoiceNoteField({
     }
     setTranscribing(true);
     try {
-      const result = await transcribeBlob(blob);
+      const result = await transcribeBlob(
+        blob,
+        modeRef.current === "ar" ? "ar" : "en"
+      );
       if (result.text) {
         sessionFinalRef.current = appendTranscript(
           sessionFinalRef.current,
@@ -282,15 +292,49 @@ export function VoiceNoteField({
     return true;
   };
 
-  const attachHandlers = (recognition: SpeechRecognitionLike) => {
-    const langs = voiceLangChain();
-    recognition.lang = langs[langIndexRef.current] ?? "en-US";
+  const failArabicLangs = () => {
+    setError(
+      modeRef.current === "ar"
+        ? "Arabic dictation is not available in this browser. Try Chrome, or type the note."
+        : "English dictation is not available in this browser. Type the note instead."
+    );
+    listeningRef.current = false;
+    setListening(false);
+    stopMic();
+  };
+
+  const startBrowserRecognition = (langOverride?: string) => {
+    const Recognition = getSpeechRecognition();
+    if (!Recognition) return false;
+    const langs = langsForMode(modeRef.current);
+    const lang =
+      langOverride ?? langs[langIndexRef.current] ?? langs[0] ?? "en-US";
+    const session = sessionRef.current + 1;
+    sessionRef.current = session;
+
+    const previous = recognitionRef.current;
+    recognitionRef.current = null;
+    if (previous) {
+      previous.onresult = null;
+      previous.onerror = null;
+      previous.onend = null;
+      try {
+        previous.abort();
+      } catch {
+        // Previous session already closed.
+      }
+    }
+
+    const recognition = new Recognition();
+    recognition.lang = lang;
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.maxAlternatives = 5;
     attachTradingGrammar(recognition);
+    recognitionRef.current = recognition;
 
     recognition.onresult = (event) => {
+      if (session !== sessionRef.current) return;
       if (event.results.length < processedIndexRef.current) {
         processedIndexRef.current = 0;
       }
@@ -317,8 +361,15 @@ export function VoiceNoteField({
     };
 
     recognition.onerror = (event) => {
-      if (event.error === "no-speech" || event.error === "aborted") return;
-      if (event.error === "not-allowed") {
+      if (session !== sessionRef.current) return;
+      if (
+        event.error === "no-speech" ||
+        event.error === "aborted" ||
+        event.error === "network"
+      ) {
+        return;
+      }
+      if (event.error === "not-allowed" || event.error === "service-not-allowed") {
         setError("Microphone permission was denied.");
         listeningRef.current = false;
         setListening(false);
@@ -326,52 +377,75 @@ export function VoiceNoteField({
         return;
       }
       if (event.error === "language-not-supported") {
-        langIndexRef.current += 1;
-        const nextLang = langs[langIndexRef.current];
+        const nextIndex = langIndexRef.current + 1;
+        const nextLang = langs[nextIndex];
         if (nextLang) {
-          recognition.lang = nextLang;
-          try {
-            recognition.start();
-          } catch {
-            // onend will retry if still listening.
-          }
+          langIndexRef.current = nextIndex;
+          window.setTimeout(() => {
+            if (listeningRef.current && session === sessionRef.current) {
+              startBrowserRecognition(nextLang);
+            }
+          }, 80);
+          return;
         }
+        failArabicLangs();
         return;
       }
       setError("Voice capture hit a pause — keep talking, it will continue.");
     };
 
     recognition.onend = () => {
+      if (session !== sessionRef.current) return;
       if (!listeningRef.current) {
         setListening(false);
         return;
       }
       window.setTimeout(() => {
-        if (!listeningRef.current || recognitionRef.current !== recognition) {
+        if (
+          !listeningRef.current ||
+          session !== sessionRef.current ||
+          recognitionRef.current !== recognition
+        ) {
           return;
         }
         try {
           recognition.start();
         } catch {
-          listeningRef.current = false;
-          setListening(false);
+          startBrowserRecognition(recognition.lang);
         }
       }, 120);
     };
+
+    try {
+      recognition.start();
+      return true;
+    } catch {
+      const nextIndex = langIndexRef.current + 1;
+      const nextLang = langs[nextIndex];
+      if (nextLang) {
+        langIndexRef.current = nextIndex;
+        return startBrowserRecognition(nextLang);
+      }
+      failArabicLangs();
+      return false;
+    }
   };
 
-  const startBrowserRecognition = () => {
-    const Recognition = getSpeechRecognition();
-    if (!Recognition) return false;
-    const recognition = new Recognition();
-    recognitionRef.current = recognition;
-    attachHandlers(recognition);
-    recognition.start();
-    return true;
+  const applyVoiceMode = (mode: VoiceLangMode) => {
+    modeRef.current = mode;
+    setVoiceMode(mode);
+    writeVoiceLangMode(mode);
+    langIndexRef.current = 0;
+    setError(null);
+    if (listeningRef.current) {
+      processedIndexRef.current = 0;
+      startBrowserRecognition();
+    }
   };
 
   const stop = () => {
     listeningRef.current = false;
+    sessionRef.current += 1;
     setListening(false);
     recognitionRef.current?.stop();
     void finishRecording();
@@ -411,6 +485,7 @@ export function VoiceNoteField({
     try {
       if (canListen) {
         if (!startBrowserRecognition()) {
+          if (!listeningRef.current) return;
           throw new Error("start_failed");
         }
         return;
@@ -434,6 +509,29 @@ export function VoiceNoteField({
         <label htmlFor={id} className={desk.label}>
           {label}
         </label>
+        <div className="flex items-center gap-2">
+          <div className="flex rounded-full border border-white/10 bg-white/5 p-0.5">
+            {(
+              [
+                { id: "en", label: "EN" },
+                { id: "ar", label: "AR" },
+              ] as const
+            ).map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => applyVoiceMode(option.id)}
+                aria-pressed={voiceMode === option.id}
+                className={`rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-[0.12em] transition-colors ${
+                  voiceMode === option.id
+                    ? "bg-indigo-500 text-white"
+                    : "text-zinc-400 hover:text-zinc-100"
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
         <button
           type="button"
           onClick={() => void toggle()}
@@ -447,6 +545,7 @@ export function VoiceNoteField({
           {listening ? <Square className="h-3 w-3" /> : <Mic className="h-3 w-3" />}
           {listening ? "Stop" : "Voice"}
         </button>
+        </div>
       </div>
       <textarea
         id={id}
@@ -462,15 +561,18 @@ export function VoiceNoteField({
           onChange(event.target.value);
         }}
         dir="auto"
+        lang={voiceMode === "ar" ? "ar" : "en"}
         className={`${desk.input} resize-none`}
       />
       <p className="mt-1.5 text-xs text-zinc-400">
         {listening
-          ? "Listening… each sentence is appended. Keep talking or press Stop."
+          ? voiceMode === "ar"
+            ? "Listening in Arabic… each sentence is appended. Keep talking or press Stop."
+            : "Listening… each sentence is appended. Keep talking or press Stop."
           : transcribing
             ? "Transcribing the last clip…"
             : supported
-              ? "Type freely, or use voice-to-text to dictate the review."
+              ? "Type freely, or use voice-to-text. Switch to AR for Arabic or Lebanese."
               : "Voice-to-text is unavailable here — type the note instead."}
       </p>
       {error && <p className="mt-1 text-xs text-rose-300">{error}</p>}

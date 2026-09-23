@@ -1,4 +1,5 @@
 import { getAiConfig } from "@/lib/ai/env";
+import { ARABIC_VOICE_LANGS } from "@/lib/trades/voice-lang";
 
 export const VOICE_TRANSCRIBE_PROMPT = [
   "Lebanese Arabic (Levantine) dialect, Arabizi, and English mixed together.",
@@ -8,8 +9,8 @@ export const VOICE_TRANSCRIBE_PROMPT = [
   "Do not translate the note. Preserve the speaker's mix of languages.",
 ].join(" ");
 
-export const BROWSER_VOICE_LANGS = ["ar-LB", "ar", "ar-SA"] as const;
-export const DEFAULT_BROWSER_VOICE_LANG = "ar-LB";
+export const BROWSER_VOICE_LANGS = ARABIC_VOICE_LANGS;
+export const DEFAULT_BROWSER_VOICE_LANG = ARABIC_VOICE_LANGS[0];
 
 export function getTranscribeModel() {
   return (
