@@ -58,7 +58,7 @@ export async function POST(request: Request) {
   }
 
   const file = form.get("file");
-  if (!(file instanceof File) || file.size < 400) {
+  if (!(file instanceof File) || file.size < 200) {
     return Response.json({ ok: false, error: "empty_audio" }, { status: 400 });
   }
   if (file.size > MAX_BYTES) {
@@ -66,7 +66,11 @@ export async function POST(request: Request) {
   }
 
   const type = (file.type || "audio/webm").split(";")[0];
-  if (type && !ALLOWED_TYPES.some((allowed) => type.startsWith(allowed))) {
+  if (
+    type &&
+    type !== "application/octet-stream" &&
+    !ALLOWED_TYPES.some((allowed) => type.startsWith(allowed))
+  ) {
     return Response.json({ ok: false, error: "unsupported_type" }, { status: 415 });
   }
 

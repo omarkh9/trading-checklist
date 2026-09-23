@@ -1,6 +1,5 @@
 "use client";
 
-import { DEFAULT_BROWSER_VOICE_LANG } from "@/lib/ai/transcribe";
 import { desk } from "@/lib/ui/desk";
 import {
   appendTranscript,
@@ -33,8 +32,6 @@ type SpeechRecognitionEventLike = {
   }>;
 };
 
-const SLICE_MS = 5500;
-
 function getSpeechRecognition():
   | (new () => SpeechRecognitionLike)
   | null {
@@ -48,6 +45,16 @@ function getSpeechRecognition():
     speechWindow.webkitSpeechRecognition ??
     null
   );
+}
+
+function voiceLangChain() {
+  const raw = (
+    (typeof navigator !== "undefined" &&
+      (navigator.languages?.[0] || navigator.language)) ||
+    "en-US"
+  ).trim();
+  const primary = raw.toLowerCase().startsWith("ar") ? "ar" : raw || "en-US";
+  return [...new Set([primary, "ar", "en-US", "en-GB"])];
 }
 
 function attachTradingGrammar(recognition: SpeechRecognitionLike) {
@@ -82,12 +89,21 @@ function alternativesFor(
 function pickRecorderMime() {
   if (typeof MediaRecorder === "undefined") return "";
   const types = [
+    "audio/mp4",
+    "audio/aac",
     "audio/webm;codecs=opus",
     "audio/webm",
-    "audio/mp4",
     "audio/ogg;codecs=opus",
   ];
   return types.find((type) => MediaRecorder.isTypeSupported(type)) ?? "";
+}
+
+function fileNameFor(type: string) {
+  if (type.includes("mp4") || type.includes("m4a") || type.includes("aac")) {
+    return "note.m4a";
+  }
+  if (type.includes("ogg")) return "note.ogg";
+  return "note.webm";
 }
 
 async function transcribeBlob(blob: Blob): Promise<{
@@ -95,17 +111,12 @@ async function transcribeBlob(blob: Blob): Promise<{
   fallback: boolean;
 }> {
   const body = new FormData();
-  const name = blob.type.includes("mp4")
-    ? "note.m4a"
-    : blob.type.includes("ogg")
-      ? "note.ogg"
-      : "note.webm";
-  body.append("file", blob, name);
+  body.append("file", blob, fileNameFor(blob.type));
   const response = await fetch("/api/ai/transcribe", {
     method: "POST",
     body,
   });
-  const data = (await response.json()) as {
+  const data = (await response.json().catch(() => ({}))) as {
     ok?: boolean;
     text?: string;
     fallback?: boolean;
@@ -133,31 +144,32 @@ export function VoiceNoteField({
   label = "Notes",
   value,
   onChange,
-  placeholder = "Dictate in Lebanese, Arabizi, or English — setup, emotions, lessons...",
+  placeholder = "Setup rationale, emotions, lessons learned...",
   rows = 5,
 }: VoiceNoteFieldProps) {
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
-  const sliceTimerRef = useRef<number | null>(null);
-  const transcribeChain = useRef(Promise.resolve());
+  const chunksRef = useRef<Blob[]>([]);
   const listeningRef = useRef(false);
   const committedRef = useRef("");
   const sessionFinalRef = useRef("");
   const interimRef = useRef("");
   const processedIndexRef = useRef(0);
+  const langIndexRef = useRef(0);
   const [listening, setListening] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const [supported, setSupported] = useState(true);
-  const [whisperReady, setWhisperReady] = useState(true);
+  const [whisperReady, setWhisperReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const canListen = Boolean(getSpeechRecognition());
     const canRecord =
       typeof navigator !== "undefined" &&
-      Boolean(navigator.mediaDevices?.getUserMedia) &&
+      Boolean(navigator.mediaDevices) &&
       typeof MediaRecorder !== "undefined";
-    setSupported(canRecord || Boolean(getSpeechRecognition()));
+    setSupported(canListen || canRecord);
     void fetch("/api/ai/transcribe")
       .then((response) => response.json())
       .then((data: { enabled?: boolean }) => {
@@ -169,7 +181,7 @@ export function VoiceNoteField({
     return () => {
       listeningRef.current = false;
       recognitionRef.current?.abort();
-      stopRecorder(true);
+      stopMic();
     };
   }, []);
 
@@ -195,79 +207,60 @@ export function VoiceNoteField({
     publish();
   };
 
-  const appendFinal = (text: string) => {
-    sessionFinalRef.current = appendTranscript(sessionFinalRef.current, text);
-    publish();
-  };
+  const capturedThisSession = () =>
+    Boolean(sessionFinalRef.current.trim() || interimRef.current.trim());
 
-  function stopRecorder(immediate = false) {
-    if (sliceTimerRef.current) {
-      window.clearTimeout(sliceTimerRef.current);
-      sliceTimerRef.current = null;
-    }
+  function stopMic() {
     const recorder = recorderRef.current;
     if (recorder && recorder.state !== "inactive") {
       try {
+        recorder.requestData?.();
         recorder.stop();
       } catch {
         // Already stopped.
       }
     }
     recorderRef.current = null;
-    if (immediate) {
-      streamRef.current?.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
   }
 
-  const queueTranscribe = (blob: Blob) => {
-    transcribeChain.current = transcribeChain.current
-      .then(async () => {
-        if (blob.size < 800) return;
-        setTranscribing(true);
-        const result = await transcribeBlob(blob);
-        if (result.fallback) {
-          setWhisperReady(false);
-          if (listeningRef.current) startBrowserRecognition();
-          return;
-        }
-        if (result.text) appendFinal(result.text);
-      })
-      .catch(() => {
-        setError("Voice capture hit a pause — keep talking, it will continue.");
-      })
-      .finally(() => {
-        setTranscribing(false);
-      });
-    return transcribeChain.current;
+  const finishRecording = async () => {
+    const mime = recorderRef.current?.mimeType || chunksRef.current[0]?.type || "";
+    const blob = new Blob(chunksRef.current, {
+      type: mime || "audio/webm",
+    });
+    chunksRef.current = [];
+    stopMic();
+    if (blob.size < 200 || capturedThisSession()) {
+      commitSession();
+      return;
+    }
+    if (!whisperReady) {
+      commitSession();
+      return;
+    }
+    setTranscribing(true);
+    try {
+      const result = await transcribeBlob(blob);
+      if (result.text) {
+        sessionFinalRef.current = appendTranscript(
+          sessionFinalRef.current,
+          result.text
+        );
+      } else if (result.fallback) {
+        setWhisperReady(false);
+      }
+    } catch {
+      setError("Voice capture hit a pause. Try again, or type the note.");
+    } finally {
+      setTranscribing(false);
+      commitSession();
+    }
   };
 
-  const startSlice = (stream: MediaStream) => {
-    if (!listeningRef.current) return;
-    const mime = pickRecorderMime();
-    const recorder = mime
-      ? new MediaRecorder(stream, { mimeType: mime })
-      : new MediaRecorder(stream);
-    const chunks: Blob[] = [];
-    recorder.ondataavailable = (event) => {
-      if (event.data.size) chunks.push(event.data);
-    };
-    recorder.onstop = () => {
-      if (recorderRef.current === recorder) recorderRef.current = null;
-      const blob = new Blob(chunks, {
-        type: recorder.mimeType || mime || "audio/webm",
-      });
-      void queueTranscribe(blob);
-      if (listeningRef.current) startSlice(stream);
-    };
-    recorderRef.current = recorder;
-    recorder.start();
-    sliceTimerRef.current = window.setTimeout(() => {
-      if (recorder.state === "recording") recorder.stop();
-    }, SLICE_MS);
-  };
-
-  const startWhisperCapture = async () => {
+  const startRecording = async () => {
+    if (!navigator.mediaDevices) return false;
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: {
         echoCancellation: true,
@@ -276,11 +269,22 @@ export function VoiceNoteField({
       },
     });
     streamRef.current = stream;
-    startSlice(stream);
+    const mime = pickRecorderMime();
+    const recorder = mime
+      ? new MediaRecorder(stream, { mimeType: mime })
+      : new MediaRecorder(stream);
+    chunksRef.current = [];
+    recorder.ondataavailable = (event) => {
+      if (event.data.size) chunksRef.current.push(event.data);
+    };
+    recorderRef.current = recorder;
+    recorder.start(1000);
+    return true;
   };
 
   const attachHandlers = (recognition: SpeechRecognitionLike) => {
-    recognition.lang = DEFAULT_BROWSER_VOICE_LANG;
+    const langs = voiceLangChain();
+    recognition.lang = langs[langIndexRef.current] ?? "en-US";
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.maxAlternatives = 5;
@@ -318,22 +322,30 @@ export function VoiceNoteField({
         setError("Microphone permission was denied.");
         listeningRef.current = false;
         setListening(false);
+        stopMic();
         return;
       }
       if (event.error === "language-not-supported") {
-        recognition.lang = "ar";
+        langIndexRef.current += 1;
+        const nextLang = langs[langIndexRef.current];
+        if (nextLang) {
+          recognition.lang = nextLang;
+          try {
+            recognition.start();
+          } catch {
+            // onend will retry if still listening.
+          }
+        }
         return;
       }
       setError("Voice capture hit a pause — keep talking, it will continue.");
     };
 
     recognition.onend = () => {
-      commitSession();
       if (!listeningRef.current) {
         setListening(false);
         return;
       }
-
       window.setTimeout(() => {
         if (!listeningRef.current || recognitionRef.current !== recognition) {
           return;
@@ -350,46 +362,19 @@ export function VoiceNoteField({
 
   const startBrowserRecognition = () => {
     const Recognition = getSpeechRecognition();
-    if (!Recognition) {
-      setSupported(false);
-      setError("Voice-to-text is not supported in this browser.");
-      listeningRef.current = false;
-      setListening(false);
-      return;
-    }
-    stopRecorder(true);
+    if (!Recognition) return false;
     const recognition = new Recognition();
     recognitionRef.current = recognition;
     attachHandlers(recognition);
-    try {
-      recognition.start();
-    } catch {
-      listeningRef.current = false;
-      setListening(false);
-      setError("Unable to start voice capture.");
-    }
+    recognition.start();
+    return true;
   };
 
   const stop = () => {
     listeningRef.current = false;
     setListening(false);
     recognitionRef.current?.stop();
-    const recorder = recorderRef.current;
-    if (sliceTimerRef.current) {
-      window.clearTimeout(sliceTimerRef.current);
-      sliceTimerRef.current = null;
-    }
-    if (recorder && recorder.state !== "inactive") {
-      try {
-        recorder.stop();
-      } catch {
-        commitSession();
-      }
-    } else {
-      commitSession();
-    }
-    streamRef.current?.getTracks().forEach((track) => track.stop());
-    streamRef.current = null;
+    void finishRecording();
   };
 
   const toggle = async () => {
@@ -403,24 +388,44 @@ export function VoiceNoteField({
     sessionFinalRef.current = "";
     interimRef.current = "";
     processedIndexRef.current = 0;
+    langIndexRef.current = 0;
+
+    const canListen = Boolean(getSpeechRecognition());
+    const canRecord =
+      Boolean(navigator.mediaDevices) && typeof MediaRecorder !== "undefined";
+
+    if (!canListen && !canRecord) {
+      setSupported(false);
+      setError("Voice-to-text is not supported in this browser.");
+      return;
+    }
+
+    if (!canListen && !whisperReady) {
+      setError("Voice-to-text is unavailable here — type the note instead.");
+      return;
+    }
+
     listeningRef.current = true;
     setListening(true);
 
-    if (whisperReady && navigator.mediaDevices) {
-      try {
-        await startWhisperCapture();
-        return;
-      } catch (cause) {
-        if (cause instanceof DOMException && cause.name === "NotAllowedError") {
-          setError("Microphone permission was denied.");
-          listeningRef.current = false;
-          setListening(false);
-          return;
+    try {
+      if (canListen) {
+        if (!startBrowserRecognition()) {
+          throw new Error("start_failed");
         }
+        return;
       }
+      await startRecording();
+    } catch (cause) {
+      listeningRef.current = false;
+      setListening(false);
+      stopMic();
+      if (cause instanceof DOMException && cause.name === "NotAllowedError") {
+        setError("Microphone permission was denied.");
+        return;
+      }
+      setError("Unable to start voice capture.");
     }
-
-    startBrowserRecognition();
   };
 
   return (
@@ -432,7 +437,7 @@ export function VoiceNoteField({
         <button
           type="button"
           onClick={() => void toggle()}
-          disabled={!supported}
+          disabled={!supported || transcribing}
           className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] transition-colors ${
             listening
               ? "border-rose-400/40 bg-rose-500/15 text-rose-200"
@@ -457,18 +462,15 @@ export function VoiceNoteField({
           onChange(event.target.value);
         }}
         dir="auto"
-        lang="ar"
         className={`${desk.input} resize-none`}
       />
       <p className="mt-1.5 text-xs text-zinc-400">
         {listening
-          ? whisperReady
-            ? "Listening for Lebanese, Arabizi, and English… keep talking or press Stop."
-            : "Listening in Arabic (Lebanon)… keep talking or press Stop."
+          ? "Listening… each sentence is appended. Keep talking or press Stop."
           : transcribing
-            ? "Transcribing the last sentence…"
+            ? "Transcribing the last clip…"
             : supported
-              ? "Type freely, or dictate in Lebanese, Arabizi, or English."
+              ? "Type freely, or use voice-to-text to dictate the review."
               : "Voice-to-text is unavailable here — type the note instead."}
       </p>
       {error && <p className="mt-1 text-xs text-rose-300">{error}</p>}
