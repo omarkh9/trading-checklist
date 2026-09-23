@@ -2,8 +2,8 @@
 
 import { desk } from "@/lib/ui/desk";
 import {
-  appendTranscript,
-  pickBestTranscript,
+  longestTranscript,
+  mergeSpoken,
   TRADING_VOICE_GRAMMAR,
 } from "@/lib/trades/voice-transcript";
 import { Mic, Square } from "lucide-react";
@@ -145,9 +145,9 @@ export function VoiceNoteField({
   const chunksRef = useRef<Blob[]>([]);
   const listeningRef = useRef(false);
   const startedWithRef = useRef("");
-  const committedRef = useRef("");
+  const lockedRef = useRef("");
+  const transcriptRef = useRef("");
   const interimRef = useRef("");
-  const processedIndexRef = useRef(0);
   const langIndexRef = useRef(0);
   const sessionRef = useRef(0);
   const [listening, setListening] = useState(false);
@@ -181,11 +181,12 @@ export function VoiceNoteField({
 
   const publish = (interim = "") => {
     interimRef.current = interim;
-    onChange(appendTranscript(committedRef.current, interim));
+    onChange(mergeSpoken(transcriptRef.current, interim));
   };
 
   const commitText = (text: string) => {
-    committedRef.current = appendTranscript(committedRef.current, text);
+    transcriptRef.current = mergeSpoken(transcriptRef.current, text);
+    lockedRef.current = transcriptRef.current;
   };
 
   const settleInterim = () => {
@@ -195,8 +196,20 @@ export function VoiceNoteField({
     publish();
   };
 
+  const lockSettledSpeech = () => {
+    if (interimRef.current) {
+      transcriptRef.current = mergeSpoken(
+        transcriptRef.current,
+        interimRef.current
+      );
+      interimRef.current = "";
+    }
+    lockedRef.current = transcriptRef.current;
+    publish();
+  };
+
   const capturedThisSession = () =>
-    committedRef.current.trim() !== startedWithRef.current ||
+    transcriptRef.current.trim() !== startedWithRef.current ||
     Boolean(interimRef.current.trim());
 
   function stopMic() {
@@ -284,8 +297,7 @@ export function VoiceNoteField({
       ENGLISH_VOICE_LANGS[langIndexRef.current] ??
       ENGLISH_VOICE_LANGS[0];
 
-    settleInterim();
-    processedIndexRef.current = 0;
+    lockSettledSpeech();
     const session = sessionRef.current + 1;
     sessionRef.current = session;
 
@@ -312,27 +324,22 @@ export function VoiceNoteField({
 
     recognition.onresult = (event) => {
       if (session !== sessionRef.current) return;
-      if (event.results.length < processedIndexRef.current) {
-        settleInterim();
-        processedIndexRef.current = 0;
-      }
 
+      let finals = "";
       let interim = "";
-      const start = Math.max(event.resultIndex, processedIndexRef.current);
-
-      for (let index = start; index < event.results.length; index += 1) {
+      for (let index = 0; index < event.results.length; index += 1) {
         const result = event.results[index];
-        const transcript = pickBestTranscript(alternativesFor(result));
+        const transcript = longestTranscript(alternativesFor(result));
         if (!transcript) continue;
 
         if (result.isFinal) {
-          commitText(transcript);
-          processedIndexRef.current = index + 1;
+          finals = mergeSpoken(finals, transcript);
         } else {
-          interim = appendTranscript(interim, transcript);
+          interim = interim ? `${interim} ${transcript}` : transcript;
         }
       }
 
+      transcriptRef.current = mergeSpoken(lockedRef.current, finals);
       publish(interim);
     };
 
@@ -343,7 +350,7 @@ export function VoiceNoteField({
         event.error === "aborted" ||
         event.error === "network"
       ) {
-        settleInterim();
+        lockSettledSpeech();
         return;
       }
       if (event.error === "not-allowed" || event.error === "service-not-allowed") {
@@ -373,8 +380,7 @@ export function VoiceNoteField({
 
     recognition.onend = () => {
       if (session !== sessionRef.current) return;
-      settleInterim();
-      processedIndexRef.current = 0;
+      lockSettledSpeech();
       if (!listeningRef.current) {
         setListening(false);
         return;
@@ -426,9 +432,9 @@ export function VoiceNoteField({
 
     setError(null);
     startedWithRef.current = value.trim();
-    committedRef.current = value.trim();
+    lockedRef.current = value.trim();
+    transcriptRef.current = value.trim();
     interimRef.current = "";
-    processedIndexRef.current = 0;
     langIndexRef.current = 0;
 
     const canListen = Boolean(getSpeechRecognition());
@@ -476,29 +482,19 @@ export function VoiceNoteField({
         <label htmlFor={id} className={desk.label}>
           {label}
         </label>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            aria-pressed="true"
-            tabIndex={-1}
-            className="rounded-full bg-indigo-500 px-2 py-0.5 text-[10px] font-semibold tracking-[0.12em] text-white"
-          >
-            EN
-          </button>
-          <button
-            type="button"
-            onClick={() => void toggle()}
-            disabled={!supported || transcribing}
-            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] transition-colors ${
-              listening
-                ? "border-rose-400/40 bg-rose-500/15 text-rose-200"
-                : "border-white/10 bg-white/5 text-zinc-300 hover:border-indigo-400/40 hover:text-zinc-100"
-            } disabled:cursor-not-allowed disabled:opacity-50`}
-          >
-            {listening ? <Square className="h-3 w-3" /> : <Mic className="h-3 w-3" />}
-            {listening ? "Stop" : "Voice"}
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => void toggle()}
+          disabled={!supported || transcribing}
+          className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] transition-colors ${
+            listening
+              ? "border-rose-400/40 bg-rose-500/15 text-rose-200"
+              : "border-white/10 bg-white/5 text-zinc-300 hover:border-indigo-400/40 hover:text-zinc-100"
+          } disabled:cursor-not-allowed disabled:opacity-50`}
+        >
+          {listening ? <Square className="h-3 w-3" /> : <Mic className="h-3 w-3" />}
+          {listening ? "Stop" : "Voice"}
+        </button>
       </div>
       <textarea
         id={id}
@@ -507,7 +503,8 @@ export function VoiceNoteField({
         value={value}
         onChange={(event) => {
           if (listeningRef.current) {
-            committedRef.current = event.target.value.trim();
+            lockedRef.current = event.target.value.trim();
+            transcriptRef.current = event.target.value.trim();
             interimRef.current = "";
           }
           onChange(event.target.value);

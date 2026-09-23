@@ -91,11 +91,44 @@ export function alreadyCaptured(existing: string, incoming: string): boolean {
   return left === right || left.endsWith(` ${right}`);
 }
 
+export function longestTranscript(alternatives: string[]): string {
+  const cleaned = alternatives
+    .map((item) => correctTradingTranscript(item))
+    .filter(Boolean);
+  if (cleaned.length === 0) return "";
+  return cleaned.reduce((best, current) =>
+    current.length > best.length ? current : best
+  );
+}
+
+export function mergeSpoken(existing: string, incoming: string): string {
+  const left = existing.trim().replace(/\s+/g, " ");
+  const right = correctTradingTranscript(incoming);
+  if (!right) return left;
+  if (!left) return right;
+
+  const leftNorm = left.toLowerCase();
+  const rightNorm = right.toLowerCase();
+  if (leftNorm === rightNorm || leftNorm.endsWith(` ${rightNorm}`)) return left;
+  if (rightNorm.startsWith(`${leftNorm} `)) return right;
+  if (leftNorm.startsWith(`${rightNorm} `)) return left;
+
+  const leftWords = left.split(" ");
+  const rightWords = right.split(" ");
+  const maxOverlap = Math.min(leftWords.length, rightWords.length);
+  for (let count = maxOverlap; count > 0; count -= 1) {
+    const tail = leftWords.slice(-count).join(" ").toLowerCase();
+    const head = rightWords.slice(0, count).join(" ").toLowerCase();
+    if (tail === head) {
+      return [...leftWords, ...rightWords.slice(count)].join(" ");
+    }
+  }
+
+  return `${left} ${right}`;
+}
+
 export function appendTranscript(existing: string, incoming: string): string {
-  const next = correctTradingTranscript(incoming);
-  if (!next) return existing.trim();
-  if (alreadyCaptured(existing, next)) return existing.trim();
-  return [existing.trim(), next].filter(Boolean).join(" ").replace(/\s+/g, " ");
+  return mergeSpoken(existing, incoming);
 }
 
 export const TRADING_VOICE_GRAMMAR = `#JSGF V1.0; grammar trading; public <term> = R:R | stop loss | take profit | breakeven | lot size | EURUSD | GBPUSD | USDJPY | XAUUSD | NAS100 | US30 | HTF | MTF | LTF | long | short | pips | 1R | 2R | 3R ;`;
