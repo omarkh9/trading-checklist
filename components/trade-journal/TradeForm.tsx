@@ -341,52 +341,13 @@ export const TradeForm = memo(function TradeForm({
     fixedLotSize: form.fixedLotSize,
     calculatedLot,
   });
+  const hasExplicitExit = Boolean(form.exitPrice.trim());
   const exitForPnl = resolveExitPrice(
     form.exitPrice,
     form.takeProfit,
-    form.stopLoss
+    form.stopLoss,
+    form.outcome
   );
-
-  const tradeResult = useMemo(
-    () =>
-      resolveTradeResult({
-        pair: form.pair,
-        direction: form.direction,
-        entryPrice: form.entryPrice,
-        exitPrice: exitForPnl,
-        lots: lotsForPnl,
-        quoteToUsd,
-        outcome: form.outcome,
-        pnlMode: form.pnlMode,
-        pnlInput: form.pnlInput,
-        balanceBeforeTrade: currentBalance,
-        preferAuto: !manualPnl,
-      }),
-    [
-      currentBalance,
-      exitForPnl,
-      form.direction,
-      form.entryPrice,
-      form.outcome,
-      form.pair,
-      form.pnlInput,
-      form.pnlMode,
-      lotsForPnl,
-      manualPnl,
-      quoteToUsd,
-    ]
-  );
-
-  useEffect(() => {
-    if (manualPnl || !tradeResult.autoCalculated) return;
-    if (form.outcome === tradeResult.outcome) return;
-    setForm((prev) => ({ ...prev, outcome: tradeResult.outcome }));
-  }, [
-    form.outcome,
-    manualPnl,
-    tradeResult.autoCalculated,
-    tradeResult.outcome,
-  ]);
 
   const resolvedAsset = useMemo(() => resolveAsset(form.pair), [form.pair]);
 
@@ -412,6 +373,57 @@ export const TradeForm = memo(function TradeForm({
     lotsForPnl != null && positionRisk?.rewardPerLotUsd != null
       ? lotsForPnl * positionRisk.rewardPerLotUsd
       : null;
+
+  const tradeResult = useMemo(
+    () =>
+      resolveTradeResult({
+        pair: form.pair,
+        direction: form.direction,
+        entryPrice: form.entryPrice,
+        exitPrice: exitForPnl,
+        lots: lotsForPnl,
+        quoteToUsd,
+        outcome: form.outcome,
+        pnlMode: form.pnlMode,
+        pnlInput: form.pnlInput,
+        balanceBeforeTrade: currentBalance,
+        preferAuto: !manualPnl,
+        hasExplicitExit,
+        fallbackLossUsd: sizedRiskUsd,
+        fallbackWinUsd: sizedRewardUsd,
+      }),
+    [
+      currentBalance,
+      exitForPnl,
+      form.direction,
+      form.entryPrice,
+      form.outcome,
+      form.pair,
+      form.pnlInput,
+      form.pnlMode,
+      hasExplicitExit,
+      lotsForPnl,
+      manualPnl,
+      quoteToUsd,
+      sizedRewardUsd,
+      sizedRiskUsd,
+    ]
+  );
+
+  useEffect(() => {
+    if (manualPnl || !tradeResult.autoCalculated) return;
+    if (form.outcome === tradeResult.outcome) return;
+    if (!hasExplicitExit && (form.outcome === "Loss" || form.outcome === "Win")) {
+      return;
+    }
+    setForm((prev) => ({ ...prev, outcome: tradeResult.outcome }));
+  }, [
+    form.outcome,
+    hasExplicitExit,
+    manualPnl,
+    tradeResult.autoCalculated,
+    tradeResult.outcome,
+  ]);
   const rewardRiskRatio =
     sizedRiskUsd != null && sizedRewardUsd != null && sizedRiskUsd > 0
       ? sizedRewardUsd / sizedRiskUsd
@@ -423,11 +435,15 @@ export const TradeForm = memo(function TradeForm({
   const pnlModeValue = manualPnl ? form.pnlMode : "dollar";
   const exitSourceLabel = form.exitPrice.trim()
     ? "exit"
-    : form.takeProfit.trim()
-      ? "take profit"
-      : form.stopLoss.trim()
-        ? "stop loss"
-        : null;
+    : form.outcome === "Loss" && form.stopLoss.trim()
+      ? "stop loss"
+      : form.outcome === "Win" && form.takeProfit.trim()
+        ? "take profit"
+        : form.takeProfit.trim()
+          ? "take profit"
+          : form.stopLoss.trim()
+            ? "stop loss"
+            : null;
 
   const displayLotSize =
     form.riskSizeMode === "fixed"
@@ -679,12 +695,7 @@ export const TradeForm = memo(function TradeForm({
                       type="button"
                       onClick={() => {
                         update("outcome", option.id);
-                        if (
-                          tradeResult.autoCalculated &&
-                          option.id !== tradeResult.outcome
-                        ) {
-                          setManualPnl(true);
-                        }
+                        setManualPnl(false);
                       }}
                       className={`flex-1 rounded-md px-2 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors ${
                         selected && option.id === "Win"
@@ -863,16 +874,16 @@ export const TradeForm = memo(function TradeForm({
                   New balance {formatBalance(currentBalance + tradeResult.pnlDollars)}
                   {lotsForPnl == null
                     ? " · add lot size to auto-calc"
-                    : !exitForPnl
-                      ? " · add exit, TP, or stop to auto-calc"
-                      : tradeResult.autoCalculated && exitSourceLabel
-                        ? ` · from ${exitSourceLabel}${
-                            needsQuoteConversion && quoteToUsd
-                              ? ` · ${quoteCurrency}/USD ${quoteToUsd.toFixed(4)}`
-                              : needsQuoteConversion
-                                ? ` · ${quoteCurrency} converted to USD`
-                                : ""
-                          }`
+                    : tradeResult.autoCalculated && exitSourceLabel
+                      ? ` · from ${exitSourceLabel}${
+                          needsQuoteConversion && quoteToUsd
+                            ? ` · ${quoteCurrency}/USD ${quoteToUsd.toFixed(4)}`
+                            : needsQuoteConversion
+                              ? ` · ${quoteCurrency} converted to USD`
+                              : ""
+                        }`
+                      : !tradeResult.autoCalculated && !exitForPnl
+                        ? " · add exit, TP, or stop to auto-calc"
                         : ""}
                 </p>
                 {(sizedRiskUsd != null || rewardRiskRatio != null) && (

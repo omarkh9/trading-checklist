@@ -84,9 +84,34 @@ export function resolveLotsForPnl(input: {
 export function resolveExitPrice(
   exitPrice: string,
   takeProfit: string,
-  stopLoss = ""
+  stopLoss = "",
+  outcome?: Outcome
 ): string {
-  return exitPrice.trim() || takeProfit.trim() || stopLoss.trim();
+  const exit = exitPrice.trim();
+  if (exit) return exit;
+
+  const stop = stopLoss.trim();
+  const target = takeProfit.trim();
+
+  if (outcome === "Loss") return stop;
+  if (outcome === "Win") return target;
+  if (outcome === "Breakeven") return "";
+  return target || stop;
+}
+
+function signedFallbackPnl(
+  outcome: Outcome,
+  fallbackLossUsd?: number | null,
+  fallbackWinUsd?: number | null
+): number | null {
+  if (outcome === "Loss" && fallbackLossUsd != null && fallbackLossUsd > 0) {
+    return -roundMoney(fallbackLossUsd);
+  }
+  if (outcome === "Win" && fallbackWinUsd != null && fallbackWinUsd > 0) {
+    return roundMoney(fallbackWinUsd);
+  }
+  if (outcome === "Breakeven") return 0;
+  return null;
 }
 
 export function resolveTradeResult(input: {
@@ -101,7 +126,14 @@ export function resolveTradeResult(input: {
   pnlInput: string;
   balanceBeforeTrade: number;
   preferAuto?: boolean;
+  hasExplicitExit?: boolean;
+  fallbackLossUsd?: number | null;
+  fallbackWinUsd?: number | null;
 }): { pnlDollars: number; outcome: Outcome; autoCalculated: boolean } {
+  if (input.preferAuto !== false && input.outcome === "Breakeven" && !input.hasExplicitExit) {
+    return { pnlDollars: 0, outcome: "Breakeven", autoCalculated: true };
+  }
+
   const autoPnl =
     input.preferAuto === false
       ? null
@@ -115,11 +147,40 @@ export function resolveTradeResult(input: {
         });
 
   if (autoPnl != null) {
+    if (!input.hasExplicitExit && input.outcome === "Loss") {
+      return {
+        pnlDollars: -Math.abs(autoPnl),
+        outcome: "Loss",
+        autoCalculated: true,
+      };
+    }
+    if (!input.hasExplicitExit && input.outcome === "Win") {
+      return {
+        pnlDollars: Math.abs(autoPnl),
+        outcome: "Win",
+        autoCalculated: true,
+      };
+    }
     return {
       pnlDollars: autoPnl,
       outcome: outcomeFromPnl(autoPnl),
       autoCalculated: true,
     };
+  }
+
+  if (input.preferAuto !== false) {
+    const fallback = signedFallbackPnl(
+      input.outcome,
+      input.fallbackLossUsd,
+      input.fallbackWinUsd
+    );
+    if (fallback != null) {
+      return {
+        pnlDollars: fallback,
+        outcome: input.outcome,
+        autoCalculated: true,
+      };
+    }
   }
 
   return {
