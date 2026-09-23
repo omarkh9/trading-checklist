@@ -9,4 +9,3 @@ export const CALENDAR_METRIC_STORAGE_KEY = "edge-log-calendar-metric";
 export const CALENDAR_RANGE_STORAGE_KEY = "edge-log-calendar-range";
 export const WORKSPACE_SETTINGS_STORAGE_KEY = "edge-log-workspace-settings";
 export const THEME_STORAGE_KEY = "edge-log-theme";
-export const VOICE_LANG_STORAGE_KEY = "edge-log-voice-lang";

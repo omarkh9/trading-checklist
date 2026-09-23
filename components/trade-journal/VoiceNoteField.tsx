@@ -2,18 +2,14 @@
 
 import { desk } from "@/lib/ui/desk";
 import {
-  langsForMode,
-  readVoiceLangMode,
-  writeVoiceLangMode,
-  type VoiceLangMode,
-} from "@/lib/trades/voice-lang";
-import {
   appendTranscript,
   pickBestTranscript,
   TRADING_VOICE_GRAMMAR,
 } from "@/lib/trades/voice-transcript";
 import { Mic, Square } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+
+const ENGLISH_VOICE_LANGS = ["en-US", "en-GB"] as const;
 
 type SpeechRecognitionLike = {
   lang: string;
@@ -54,7 +50,6 @@ function getSpeechRecognition():
 }
 
 function attachTradingGrammar(recognition: SpeechRecognitionLike) {
-  if (recognition.lang.toLowerCase().startsWith("ar")) return;
   const speechWindow = window as Window & {
     SpeechGrammarList?: new () => {
       addFromString: (grammar: string, weight?: number) => void;
@@ -102,16 +97,13 @@ function fileNameFor(type: string) {
   return "note.webm";
 }
 
-async function transcribeBlob(
-  blob: Blob,
-  language?: string
-): Promise<{
+async function transcribeBlob(blob: Blob): Promise<{
   text: string;
   fallback: boolean;
 }> {
   const body = new FormData();
   body.append("file", blob, fileNameFor(blob.type));
-  if (language) body.append("language", language);
+  body.append("language", "en");
   const response = await fetch("/api/ai/transcribe", {
     method: "POST",
     body,
@@ -152,14 +144,12 @@ export function VoiceNoteField({
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const listeningRef = useRef(false);
+  const startedWithRef = useRef("");
   const committedRef = useRef("");
-  const sessionFinalRef = useRef("");
   const interimRef = useRef("");
   const processedIndexRef = useRef(0);
   const langIndexRef = useRef(0);
   const sessionRef = useRef(0);
-  const modeRef = useRef<VoiceLangMode>("en");
-  const [voiceMode, setVoiceMode] = useState<VoiceLangMode>("en");
   const [listening, setListening] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const [supported, setSupported] = useState(true);
@@ -167,9 +157,6 @@ export function VoiceNoteField({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const mode = readVoiceLangMode();
-    modeRef.current = mode;
-    setVoiceMode(mode);
     const canListen = Boolean(getSpeechRecognition());
     const canRecord =
       typeof navigator !== "undefined" &&
@@ -194,28 +181,23 @@ export function VoiceNoteField({
 
   const publish = (interim = "") => {
     interimRef.current = interim;
-    onChange(
-      appendTranscript(
-        appendTranscript(committedRef.current, sessionFinalRef.current),
-        interim
-      )
-    );
+    onChange(appendTranscript(committedRef.current, interim));
   };
 
-  const commitSession = () => {
-    const pending = appendTranscript(
-      sessionFinalRef.current,
-      interimRef.current
-    );
-    committedRef.current = appendTranscript(committedRef.current, pending);
-    sessionFinalRef.current = "";
+  const commitText = (text: string) => {
+    committedRef.current = appendTranscript(committedRef.current, text);
+  };
+
+  const settleInterim = () => {
+    if (!interimRef.current) return;
+    commitText(interimRef.current);
     interimRef.current = "";
-    processedIndexRef.current = 0;
     publish();
   };
 
   const capturedThisSession = () =>
-    Boolean(sessionFinalRef.current.trim() || interimRef.current.trim());
+    committedRef.current.trim() !== startedWithRef.current ||
+    Boolean(interimRef.current.trim());
 
   function stopMic() {
     const recorder = recorderRef.current;
@@ -233,6 +215,7 @@ export function VoiceNoteField({
   }
 
   const finishRecording = async () => {
+    settleInterim();
     const mime = recorderRef.current?.mimeType || chunksRef.current[0]?.type || "";
     const blob = new Blob(chunksRef.current, {
       type: mime || "audio/webm",
@@ -240,24 +223,18 @@ export function VoiceNoteField({
     chunksRef.current = [];
     stopMic();
     if (blob.size < 200 || capturedThisSession()) {
-      commitSession();
+      publish();
       return;
     }
     if (!whisperReady) {
-      commitSession();
+      publish();
       return;
     }
     setTranscribing(true);
     try {
-      const result = await transcribeBlob(
-        blob,
-        modeRef.current === "ar" ? "ar" : "en"
-      );
+      const result = await transcribeBlob(blob);
       if (result.text) {
-        sessionFinalRef.current = appendTranscript(
-          sessionFinalRef.current,
-          result.text
-        );
+        commitText(result.text);
       } else if (result.fallback) {
         setWhisperReady(false);
       }
@@ -265,7 +242,7 @@ export function VoiceNoteField({
       setError("Voice capture hit a pause. Try again, or type the note.");
     } finally {
       setTranscribing(false);
-      commitSession();
+      publish();
     }
   };
 
@@ -292,12 +269,8 @@ export function VoiceNoteField({
     return true;
   };
 
-  const failArabicLangs = () => {
-    setError(
-      modeRef.current === "ar"
-        ? "Arabic dictation is not available in this browser. Try Chrome, or type the note."
-        : "English dictation is not available in this browser. Type the note instead."
-    );
+  const failVoiceLangs = () => {
+    setError("Voice dictation is not available in this browser. Type the note instead.");
     listeningRef.current = false;
     setListening(false);
     stopMic();
@@ -306,9 +279,13 @@ export function VoiceNoteField({
   const startBrowserRecognition = (langOverride?: string) => {
     const Recognition = getSpeechRecognition();
     if (!Recognition) return false;
-    const langs = langsForMode(modeRef.current);
     const lang =
-      langOverride ?? langs[langIndexRef.current] ?? langs[0] ?? "en-US";
+      langOverride ??
+      ENGLISH_VOICE_LANGS[langIndexRef.current] ??
+      ENGLISH_VOICE_LANGS[0];
+
+    settleInterim();
+    processedIndexRef.current = 0;
     const session = sessionRef.current + 1;
     sessionRef.current = session;
 
@@ -336,8 +313,10 @@ export function VoiceNoteField({
     recognition.onresult = (event) => {
       if (session !== sessionRef.current) return;
       if (event.results.length < processedIndexRef.current) {
+        settleInterim();
         processedIndexRef.current = 0;
       }
+
       let interim = "";
       const start = Math.max(event.resultIndex, processedIndexRef.current);
 
@@ -347,10 +326,7 @@ export function VoiceNoteField({
         if (!transcript) continue;
 
         if (result.isFinal) {
-          sessionFinalRef.current = appendTranscript(
-            sessionFinalRef.current,
-            transcript
-          );
+          commitText(transcript);
           processedIndexRef.current = index + 1;
         } else {
           interim = appendTranscript(interim, transcript);
@@ -367,6 +343,7 @@ export function VoiceNoteField({
         event.error === "aborted" ||
         event.error === "network"
       ) {
+        settleInterim();
         return;
       }
       if (event.error === "not-allowed" || event.error === "service-not-allowed") {
@@ -378,7 +355,7 @@ export function VoiceNoteField({
       }
       if (event.error === "language-not-supported") {
         const nextIndex = langIndexRef.current + 1;
-        const nextLang = langs[nextIndex];
+        const nextLang = ENGLISH_VOICE_LANGS[nextIndex];
         if (nextLang) {
           langIndexRef.current = nextIndex;
           window.setTimeout(() => {
@@ -388,7 +365,7 @@ export function VoiceNoteField({
           }, 80);
           return;
         }
-        failArabicLangs();
+        failVoiceLangs();
         return;
       }
       setError("Voice capture hit a pause — keep talking, it will continue.");
@@ -396,6 +373,8 @@ export function VoiceNoteField({
 
     recognition.onend = () => {
       if (session !== sessionRef.current) return;
+      settleInterim();
+      processedIndexRef.current = 0;
       if (!listeningRef.current) {
         setListening(false);
         return;
@@ -421,25 +400,13 @@ export function VoiceNoteField({
       return true;
     } catch {
       const nextIndex = langIndexRef.current + 1;
-      const nextLang = langs[nextIndex];
+      const nextLang = ENGLISH_VOICE_LANGS[nextIndex];
       if (nextLang) {
         langIndexRef.current = nextIndex;
         return startBrowserRecognition(nextLang);
       }
-      failArabicLangs();
+      failVoiceLangs();
       return false;
-    }
-  };
-
-  const applyVoiceMode = (mode: VoiceLangMode) => {
-    modeRef.current = mode;
-    setVoiceMode(mode);
-    writeVoiceLangMode(mode);
-    langIndexRef.current = 0;
-    setError(null);
-    if (listeningRef.current) {
-      processedIndexRef.current = 0;
-      startBrowserRecognition();
     }
   };
 
@@ -458,8 +425,8 @@ export function VoiceNoteField({
     }
 
     setError(null);
+    startedWithRef.current = value.trim();
     committedRef.current = value.trim();
-    sessionFinalRef.current = "";
     interimRef.current = "";
     processedIndexRef.current = 0;
     langIndexRef.current = 0;
@@ -510,41 +477,27 @@ export function VoiceNoteField({
           {label}
         </label>
         <div className="flex items-center gap-2">
-          <div className="flex rounded-full border border-white/10 bg-white/5 p-0.5">
-            {(
-              [
-                { id: "en", label: "EN" },
-                { id: "ar", label: "AR" },
-              ] as const
-            ).map((option) => (
-              <button
-                key={option.id}
-                type="button"
-                onClick={() => applyVoiceMode(option.id)}
-                aria-pressed={voiceMode === option.id}
-                className={`rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-[0.12em] transition-colors ${
-                  voiceMode === option.id
-                    ? "bg-indigo-500 text-white"
-                    : "text-zinc-400 hover:text-zinc-100"
-                }`}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-        <button
-          type="button"
-          onClick={() => void toggle()}
-          disabled={!supported || transcribing}
-          className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] transition-colors ${
-            listening
-              ? "border-rose-400/40 bg-rose-500/15 text-rose-200"
-              : "border-white/10 bg-white/5 text-zinc-300 hover:border-indigo-400/40 hover:text-zinc-100"
-          } disabled:cursor-not-allowed disabled:opacity-50`}
-        >
-          {listening ? <Square className="h-3 w-3" /> : <Mic className="h-3 w-3" />}
-          {listening ? "Stop" : "Voice"}
-        </button>
+          <button
+            type="button"
+            aria-pressed="true"
+            tabIndex={-1}
+            className="rounded-full bg-indigo-500 px-2 py-0.5 text-[10px] font-semibold tracking-[0.12em] text-white"
+          >
+            EN
+          </button>
+          <button
+            type="button"
+            onClick={() => void toggle()}
+            disabled={!supported || transcribing}
+            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] transition-colors ${
+              listening
+                ? "border-rose-400/40 bg-rose-500/15 text-rose-200"
+                : "border-white/10 bg-white/5 text-zinc-300 hover:border-indigo-400/40 hover:text-zinc-100"
+            } disabled:cursor-not-allowed disabled:opacity-50`}
+          >
+            {listening ? <Square className="h-3 w-3" /> : <Mic className="h-3 w-3" />}
+            {listening ? "Stop" : "Voice"}
+          </button>
         </div>
       </div>
       <textarea
@@ -555,24 +508,20 @@ export function VoiceNoteField({
         onChange={(event) => {
           if (listeningRef.current) {
             committedRef.current = event.target.value.trim();
-            sessionFinalRef.current = "";
             interimRef.current = "";
           }
           onChange(event.target.value);
         }}
-        dir="auto"
-        lang={voiceMode === "ar" ? "ar" : "en"}
+        lang="en"
         className={`${desk.input} resize-none`}
       />
       <p className="mt-1.5 text-xs text-zinc-400">
         {listening
-          ? voiceMode === "ar"
-            ? "Listening in Arabic… each sentence is appended. Keep talking or press Stop."
-            : "Listening… each sentence is appended. Keep talking or press Stop."
+          ? "Listening…"
           : transcribing
             ? "Transcribing the last clip…"
             : supported
-              ? "Type freely, or use voice-to-text. Switch to AR for Arabic or Lebanese."
+              ? "Type freely, or use voice-to-text."
               : "Voice-to-text is unavailable here — type the note instead."}
       </p>
       {error && <p className="mt-1 text-xs text-rose-300">{error}</p>}
