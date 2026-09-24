@@ -1,19 +1,19 @@
 "use client";
 
 import {
-  hasPasswordRecoveryFlag,
+  capturePasswordRecovery,
   markPasswordRecovery,
 } from "@/lib/auth-recovery";
 import { createClient } from "@/lib/supabase/client";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 
-function isRecoverySurface(pathname: string) {
-  return (
-    pathname.startsWith("/auth/update-password") ||
-    pathname.startsWith("/login") ||
-    pathname.startsWith("/signup")
-  );
+function isUpdatePasswordPath(pathname: string) {
+  return pathname.startsWith("/auth/update-password");
+}
+
+function isCallbackPath(pathname: string) {
+  return pathname.startsWith("/auth/callback");
 }
 
 export function PasswordRecoveryGate() {
@@ -23,12 +23,16 @@ export function PasswordRecoveryGate() {
   useEffect(() => {
     const goToUpdate = () => {
       markPasswordRecovery();
-      if (!isRecoverySurface(window.location.pathname)) {
-        router.replace("/auth/update-password");
+      if (
+        isUpdatePasswordPath(window.location.pathname) ||
+        isCallbackPath(window.location.pathname)
+      ) {
+        return;
       }
+      router.replace("/auth/update-password");
     };
 
-    if (hasPasswordRecoveryFlag()) {
+    if (capturePasswordRecovery()) {
       goToUpdate();
     }
 

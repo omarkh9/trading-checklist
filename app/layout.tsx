@@ -4,6 +4,7 @@ import { PasswordRecoveryGate } from "@/components/auth/PasswordRecoveryGate";
 import { PwaRegister } from "@/components/PwaRegister";
 import { ConfirmProvider } from "@/components/ui/ConfirmProvider";
 import { WorkspaceProvider } from "@/components/workspace/WorkspaceProvider";
+import { PASSWORD_RECOVERY_BOOTSTRAP_SCRIPT } from "@/lib/auth-recovery";
 import { THEME_BOOTSTRAP_SCRIPT } from "@/lib/settings/workspace";
 import {
   SITE_DESCRIPTION,
@@ -110,6 +111,11 @@ export default function RootLayout({
     <html lang="en" className="dark" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP_SCRIPT }} />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: PASSWORD_RECOVERY_BOOTSTRAP_SCRIPT,
+          }}
+        />
         <link rel="manifest" href="/manifest.json" />
         <meta
           name="google-site-verification"

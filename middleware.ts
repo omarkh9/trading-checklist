@@ -1,8 +1,16 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "@/lib/supabase/database.types";
+import { PASSWORD_RECOVERY_COOKIE } from "@/lib/auth-recovery";
 import { getAuthPageUrl, getRedirectUrl } from "@/lib/auth-path";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase/env";
+
+function isPasswordRecoveryRequest(request: NextRequest) {
+  if (request.cookies.get(PASSWORD_RECOVERY_COOKIE)?.value === "1") return true;
+  const type = request.nextUrl.searchParams.get("type")?.toLowerCase();
+  const next = request.nextUrl.searchParams.get("next") || "";
+  return type === "recovery" || next.includes("update-password");
+}
 
 function isPublicPath(pathname: string) {
   return (
@@ -83,9 +91,12 @@ export async function middleware(request: NextRequest) {
       pathname.startsWith("/signup") ||
       pathname.startsWith("/forgot-password"))
   ) {
+    const destination = isPasswordRecoveryRequest(request)
+      ? new URL("/auth/update-password", request.url)
+      : new URL(getRedirectUrl("/"));
     return copySessionCookies(
       supabaseResponse,
-      NextResponse.redirect(new URL(getRedirectUrl("/")))
+      NextResponse.redirect(destination)
     );
   }
 

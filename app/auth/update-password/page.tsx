@@ -2,8 +2,7 @@
 
 import { UpdatePasswordForm } from "@/components/auth/UpdatePasswordForm";
 import {
-  hasPasswordRecoveryFlag,
-  hashLooksLikeRecovery,
+  capturePasswordRecovery,
   markPasswordRecovery,
 } from "@/lib/auth-recovery";
 import { createClient } from "@/lib/supabase/client";
@@ -14,6 +13,9 @@ import { useEffect, useState } from "react";
 export default function UpdatePasswordPage() {
   const [ready, setReady] = useState(false);
   const [hasSession, setHasSession] = useState(false);
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(
+    capturePasswordRecovery
+  );
 
   useEffect(() => {
     const supabase = createClient();
@@ -26,30 +28,34 @@ export default function UpdatePasswordPage() {
       setReady(true);
     };
 
-    if (hasPasswordRecoveryFlag() || hashLooksLikeRecovery()) {
-      markPasswordRecovery();
+    if (capturePasswordRecovery()) {
+      setIsPasswordRecovery(true);
     }
 
     void supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) markReady(true);
+      if (session) {
+        setIsPasswordRecovery(true);
+        markReady(true);
+      }
     });
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      if (
-        event === "PASSWORD_RECOVERY" ||
-        event === "SIGNED_IN" ||
-        event === "INITIAL_SESSION"
-      ) {
-        if (event === "PASSWORD_RECOVERY") markPasswordRecovery();
+      if (event === "PASSWORD_RECOVERY") {
+        markPasswordRecovery();
+        setIsPasswordRecovery(true);
+        markReady(Boolean(session));
+        return;
+      }
+      if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
         if (session) markReady(true);
       }
     });
 
     const timeout = window.setTimeout(() => {
       void supabase.auth.getSession().then(({ data: { session } }) => {
-        markReady(Boolean(session) || hasPasswordRecoveryFlag());
+        markReady(Boolean(session) || capturePasswordRecovery());
       });
     }, 1200);
 
@@ -59,6 +65,8 @@ export default function UpdatePasswordPage() {
       window.clearTimeout(timeout);
     };
   }, []);
+
+  const showForm = hasSession || isPasswordRecovery;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-surface px-4 py-10">
@@ -81,7 +89,7 @@ export default function UpdatePasswordPage() {
         <div className="rounded-xl border border-border bg-surface-raised p-6">
           {!ready ? (
             <div className="h-24 animate-pulse rounded-lg bg-white/5" />
-          ) : !hasSession ? (
+          ) : !showForm ? (
             <div>
               <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
                 This reset link is invalid or expired. Request a new one from the

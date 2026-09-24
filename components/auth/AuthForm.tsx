@@ -17,8 +17,7 @@ import {
   validatePassword,
 } from "@/lib/auth";
 import {
-  hasPasswordRecoveryFlag,
-  hashLooksLikeRecovery,
+  capturePasswordRecovery,
   markPasswordRecovery,
 } from "@/lib/auth-recovery";
 import { createClient } from "@/lib/supabase/client";
@@ -58,12 +57,13 @@ export function AuthForm({ mode }: AuthFormProps) {
   const [showPasswordReset, setShowPasswordReset] = useState(
     searchParams.get("existing") === "1" || searchParams.get("error") === "auth"
   );
-  const [recoveryMode, setRecoveryMode] = useState(false);
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(
+    capturePasswordRecovery
+  );
 
   useEffect(() => {
-    if (hasPasswordRecoveryFlag() || hashLooksLikeRecovery()) {
-      markPasswordRecovery();
-      setRecoveryMode(true);
+    if (capturePasswordRecovery()) {
+      setIsPasswordRecovery(true);
     }
 
     const supabase = createClient();
@@ -72,7 +72,7 @@ export function AuthForm({ mode }: AuthFormProps) {
     } = supabase.auth.onAuthStateChange((event) => {
       if (event === "PASSWORD_RECOVERY") {
         markPasswordRecovery();
-        setRecoveryMode(true);
+        setIsPasswordRecovery(true);
       }
     });
 
@@ -278,7 +278,7 @@ export function AuthForm({ mode }: AuthFormProps) {
             </h1>
           </Link>
           <p className="mt-2 text-sm text-zinc-400">
-            {recoveryMode
+            {isPasswordRecovery
               ? "Choose a new password to finish resetting your account."
               : isSignup
                 ? "Create an account to start logging your own trades."
@@ -286,7 +286,7 @@ export function AuthForm({ mode }: AuthFormProps) {
           </p>
         </div>
 
-        {recoveryMode ? (
+        {isPasswordRecovery ? (
           <div className="rounded-xl border border-border bg-surface-raised p-6">
             <h2 className="mb-1 text-lg font-semibold text-zinc-100">
               Update password

@@ -56,7 +56,9 @@ export function AuthCallback() {
       const type = isOtpType(typeValue) ? typeValue : null;
       const nextFromQuery = safeNextPath(searchParams.get("next"));
       const isRecovery =
-        type === "recovery" || nextFromQuery.startsWith("/auth/update-password");
+        type === "recovery" ||
+        nextFromQuery.startsWith("/auth/update-password") ||
+        hash.get("type")?.toLowerCase() === "recovery";
       const next = isRecovery ? "/auth/update-password" : nextFromQuery;
       if (isRecovery) markPasswordRecovery();
       const queryError =
@@ -77,7 +79,9 @@ export function AuthCallback() {
       if (queryError) {
         await reportAuthEvent("callback_provider_error", { queryError, type });
         await finish(
-          loginHref({ error: "auth", error_description: queryError })
+          isRecovery
+            ? "/forgot-password"
+            : loginHref({ error: "auth", error_description: queryError })
         );
         return;
       }
@@ -185,12 +189,20 @@ export function AuthCallback() {
       await reportAuthEvent("callback_exception", {
         message: error instanceof Error ? error.message : String(error),
       });
+      const failedType =
+        searchParams.get("type") || readHashParams().get("type") || "";
+      const failedNext = safeNextPath(searchParams.get("next"));
+      const failedRecovery =
+        failedType.toLowerCase() === "recovery" ||
+        failedNext.startsWith("/auth/update-password");
       await finish(
-        loginHref({
-          error: "auth",
-          error_description:
-            "Could not complete confirmation. Try signing in with your password.",
-        })
+        failedRecovery
+          ? "/forgot-password"
+          : loginHref({
+              error: "auth",
+              error_description:
+                "Could not complete confirmation. Try signing in with your password.",
+            })
       );
     });
 

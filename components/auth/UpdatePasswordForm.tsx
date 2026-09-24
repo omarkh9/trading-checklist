@@ -1,12 +1,8 @@
 "use client";
 
-import {
-  getRedirectUrl,
-  mapAuthError,
-  updatePassword,
-  validatePassword,
-} from "@/lib/auth";
+import { getRedirectUrl, mapAuthError, validatePassword } from "@/lib/auth";
 import { clearPasswordRecovery } from "@/lib/auth-recovery";
+import { createClient } from "@/lib/supabase/client";
 import { useState } from "react";
 
 const inputClass =
@@ -42,7 +38,11 @@ export function UpdatePasswordForm({
 
     setIsSubmitting(true);
     try {
-      await updatePassword(password);
+      const supabase = createClient();
+      const { error: updateError } = await supabase.auth.updateUser({
+        password,
+      });
+      if (updateError) throw updateError;
       clearPasswordRecovery();
       window.location.assign(getRedirectUrl("/"));
     } catch (cause) {
