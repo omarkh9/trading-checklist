@@ -1,12 +1,14 @@
 "use client";
 
 import {
+  getAuthCallbackUrl,
   getAuthPageUrl,
   getRedirectUrl,
-  mapAuthError,
-  requestPasswordReset,
+  normalizeEmail,
+  toSiteUrl,
   validateEmail,
 } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/client";
 import { Activity, Mail } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -16,6 +18,27 @@ const inputClass =
   "w-full rounded-lg border border-border bg-surface-overlay px-3 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none transition-colors focus:border-accent/50 focus:ring-1 focus:ring-accent/30";
 
 const labelClass = "mb-1.5 block text-sm font-medium text-zinc-400";
+
+function mapResetError(cause: unknown) {
+  const message =
+    cause instanceof Error ? cause.message : "Could not send a reset email.";
+  const lower = message.toLowerCase();
+  if (
+    lower.includes("rate limit") ||
+    lower.includes("too many") ||
+    lower.includes("over_request")
+  ) {
+    return "Too many attempts. Wait a moment and try again.";
+  }
+  if (
+    lower.includes("unable to sign in") ||
+    lower.includes("invalid login") ||
+    lower.includes("invalid credentials")
+  ) {
+    return "Could not send a reset email. Check the address and try again.";
+  }
+  return "Could not send a reset email. Check the address and try again in a moment.";
+}
 
 export function ForgotPasswordForm() {
   const searchParams = useSearchParams();
@@ -39,12 +62,20 @@ export function ForgotPasswordForm() {
       return;
     }
 
+    const normalized = normalizeEmail(email);
     setIsSubmitting(true);
     try {
-      await requestPasswordReset(email);
-      setSentTo(email.trim().toLowerCase());
+      const supabase = createClient();
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(
+        normalized,
+        {
+          redirectTo: toSiteUrl(getAuthCallbackUrl("/auth/update-password")),
+        }
+      );
+      if (resetError) throw resetError;
+      setSentTo(normalized);
     } catch (cause) {
-      setError(mapAuthError(cause));
+      setError(mapResetError(cause));
     } finally {
       setIsSubmitting(false);
     }
@@ -75,7 +106,7 @@ export function ForgotPasswordForm() {
           </Link>
           <p className="mt-2 text-sm text-zinc-400">
             {sentTo
-              ? "Check your inbox for reset instructions."
+              ? "Reset email sent."
               : "Enter your registered email and we will send a reset link."}
           </p>
         </div>
@@ -83,11 +114,13 @@ export function ForgotPasswordForm() {
         <div className="rounded-xl border border-border bg-surface-raised p-6">
           {sentTo ? (
             <div>
+              <h2 className="mb-2 text-lg font-semibold text-zinc-100">
+                Check your inbox
+              </h2>
               <p className="rounded-lg border border-accent/30 bg-accent/10 px-3 py-3 text-sm text-accent-hover">
-                If an account exists for{" "}
-                <span className="font-medium text-zinc-100">{sentTo}</span>, we
-                sent a password reset link. Open it to set a new password, then
-                sign in.
+                We sent a password reset link to{" "}
+                <span className="font-medium text-zinc-100">{sentTo}</span>. Open
+                that email and follow the link to choose a new password.
               </p>
               <button
                 type="button"
