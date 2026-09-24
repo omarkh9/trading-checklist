@@ -1,6 +1,7 @@
 "use client";
 
 import { ChartLightbox } from "@/components/trade-journal/ChartLightbox";
+import { EarlyExitBadge } from "@/components/trade-journal/EarlyExitBadge";
 import { RuleScoreStat } from "@/components/trade-journal/RuleScoreStat";
 import { formatLocalDateTime } from "@/lib/time";
 import { ASSET_CLASS_LABELS, resolveAsset } from "@/lib/trades/assets";
@@ -138,6 +139,7 @@ export function TradeDetailCard({ trade }: TradeDetailCardProps) {
           >
             {trade.outcome}
           </span>
+          <EarlyExitBadge trade={trade} />
           {strategy && (
             <span className="inline-flex max-w-[11rem] items-center rounded-full bg-indigo-500/15 px-2 py-0.5 text-[11px] font-medium text-indigo-300 ring-1 ring-indigo-400/30">
               <span className="truncate">{formatStrategyTag(strategy)}</span>
