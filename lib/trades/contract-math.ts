@@ -102,9 +102,27 @@ export function pipValueUsd(
   };
 }
 
+export function isShortDirection(direction: string | null | undefined): boolean {
+  const value = String(direction ?? "").trim().toLowerCase();
+  return value === "short" || value === "sell" || value === "s";
+}
+
+/**
+ * Price change that is profitable when positive.
+ * Long: exit − entry. Short: entry − exit.
+ */
+export function signedPriceMove(
+  direction: Direction | string | null | undefined,
+  entryPrice: number,
+  exitPrice: number
+): number {
+  const move = exitPrice - entryPrice;
+  return isShortDirection(direction) ? -move : move;
+}
+
 export function calculatePnlFromPrices(input: {
   pair: string;
-  direction: Direction;
+  direction: Direction | string;
   entryPrice: number;
   exitPrice: number;
   lots: number;
@@ -119,10 +137,11 @@ export function calculatePnlFromPrices(input: {
   );
   if (!perUnit || lots <= 0) return null;
 
-  const signedMove =
-    input.direction === "Long"
-      ? input.exitPrice - input.entryPrice
-      : input.entryPrice - input.exitPrice;
+  const signedMove = signedPriceMove(
+    input.direction,
+    input.entryPrice,
+    input.exitPrice
+  );
 
   return {
     pnlUsd: roundMoney(lots * signedMove * perUnit.value),

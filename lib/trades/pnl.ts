@@ -45,7 +45,7 @@ export function sumTradePnl(trades: Trade[]): number {
 
 export function estimatePnlFromPrices(input: {
   pair: string;
-  direction: Direction;
+  direction: Direction | string;
   entryPrice: string;
   exitPrice: string;
   lots: number | null;
@@ -116,7 +116,7 @@ function signedFallbackPnl(
 
 export function resolveTradeResult(input: {
   pair: string;
-  direction: Direction;
+  direction: Direction | string;
   entryPrice: string;
   exitPrice: string;
   lots: number | null;
