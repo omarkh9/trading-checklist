@@ -39,6 +39,7 @@ function mapResetError(cause: unknown) {
   return "Could not send a reset email. Check the address and try again in a moment.";
 }
 
+
 export function ForgotPasswordForm() {
   const searchParams = useSearchParams();
   const [email, setEmail] = useState(searchParams.get("email") ?? "");
@@ -180,3 +181,4 @@ export function ForgotPasswordForm() {
     </div>
   );
 }
+
