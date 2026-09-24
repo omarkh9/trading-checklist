@@ -71,13 +71,10 @@ export function ForgotPasswordForm() {
           redirectTo: getRedirectUrl("/auth/update-password"),
         }
       );
-      if (resetError) {
-        console.error(resetError);
-        throw resetError;
-      }
+      if (resetError) throw resetError;
       setSentTo(normalized);
     } catch (error) {
-      console.error(error);
+      console.error("Full Supabase Error:", error);
       setError(mapResetError(error));
     } finally {
       setIsSubmitting(false);
