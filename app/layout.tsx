@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
+import { PasswordRecoveryGate } from "@/components/auth/PasswordRecoveryGate";
 import { PwaRegister } from "@/components/PwaRegister";
 import { ConfirmProvider } from "@/components/ui/ConfirmProvider";
 import { WorkspaceProvider } from "@/components/workspace/WorkspaceProvider";
@@ -121,6 +122,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
         <PwaRegister />
+        <PasswordRecoveryGate />
         <WorkspaceProvider>
           <ConfirmProvider>{children}</ConfirmProvider>
         </WorkspaceProvider>

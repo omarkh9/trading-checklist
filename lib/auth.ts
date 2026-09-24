@@ -105,6 +105,13 @@ export function mapAuthError(error: unknown) {
   if (isInvalidCredentialsError(error)) {
     return "Incorrect email or password. Reset your password if you forgot it, or resend confirmation if you never activated the account.";
   }
+  if (
+    lower.includes("new password") ||
+    lower.includes("same password") ||
+    lower.includes("password should be different")
+  ) {
+    return "Choose a new password that is different from your current one.";
+  }
   if (isExistingAccountError(error)) {
     return "An account with this email already exists. Sign in, or reset your password.";
   }

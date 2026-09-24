@@ -1,5 +1,6 @@
 "use client";
 
+import { UpdatePasswordForm } from "@/components/auth/UpdatePasswordForm";
 import {
   getAuthCallbackUrl,
   getAuthPageUrl,
@@ -15,10 +16,16 @@ import {
   validateEmail,
   validatePassword,
 } from "@/lib/auth";
+import {
+  hasPasswordRecoveryFlag,
+  hashLooksLikeRecovery,
+  markPasswordRecovery,
+} from "@/lib/auth-recovery";
+import { createClient } from "@/lib/supabase/client";
 import { Activity } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 const inputClass =
   "w-full rounded-lg border border-border bg-surface-overlay px-3 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none transition-colors focus:border-accent/50 focus:ring-1 focus:ring-accent/30";
@@ -51,6 +58,26 @@ export function AuthForm({ mode }: AuthFormProps) {
   const [showPasswordReset, setShowPasswordReset] = useState(
     searchParams.get("existing") === "1" || searchParams.get("error") === "auth"
   );
+  const [recoveryMode, setRecoveryMode] = useState(false);
+
+  useEffect(() => {
+    if (hasPasswordRecoveryFlag() || hashLooksLikeRecovery()) {
+      markPasswordRecovery();
+      setRecoveryMode(true);
+    }
+
+    const supabase = createClient();
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") {
+        markPasswordRecovery();
+        setRecoveryMode(true);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const isSignup = mode === "signup";
   const normalizedEmail = email.trim().toLowerCase();
@@ -251,12 +278,22 @@ export function AuthForm({ mode }: AuthFormProps) {
             </h1>
           </Link>
           <p className="mt-2 text-sm text-zinc-400">
-            {isSignup
-              ? "Create an account to start logging your own trades."
-              : "Sign in to view and log your trades."}
+            {recoveryMode
+              ? "Choose a new password to finish resetting your account."
+              : isSignup
+                ? "Create an account to start logging your own trades."
+                : "Sign in to view and log your trades."}
           </p>
         </div>
 
+        {recoveryMode ? (
+          <div className="rounded-xl border border-border bg-surface-raised p-6">
+            <h2 className="mb-1 text-lg font-semibold text-zinc-100">
+              Update password
+            </h2>
+            <UpdatePasswordForm heading="Enter a new password, then you will continue into the desk." />
+          </div>
+        ) : (
         <form
           onSubmit={handleSubmit}
           className="rounded-xl border border-border bg-surface-raised p-6"
@@ -391,6 +428,7 @@ export function AuthForm({ mode }: AuthFormProps) {
             )}
           </p>
         </form>
+        )}
       </div>
     </div>
   );

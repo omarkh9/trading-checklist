@@ -1,67 +1,64 @@
 "use client";
 
+import { UpdatePasswordForm } from "@/components/auth/UpdatePasswordForm";
 import {
-  getRedirectUrl,
-  mapAuthError,
-  updatePassword,
-  validatePassword,
-} from "@/lib/auth";
+  hasPasswordRecoveryFlag,
+  hashLooksLikeRecovery,
+  markPasswordRecovery,
+} from "@/lib/auth-recovery";
 import { createClient } from "@/lib/supabase/client";
 import { Activity } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-const inputClass =
-  "w-full rounded-lg border border-border bg-surface-overlay px-3 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none transition-colors focus:border-accent/50 focus:ring-1 focus:ring-accent/30";
-
-const labelClass = "mb-1.5 block text-sm font-medium text-zinc-400";
-
 export default function UpdatePasswordPage() {
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [hasSession, setHasSession] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
     let cancelled = false;
 
-    void supabase.auth.getUser().then(({ data: { user } }) => {
+    const markReady = (hasUser: boolean) => {
       if (cancelled) return;
-      setHasSession(Boolean(user));
+      if (hasUser) markPasswordRecovery();
+      setHasSession(hasUser);
       setReady(true);
+    };
+
+    if (hasPasswordRecoveryFlag() || hashLooksLikeRecovery()) {
+      markPasswordRecovery();
+    }
+
+    void supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) markReady(true);
     });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (
+        event === "PASSWORD_RECOVERY" ||
+        event === "SIGNED_IN" ||
+        event === "INITIAL_SESSION"
+      ) {
+        if (event === "PASSWORD_RECOVERY") markPasswordRecovery();
+        if (session) markReady(true);
+      }
+    });
+
+    const timeout = window.setTimeout(() => {
+      void supabase.auth.getSession().then(({ data: { session } }) => {
+        markReady(Boolean(session) || hasPasswordRecoveryFlag());
+      });
+    }, 1200);
 
     return () => {
       cancelled = true;
+      subscription.unsubscribe();
+      window.clearTimeout(timeout);
     };
   }, []);
-
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setError(null);
-
-    const passwordError = validatePassword(password);
-    if (passwordError) {
-      setError(passwordError);
-      return;
-    }
-    if (password !== confirmPassword) {
-      setError("Passwords do not match.");
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      await updatePassword(password);
-      window.location.assign(getRedirectUrl("/"));
-    } catch (cause) {
-      setError(mapAuthError(cause));
-      setIsSubmitting(false);
-    }
-  };
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-surface px-4 py-10">
@@ -76,7 +73,9 @@ export default function UpdatePasswordPage() {
           <h1 className="mt-1 text-2xl font-bold tracking-tight text-gradient">
             EDGE LOG
           </h1>
-          <p className="mt-2 text-sm text-zinc-400">Set a new password for your account.</p>
+          <p className="mt-2 text-sm text-zinc-400">
+            Update your password to finish recovery.
+          </p>
         </div>
 
         <div className="rounded-xl border border-border bg-surface-raised p-6">
@@ -85,7 +84,8 @@ export default function UpdatePasswordPage() {
           ) : !hasSession ? (
             <div>
               <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
-                This reset link is invalid or expired. Request a new one from the forgot password page.
+                This reset link is invalid or expired. Request a new one from the
+                forgot password page.
               </p>
               <Link
                 href="/forgot-password"
@@ -95,52 +95,12 @@ export default function UpdatePasswordPage() {
               </Link>
             </div>
           ) : (
-            <form onSubmit={handleSubmit}>
-              {error && (
-                <p className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
-                  {error}
-                </p>
-              )}
-              <div>
-                <label htmlFor="password" className={labelClass}>
-                  New password
-                </label>
-                <input
-                  id="password"
-                  type="password"
-                  autoComplete="new-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="At least 8 characters"
-                  className={inputClass}
-                  required
-                  minLength={8}
-                />
-              </div>
-              <div className="mt-4">
-                <label htmlFor="confirmPassword" className={labelClass}>
-                  Confirm password
-                </label>
-                <input
-                  id="confirmPassword"
-                  type="password"
-                  autoComplete="new-password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Re-enter your password"
-                  className={inputClass}
-                  required
-                  minLength={8}
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="mt-6 w-full rounded-lg bg-accent px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isSubmitting ? "Saving..." : "Save password"}
-              </button>
-            </form>
+            <>
+              <h2 className="mb-1 text-lg font-semibold text-zinc-100">
+                Update password
+              </h2>
+              <UpdatePasswordForm />
+            </>
           )}
         </div>
       </div>

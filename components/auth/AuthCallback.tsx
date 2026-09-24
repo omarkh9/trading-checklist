@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { reportAuthEvent } from "@/lib/auth-log";
+import { markPasswordRecovery } from "@/lib/auth-recovery";
 import { safeNextPath } from "@/lib/auth-path";
 import { createClient } from "@/lib/supabase/client";
 import { ensureUserProfile } from "@/lib/supabase/profile";
@@ -57,6 +58,7 @@ export function AuthCallback() {
       const isRecovery =
         type === "recovery" || nextFromQuery.startsWith("/auth/update-password");
       const next = isRecovery ? "/auth/update-password" : nextFromQuery;
+      if (isRecovery) markPasswordRecovery();
       const queryError =
         searchParams.get("error_description") ||
         searchParams.get("error") ||
