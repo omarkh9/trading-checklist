@@ -1,6 +1,7 @@
 "use client";
 
 import { UpdatePasswordForm } from "@/components/auth/UpdatePasswordForm";
+import { establishRecoverySession } from "@/lib/auth-recovery-session";
 import {
   capturePasswordRecovery,
   markPasswordRecovery,
@@ -13,9 +14,6 @@ import { useEffect, useState } from "react";
 export default function UpdatePasswordPage() {
   const [ready, setReady] = useState(false);
   const [hasSession, setHasSession] = useState(false);
-  const [isPasswordRecovery, setIsPasswordRecovery] = useState(
-    capturePasswordRecovery
-  );
 
   useEffect(() => {
     const supabase = createClient();
@@ -28,45 +26,40 @@ export default function UpdatePasswordPage() {
       setReady(true);
     };
 
-    if (capturePasswordRecovery()) {
-      setIsPasswordRecovery(true);
-    }
-
-    void supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        setIsPasswordRecovery(true);
-        markReady(true);
-      }
-    });
+    capturePasswordRecovery();
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "PASSWORD_RECOVERY") {
         markPasswordRecovery();
-        setIsPasswordRecovery(true);
         markReady(Boolean(session));
-        return;
-      }
-      if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
-        if (session) markReady(true);
       }
     });
 
-    const timeout = window.setTimeout(() => {
-      void supabase.auth.getSession().then(({ data: { session } }) => {
-        markReady(Boolean(session) || capturePasswordRecovery());
+    void establishRecoverySession()
+      .then((session) => {
+        if (cancelled) return;
+        if (session) {
+          markReady(true);
+          return;
+        }
+        window.setTimeout(() => {
+          void supabase.auth.getSession().then(({ data }) => {
+            markReady(Boolean(data.session));
+          });
+        }, 800);
+      })
+      .catch((error) => {
+        console.error("Full Supabase Error:", error);
+        if (!cancelled) markReady(false);
       });
-    }, 1200);
 
     return () => {
       cancelled = true;
       subscription.unsubscribe();
-      window.clearTimeout(timeout);
     };
   }, []);
-
-  const showForm = hasSession || isPasswordRecovery;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-surface px-4 py-10">
@@ -89,7 +82,7 @@ export default function UpdatePasswordPage() {
         <div className="rounded-xl border border-border bg-surface-raised p-6">
           {!ready ? (
             <div className="h-24 animate-pulse rounded-lg bg-white/5" />
-          ) : !showForm ? (
+          ) : !hasSession ? (
             <div>
               <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
                 This reset link is invalid or expired. Request a new one from the

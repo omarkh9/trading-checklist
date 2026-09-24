@@ -1,6 +1,7 @@
 "use client";
 
 import { getRedirectUrl, validatePassword } from "@/lib/auth";
+import { establishRecoverySession } from "@/lib/auth-recovery-session";
 import {
   clearPasswordRecovery,
   markPasswordRecovery,
@@ -36,6 +37,10 @@ export function UpdatePasswordForm({
       }
     });
 
+    void establishRecoverySession().catch((error) => {
+      console.error("Full Supabase Error:", error);
+    });
+
     return () => {
       subscription.unsubscribe();
     };
@@ -58,6 +63,15 @@ export function UpdatePasswordForm({
 
     setIsSubmitting(true);
     const supabase = createClient();
+    const session = await establishRecoverySession();
+    if (!session) {
+      setError(
+        "This reset link is invalid or expired. Request a new one and try again."
+      );
+      setIsSubmitting(false);
+      return;
+    }
+
     const { error: updateError } = await supabase.auth.updateUser({
       password,
     });
