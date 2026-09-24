@@ -5,6 +5,7 @@ import { EarlyExitBadge } from "@/components/trade-journal/EarlyExitBadge";
 import { RuleScoreStat } from "@/components/trade-journal/RuleScoreStat";
 import { formatLocalDateTime } from "@/lib/time";
 import { ASSET_CLASS_LABELS, resolveAsset } from "@/lib/trades/assets";
+import { isEarlyExit } from "@/lib/trades/execution-variance";
 import { formatStrategyTag, splitStrategyFromNotes } from "@/lib/trades/load-trades";
 import { formatPnlDollars } from "@/lib/trades/pnl";
 import { emotionEmoji, emotionLabel } from "@/lib/types/emotion";
@@ -111,6 +112,7 @@ export function TradeDetailCard({ trade }: TradeDetailCardProps) {
       : trade.pnlDollars < 0
         ? "border-rose-400/40 bg-rose-500/10"
         : "border-blue-400/40 bg-blue-500/10";
+  const leftTargetEarly = isEarlyExit(trade);
 
   return (
     <article className="min-w-0 overflow-hidden rounded-xl border border-indigo-400/15 bg-[#0c0c16]/70 p-4 sm:p-5">
@@ -189,11 +191,28 @@ export function TradeDetailCard({ trade }: TradeDetailCardProps) {
                 {trade.entryPrice || "—"}
               </dd>
             </div>
-            <div className="rounded-lg border border-white/5 bg-white/[0.03] px-3 py-2">
-              <dt className="text-xs text-zinc-500">Exit Price</dt>
-              <dd className="font-mono text-sm text-zinc-200">
+            <div
+              className={
+                leftTargetEarly
+                  ? "rounded-lg border border-amber-400/50 bg-amber-500/10 px-3 py-2 ring-1 ring-amber-400/35"
+                  : "rounded-lg border border-white/5 bg-white/[0.03] px-3 py-2"
+              }
+            >
+              <dt
+                className={`text-xs ${leftTargetEarly ? "font-medium text-amber-300" : "text-zinc-500"}`}
+              >
+                Exit Price
+              </dt>
+              <dd
+                className={`font-mono text-sm ${leftTargetEarly ? "font-semibold text-amber-100" : "text-zinc-200"}`}
+              >
                 {trade.exitPrice || "—"}
               </dd>
+              {leftTargetEarly && (
+                <p className="mt-1 text-[11px] leading-snug text-amber-200/90">
+                  Closed before take profit — note why in the journal.
+                </p>
+              )}
             </div>
             <div className="rounded-lg border border-white/5 bg-white/[0.03] px-3 py-2">
               <dt className="text-xs text-zinc-500">Stop Loss</dt>

@@ -223,14 +223,11 @@ export const TradeHistoryGrid = memo(function TradeHistoryGrid({
                         <RuleScoreStat trade={trade} size="sm" />
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <span
-                            className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-medium ring-1 ${outcomeBadgeClass[trade.outcome]}`}
-                          >
-                            {trade.outcome}
-                          </span>
-                          <EarlyExitBadge trade={trade} />
-                        </div>
+                        <span
+                          className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-medium ring-1 ${outcomeBadgeClass[trade.outcome]}`}
+                        >
+                          {trade.outcome}
+                        </span>
                       </td>
                       <td className="px-4 py-3 text-zinc-500">
                         {formatCardDate(trade.createdAt)}

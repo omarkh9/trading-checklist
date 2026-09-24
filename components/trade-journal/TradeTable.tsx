@@ -1,6 +1,5 @@
 "use client";
 
-import { EarlyExitBadge } from "@/components/trade-journal/EarlyExitBadge";
 import { TradeDetailCard } from "@/components/trade-journal/TradeDetailCard";
 import { ASSET_CLASS_LABELS, resolveAsset } from "@/lib/trades/assets";
 import { formatLocalDateTime } from "@/lib/time";
@@ -144,14 +143,11 @@ export function TradeTable({ trades, onDelete }: TradeTableProps) {
                           {formatPnlDollars(pnl)}
                         </div>
                         <div className="px-4 py-3">
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <span
-                              className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${outcomeStyles[trade.outcome]}`}
-                            >
-                              {trade.outcome}
-                            </span>
-                            <EarlyExitBadge trade={trade} />
-                          </div>
+                          <span
+                            className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${outcomeStyles[trade.outcome]}`}
+                          >
+                            {trade.outcome}
+                          </span>
                         </div>
                         <div className="px-4 py-3 text-zinc-500">
                           {formatDate(trade.createdAt)}
