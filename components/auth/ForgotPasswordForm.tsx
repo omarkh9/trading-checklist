@@ -1,11 +1,9 @@
 "use client";
 
 import {
-  getAuthCallbackUrl,
   getAuthPageUrl,
   getRedirectUrl,
   normalizeEmail,
-  toSiteUrl,
   validateEmail,
 } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/client";
@@ -70,7 +68,7 @@ export function ForgotPasswordForm() {
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(
         normalized,
         {
-          redirectTo: toSiteUrl(getAuthCallbackUrl("/auth/update-password")),
+          redirectTo: getRedirectUrl("/auth/update-password"),
         }
       );
       if (resetError) {
