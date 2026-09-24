@@ -37,6 +37,7 @@ function mapResetError(cause: unknown) {
   ) {
     return "Could not send a reset email. Check the address and try again.";
   }
+  if (message) return message;
   return "Could not send a reset email. Check the address and try again in a moment.";
 }
 
@@ -72,10 +73,14 @@ export function ForgotPasswordForm() {
           redirectTo: toSiteUrl(getAuthCallbackUrl("/auth/update-password")),
         }
       );
-      if (resetError) throw resetError;
+      if (resetError) {
+        console.error(resetError);
+        throw resetError;
+      }
       setSentTo(normalized);
-    } catch (cause) {
-      setError(mapResetError(cause));
+    } catch (error) {
+      console.error(error);
+      setError(mapResetError(error));
     } finally {
       setIsSubmitting(false);
     }
