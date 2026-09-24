@@ -17,29 +17,6 @@ const inputClass =
 
 const labelClass = "mb-1.5 block text-sm font-medium text-zinc-400";
 
-function mapResetError(cause: unknown) {
-  const message =
-    cause instanceof Error ? cause.message : "Could not send a reset email.";
-  const lower = message.toLowerCase();
-  if (
-    lower.includes("rate limit") ||
-    lower.includes("too many") ||
-    lower.includes("over_request")
-  ) {
-    return "Too many attempts. Wait a moment and try again.";
-  }
-  if (
-    lower.includes("unable to sign in") ||
-    lower.includes("invalid login") ||
-    lower.includes("invalid credentials")
-  ) {
-    return "Could not send a reset email. Check the address and try again.";
-  }
-  if (message) return message;
-  return "Could not send a reset email. Check the address and try again in a moment.";
-}
-
-
 export function ForgotPasswordForm() {
   const searchParams = useSearchParams();
   const [email, setEmail] = useState(searchParams.get("email") ?? "");
@@ -64,22 +41,18 @@ export function ForgotPasswordForm() {
 
     const normalized = normalizeEmail(email);
     setIsSubmitting(true);
-    try {
-      const supabase = createClient();
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(
-        normalized,
-        {
-          redirectTo: getRedirectUrl("/auth/update-password"),
-        }
-      );
-      if (resetError) throw resetError;
+    const supabase = createClient();
+    const { error } = await supabase.auth.resetPasswordForEmail(normalized, {
+      redirectTo: "https://edge-log-11.netlify.app/auth/update-password",
+    });
+
+    if (error) {
+      console.error("SUPABASE RECOVERY ERROR:", error.message, error);
+      setError(error.message);
+    } else {
       setSentTo(normalized);
-    } catch (error) {
-      console.error("Full Supabase Error:", error);
-      setError(mapResetError(error));
-    } finally {
-      setIsSubmitting(false);
     }
+    setIsSubmitting(false);
   };
 
   return (

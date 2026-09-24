@@ -183,7 +183,7 @@ export async function requestPasswordReset(email: string) {
   const supabase = createClient();
   const { error } = await supabase.auth.resetPasswordForEmail(
     normalizeEmail(email),
-    { redirectTo: getRedirectUrl("/auth/update-password") }
+    { redirectTo: "https://edge-log-11.netlify.app/auth/update-password" }
   );
   if (error) throw error;
 }
