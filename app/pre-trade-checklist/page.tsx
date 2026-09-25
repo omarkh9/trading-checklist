@@ -5,7 +5,7 @@ import { pageMetadata } from "@/lib/site";
 export const metadata = pageMetadata({
   title: "Pre-Trade Checklist",
   description:
-    "Build session rules and run today's pre-trade checklist in Edge Log by Omar.",
+    "Build session rules and run today's pre-trade checklist in Edge Log by Owz.",
   path: "/pre-trade-checklist",
 });
 

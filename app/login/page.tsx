@@ -5,7 +5,7 @@ import { Suspense } from "react";
 export const metadata = pageMetadata({
   title: "Sign in",
   description:
-    "Sign in to Edge Log by Omar to journal trades, run checklists, and review analytics.",
+    "Sign in to Edge Log by Owz to journal trades, run checklists, and review analytics.",
   path: "/login",
 });
 

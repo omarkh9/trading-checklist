@@ -5,7 +5,7 @@ import { pageMetadata } from "@/lib/site";
 export const metadata = pageMetadata({
   title: "Trade Journal",
   description:
-    "Log setups, screenshots, auto P/L, rule scores, and voice notes in Edge Log by Omar.",
+    "Log setups, screenshots, auto P/L, rule scores, and voice notes in Edge Log by Owz.",
   path: "/trade-journal",
 });
 

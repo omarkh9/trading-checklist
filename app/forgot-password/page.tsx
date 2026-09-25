@@ -4,7 +4,7 @@ import { Suspense } from "react";
 
 export const metadata = pageMetadata({
   title: "Forgot password",
-  description: "Reset your Edge Log by Omar password with a secure email link.",
+  description: "Reset your Edge Log by Owz password with a secure email link.",
   path: "/forgot-password",
   index: false,
 });

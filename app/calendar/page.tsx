@@ -5,7 +5,7 @@ import { pageMetadata } from "@/lib/site";
 export const metadata = pageMetadata({
   title: "Calendar",
   description:
-    "See daily P/L, trade count, and win rate on the Edge Log by Omar calendar.",
+    "See daily P/L, trade count, and win rate on the Edge Log by Owz calendar.",
   path: "/calendar",
 });
 

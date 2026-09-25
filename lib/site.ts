@@ -3,13 +3,13 @@ import { resolveSiteUrl } from "@/lib/supabase/public-config.mjs";
 
 export const SITE_URL = resolveSiteUrl() || "https://edgelog.org";
 
-export const SITE_NAME = "Edge Log by Omar";
+export const SITE_NAME = "Edge Log by Owz";
 export const SITE_SHORT_NAME = "Edge Log";
 export const SITE_DESCRIPTION =
-  "Edge Log by Omar is a trading journal for logging setups, running pre-trade checklists, and reviewing analytics.";
+  "Edge Log by Owz is a trading journal for logging setups, running pre-trade checklists, and reviewing analytics.";
 
 export const SITE_KEYWORDS = [
-  "Edge Log by Omar",
+  "Edge Log by Owz",
   "Edge Log",
   "trading journal",
   "pre-trade checklist",

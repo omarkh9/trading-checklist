@@ -28,9 +28,9 @@ export const metadata: Metadata = {
   },
   description: SITE_DESCRIPTION,
   applicationName: SITE_NAME,
-  authors: [{ name: "Omar" }],
-  creator: "Omar",
-  publisher: "Omar",
+  authors: [{ name: "Owz" }],
+  creator: "Owz",
+  publisher: "Owz",
   keywords: SITE_KEYWORDS,
   category: "finance",
   manifest: "/manifest.json",
@@ -98,7 +98,7 @@ const jsonLd = {
   description: SITE_DESCRIPTION,
   author: {
     "@type": "Person",
-    name: "Omar",
+    name: "Owz",
   },
 };
 

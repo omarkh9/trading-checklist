@@ -224,7 +224,7 @@ export function LandingPage() {
 
       <footer className="border-t border-white/5">
         <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-8 text-sm text-zinc-500 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-          <p>Edge Log by Omar</p>
+          <p>Edge Log by Owz</p>
           <div className="flex gap-4">
             <Link href={loginHref} className="hover:text-zinc-200">
               Sign in

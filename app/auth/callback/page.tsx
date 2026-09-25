@@ -4,7 +4,7 @@ import { Suspense } from "react";
 
 export const metadata = pageMetadata({
   title: "Confirming email",
-  description: "Finish signing in to Edge Log by Omar after confirming your email.",
+  description: "Finish signing in to Edge Log by Owz after confirming your email.",
   path: "/auth/callback",
   index: false,
 });

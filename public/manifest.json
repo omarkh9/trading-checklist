@@ -1,8 +1,8 @@
 {
   "id": "https://edgelog.org/",
-  "name": "Edge Log by Omar",
+  "name": "Edge Log by Owz",
   "short_name": "Edge Log",
-  "description": "Edge Log by Omar is a trading journal for logging setups, running pre-trade checklists, and reviewing analytics.",
+  "description": "Edge Log by Owz is a trading journal for logging setups, running pre-trade checklists, and reviewing analytics.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

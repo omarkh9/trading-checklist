@@ -5,7 +5,7 @@ import { Suspense } from "react";
 export const metadata = pageMetadata({
   title: "Create an account",
   description:
-    "Create an Edge Log by Omar account to start logging your own trades and checklists.",
+    "Create an Edge Log by Owz account to start logging your own trades and checklists.",
   path: "/signup",
 });
 

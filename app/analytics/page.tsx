@@ -5,7 +5,7 @@ import { pageMetadata } from "@/lib/site";
 export const metadata = pageMetadata({
   title: "Analytics",
   description:
-    "Review equity curves, setup performance, and risk stats in Edge Log by Omar.",
+    "Review equity curves, setup performance, and risk stats in Edge Log by Owz.",
   path: "/analytics",
 });
 
