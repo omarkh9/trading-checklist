@@ -82,38 +82,79 @@ export async function streamOpenAiChat(options: {
   const decoder = new TextDecoder();
   const reader = response.body.getReader();
   let buffer = "";
+  let sentText = false;
+
+  const emitDeltaLines = (
+    controller: ReadableStreamDefaultController<Uint8Array>,
+    chunk: string
+  ) => {
+    const lines = chunk.split("\n");
+    const rest = lines.pop() ?? "";
+
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (!line.startsWith("data:")) continue;
+      const payload = line.slice(5).trim();
+      if (!payload || payload === "[DONE]") continue;
+      try {
+        const json = JSON.parse(payload) as {
+          choices?: { delta?: { content?: string } }[];
+        };
+        const text = json.choices?.[0]?.delta?.content;
+        if (text) {
+          sentText = true;
+          controller.enqueue(encoder.encode(encodeSse({ type: "delta", text })));
+        }
+      } catch {
+        // Ignore keep-alives and partial JSON frames.
+      }
+    }
+
+    return rest;
+  };
+
+  const finish = (
+    controller: ReadableStreamDefaultController<Uint8Array>,
+    event: AiStreamEvent = { type: "done" }
+  ) => {
+    try {
+      controller.enqueue(encoder.encode(encodeSse(event)));
+      controller.close();
+    } catch {
+      // Already closed after a finished reply.
+    }
+  };
 
   return new ReadableStream({
     async pull(controller) {
-      const { value, done } = await reader.read();
-      if (done) {
-        controller.enqueue(encoder.encode(encodeSse({ type: "done" })));
-        controller.close();
-        return;
-      }
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() ?? "";
-
-      for (const raw of lines) {
-        const line = raw.trim();
-        if (!line.startsWith("data:")) continue;
-        const payload = line.slice(5).trim();
-        if (!payload || payload === "[DONE]") continue;
-        try {
-          const json = JSON.parse(payload) as {
-            choices?: { delta?: { content?: string } }[];
-          };
-          const text = json.choices?.[0]?.delta?.content;
-          if (text) {
-            controller.enqueue(
-              encoder.encode(encodeSse({ type: "delta", text }))
-            );
+      try {
+        const { value, done } = await reader.read();
+        if (done) {
+          if (buffer.trim()) {
+            emitDeltaLines(controller, `${buffer}\n`);
+            buffer = "";
           }
-        } catch {
-          // Ignore keep-alives and partial JSON frames.
+          finish(controller);
+          return;
         }
+
+        buffer = emitDeltaLines(
+          controller,
+          buffer + decoder.decode(value, { stream: true })
+        );
+      } catch (error) {
+        finish(
+          controller,
+          sentText
+            ? { type: "done" }
+            : {
+                type: "error",
+                message:
+                  error instanceof Error
+                    ? error.message
+                    : "The model stream dropped.",
+              }
+        );
       }
     },
     cancel() {

@@ -7,6 +7,41 @@ function newId() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function parseSseFrames(chunk: string): { events: AiStreamEvent[]; rest: string } {
+  const frames = chunk.split("\n\n");
+  const rest = frames.pop() ?? "";
+  const events: AiStreamEvent[] = [];
+
+  for (const frame of frames) {
+    const line = frame.split("\n").find((entry) => entry.startsWith("data:"));
+    if (!line) continue;
+    const payload = line.slice(5).trim();
+    if (!payload) continue;
+    try {
+      events.push(JSON.parse(payload) as AiStreamEvent);
+    } catch {
+      // Keep-alives and split frames should not fail a finished reply.
+    }
+  }
+
+  return { events, rest };
+}
+
+function isIgnorableStreamClose(cause: unknown, receivedText: boolean) {
+  if (!(cause instanceof Error)) return false;
+  if (cause.name === "AbortError") return true;
+  if (!receivedText) return false;
+  const message = cause.message.toLowerCase();
+  return (
+    message.includes("network") ||
+    message.includes("failed to fetch") ||
+    message.includes("load failed") ||
+    message.includes("abort") ||
+    message.includes("body stream") ||
+    message.includes("connection")
+  );
+}
+
 function readStored(key: string): AiChatMessage[] {
   if (typeof window === "undefined") return [];
   try {
@@ -72,6 +107,7 @@ export function useChatStream(mode: AiMode, context: AiClientContext) {
 
       const controller = new AbortController();
       abortRef.current = controller;
+      let assembled = "";
 
       try {
         const response = await fetch("/api/ai/chat", {
@@ -95,23 +131,12 @@ export function useChatStream(mode: AiMode, context: AiClientContext) {
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
+        let finished = false;
 
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const frames = buffer.split("\n\n");
-          buffer = frames.pop() ?? "";
-
-          for (const frame of frames) {
-            const line = frame
-              .split("\n")
-              .find((entry) => entry.startsWith("data:"));
-            if (!line) continue;
-            const payload = line.slice(5).trim();
-            if (!payload) continue;
-            const event = JSON.parse(payload) as AiStreamEvent;
+        const applyEvents = (events: AiStreamEvent[]) => {
+          for (const event of events) {
             if (event.type === "delta" && event.text) {
+              assembled += event.text;
               setMessages((current) =>
                 current.map((item) =>
                   item.id === assistantId
@@ -123,10 +148,39 @@ export function useChatStream(mode: AiMode, context: AiClientContext) {
             if (event.type === "error") {
               throw new Error(event.message);
             }
+            if (event.type === "done") {
+              finished = true;
+            }
+          }
+        };
+
+        while (!finished) {
+          const { value, done } = await reader.read();
+          if (done) {
+            const leftover = buffer + decoder.decode();
+            if (leftover.trim()) {
+              applyEvents(parseSseFrames(`${leftover}\n\n`).events);
+            }
+            break;
+          }
+
+          buffer += decoder.decode(value, { stream: true });
+          const parsed = parseSseFrames(buffer);
+          buffer = parsed.rest;
+          applyEvents(parsed.events);
+        }
+
+        if (finished) {
+          try {
+            await reader.cancel();
+          } catch {
+            // The proxy may already have closed the body.
           }
         }
       } catch (cause) {
         if (controller.signal.aborted) return;
+        // Proxies often RST the SSE socket after a finished reply. Keep the text.
+        if (isIgnorableStreamClose(cause, Boolean(assembled))) return;
         const message =
           cause instanceof Error ? cause.message : "The stream dropped.";
         setError(message);
