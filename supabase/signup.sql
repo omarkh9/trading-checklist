@@ -2,11 +2,11 @@
 -- SQL Editor: https://supabase.com/dashboard/project/agfzhwyhrrcbadbzvmpy/sql/new
 --
 -- Also in Authentication → URL Configuration, set:
---   Site URL = https://edge-log-11.netlify.app
+--   Site URL = https://edgelog.org
 --   Redirect URLs:
---     https://edge-log-11.netlify.app/**
---     https://edge-log-11.netlify.app/auth/callback
---     https://edge-log-11.netlify.app/auth/update-password
+--     https://edgelog.org/**
+--     https://edgelog.org/auth/callback
+--     https://edgelog.org/auth/update-password
 -- Do not add localhost. Email confirmation must land on production.
 -- Authentication → Providers → Email: enable Email and allow new users.
 

@@ -4,7 +4,7 @@
 -- Stores MetaTrader 5 login/server metadata and a hashed webhook token on
 -- each trading account. Linking is done from the journal modal; the gateway
 -- then POSTs live balance, equity, and closed trades to
--- POST https://edge-log-11.netlify.app/api/mt5/webhook.
+-- POST https://edgelog.org/api/mt5/webhook.
 
 create extension if not exists pgcrypto with schema extensions;
 

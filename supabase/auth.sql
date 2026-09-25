@@ -4,15 +4,15 @@
 -- Auth dashboard (required for live sign-up):
 -- Authentication → Providers → Email: enable Email, allow new users to sign up.
 -- Authentication → URL Configuration:
---   Site URL = https://edge-log-11.netlify.app
+--   Site URL = https://edgelog.org
 --   Redirect URLs include:
---     https://edge-log-11.netlify.app/**
---     https://edge-log-11.netlify.app/auth/callback
---     https://edge-log-11.netlify.app/auth/update-password
+--     https://edgelog.org/**
+--     https://edgelog.org/auth/callback
+--     https://edgelog.org/auth/update-password
 -- Do not add localhost redirect URLs. Confirmation and reset emails
--- must open on the production Netlify host.
+-- must open on the production domain.
 --
--- If confirmation emails are on, users must open the Netlify callback link
+-- If confirmation emails are on, users must open the production callback link
 -- before they can sign in. Keep Site URL on the production domain above.
 
 create table if not exists public.profiles (

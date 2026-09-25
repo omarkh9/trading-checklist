@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { resolveSiteUrl } from "@/lib/supabase/public-config.mjs";
 
-export const SITE_URL = resolveSiteUrl() || "https://edge-log-11.netlify.app";
+export const SITE_URL = resolveSiteUrl() || "https://edgelog.org";
 
 export const SITE_NAME = "Edge Log by Omar";
 export const SITE_SHORT_NAME = "Edge Log";

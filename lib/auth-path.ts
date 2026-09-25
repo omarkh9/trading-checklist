@@ -2,7 +2,7 @@ import { SITE_URL } from "@/lib/site";
 
 export { SITE_URL } from "@/lib/site";
 
-const PRODUCTION_ORIGIN = "https://edge-log-11.netlify.app";
+const PRODUCTION_ORIGIN = "https://edgelog.org";
 
 function isLocalHost(hostname: string) {
   const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
