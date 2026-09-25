@@ -1,6 +1,7 @@
 import { createClient, getAuthUser } from "@/lib/supabase/server";
 import { formatCompactPnl } from "@/lib/trades/day-stats";
 import { computeAnalyticsSummary, computeStrategyPerformance } from "@/lib/trades/analytics";
+import { tradesForAccount } from "@/lib/trades/account-balance";
 import { normalizeTrade } from "@/lib/trades/load-trades";
 import { tradeFromRow } from "@/lib/supabase/trades";
 import type { TradeRow } from "@/lib/supabase/database.types";
@@ -23,22 +24,27 @@ export async function getTradesForUser(
   options: { limit?: number; accountId?: string } = {}
 ): Promise<Trade[]> {
   const supabase = await createClient();
-  let query = supabase
+  const limit = options.limit ?? RECENT_TRADE_LIMIT;
+  const { data, error } = await supabase
     .from("trades")
-    .select(
-      "id, user_id, pair, higher_time_frame, middle_time_frame, lower_time_frame, entry, direction, entry_price, stop_loss, take_profit, outcome, pnl_mode, pnl_input, pnl_dollars, risk_size_mode, risk_percent, fixed_lot_size, lot_size, account_balance_at_entry, strategy, notes, created_at, account_id, mt5_ticket"
-    )
+    .select("*")
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
-    .limit(options.limit ?? RECENT_TRADE_LIMIT);
+    .limit(200);
 
-  if (options.accountId) {
-    query = query.eq("account_id", options.accountId);
+  if (error) {
+    console.error("Full Supabase Error:", error);
+    return [];
   }
 
-  const { data, error } = await query;
-  if (error || !data) return [];
-  return data.map((row) => normalizeTrade(tradeFromRow(row as TradeRow)));
+  const trades = (data ?? []).map((row) =>
+    normalizeTrade(tradeFromRow(row as TradeRow))
+  );
+  const scoped = options.accountId
+    ? tradesForAccount(trades, options.accountId, options.accountId)
+    : trades;
+  const usable = scoped.length > 0 ? scoped : trades;
+  return usable.slice(0, limit);
 }
 
 export function formatTradeContext(trades: Trade[]): string {
