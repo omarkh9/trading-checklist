@@ -37,5 +37,18 @@
   targetPort = 3001
   framework = "next"
 
+# Primary production host is https://edgelog.org (custom domain on this site).
+[[redirects]]
+  from = "https://www.edgelog.org/*"
+  to = "https://edgelog.org/:splat"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://edge-log-11.netlify.app/*"
+  to = "https://edgelog.org/:splat"
+  status = 301
+  force = true
+
 [[plugins]]
   package = "@netlify/plugin-nextjs"
