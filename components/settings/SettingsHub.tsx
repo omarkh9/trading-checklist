@@ -13,9 +13,8 @@ import {
   resolveDisplayTimeZone,
 } from "@/lib/settings/workspace";
 import {
-  computeCurrentBalance,
   formatBalance,
-  tradesForAccount,
+  resolveAccountCurrentBalance,
 } from "@/lib/trades/account-balance";
 import { AUTO_TIME_ZONE } from "@/lib/types/settings";
 import { desk } from "@/lib/ui/desk";
@@ -25,16 +24,10 @@ export function SettingsHub() {
   const { settings, setSettings } = useWorkspaceSettings();
   const { accounts, activeAccount, isLoaded: accountsLoaded } = useAccounts();
   const { trades, isLoaded: tradesLoaded } = useCachedTrades();
-  const fallbackId = accounts[0]?.id ?? "";
-
-  const currentBalance = useMemo(() => {
-    if (!activeAccount) return 0;
-    return computeCurrentBalance(
-      activeAccount.startingBalance,
-      tradesForAccount(trades, activeAccount.id, fallbackId),
-      activeAccount.mt5Balance
-    );
-  }, [activeAccount, fallbackId, trades]);
+  const currentBalance = useMemo(
+    () => resolveAccountCurrentBalance(accounts, trades, activeAccount?.id),
+    [accounts, activeAccount?.id, trades]
+  );
 
   const timeZones = useMemo(() => listTimeZones(), []);
   const displayZone = resolveDisplayTimeZone(settings.timeZone);
@@ -119,7 +112,7 @@ export function SettingsHub() {
       </DeskCard>
 
       <PositionSizer
-        accountBalance={currentBalance || activeAccount?.startingBalance || 0}
+        accountBalance={currentBalance}
         defaultRiskPercent={settings.defaultRiskPercent}
         maxRiskPercent={settings.maxRiskPercent}
       />

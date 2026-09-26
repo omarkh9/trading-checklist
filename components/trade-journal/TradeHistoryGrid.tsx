@@ -5,9 +5,11 @@ import { TradeDetailModal } from "@/components/trade-journal/TradeDetailModal";
 import { TradeEditModal } from "@/components/trade-journal/TradeEditModal";
 import { RuleScoreStat } from "@/components/trade-journal/RuleScoreStat";
 import {
-  computeCurrentBalance,
+  liveAccountMoney,
+  resolveAccount,
   resolveTradeAccountId,
   tradesForAccount,
+  computeCurrentBalance,
 } from "@/lib/trades/account-balance";
 import { ASSET_CLASS_LABELS, resolveAsset } from "@/lib/trades/assets";
 import { formatLocalDateTime, timestampMs } from "@/lib/time";
@@ -102,12 +104,13 @@ export const TradeHistoryGrid = memo(function TradeHistoryGrid({
     const next = { ...accountBalances };
     if (!editTrade) return next;
     const accountId = resolveTradeAccountId(editTrade, fallbackAccountId);
-    const account = accounts.find((item) => item.id === accountId);
+    const account = resolveAccount(accounts, accountId);
     next[accountId] = computeCurrentBalance(
       account?.startingBalance ?? 0,
       tradesForAccount(trades, accountId, fallbackAccountId).filter(
         (trade) => trade.id !== editTrade.id
-      )
+      ),
+      liveAccountMoney(account)
     );
     return next;
   }, [accountBalances, accounts, editTrade, fallbackAccountId, trades]);

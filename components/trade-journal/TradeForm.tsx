@@ -7,7 +7,11 @@ import { VoiceNoteField } from "@/components/trade-journal/VoiceNoteField";
 import { useCachedChecklist } from "@/components/pre-trade-checklist/useCachedChecklist";
 import { useCachedTrades } from "@/components/trade-journal/useCachedTrades";
 import { useWorkspaceSettings } from "@/components/workspace/WorkspaceProvider";
-import { formatBalance, tradesForAccount } from "@/lib/trades/account-balance";
+import {
+  formatBalance,
+  resolveAccountCurrentBalance,
+  tradesForAccount,
+} from "@/lib/trades/account-balance";
 import {
   ASSET_CLASS_LABELS,
   listKnownSymbols,
@@ -277,14 +281,26 @@ export const TradeForm = memo(function TradeForm({
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const currentBalance = accountBalances[form.accountId] ?? 0;
+  const sizingAccountId = form.accountId || defaultAccountId;
+  const currentBalance = useMemo(() => {
+    const resolved = resolveAccountCurrentBalance(
+      accounts,
+      allTrades,
+      sizingAccountId
+    );
+    if (resolved > 0) return resolved;
+    const mapped = accountBalances[sizingAccountId];
+    return typeof mapped === "number" && Number.isFinite(mapped) && mapped > 0
+      ? mapped
+      : resolved;
+  }, [accountBalances, accounts, allTrades, sizingAccountId]);
   const fallbackId = accounts[0]?.id ?? "";
   const todayPnl = useMemo(() => {
     const today = localDateKey();
-    return tradesForAccount(allTrades, form.accountId, fallbackId)
+    return tradesForAccount(allTrades, sizingAccountId, fallbackId)
       .filter((trade) => tradeDateKey(trade.createdAt) === today)
       .reduce((sum, trade) => sum + (trade.pnlDollars ?? 0), 0);
-  }, [allTrades, fallbackId, form.accountId]);
+  }, [allTrades, fallbackId, sizingAccountId]);
 
   const riskNumeric = parseNumericInput(form.riskPercent);
   const cappedRisk =
@@ -293,6 +309,10 @@ export const TradeForm = memo(function TradeForm({
       : Math.min(riskNumeric, settings.maxRiskPercent);
   const riskCapped =
     riskNumeric != null && riskNumeric > settings.maxRiskPercent + 0.0001;
+  const riskDollars =
+    form.riskSizeMode === "percent" && currentBalance > 0
+      ? currentBalance * (cappedRisk / 100)
+      : null;
 
   const quoteCurrency = resolveAsset(form.pair).spec.quoteCurrency;
   const needsQuoteConversion =
@@ -908,8 +928,10 @@ export const TradeForm = memo(function TradeForm({
                 Automated position size
               </p>
               <p className="mt-1 text-xs text-zinc-500">
-                Risk {cappedRisk}% of {formatBalance(currentBalance)}. Stop
-                distance sets the exact lot size.
+                Risk {cappedRisk}% of {formatBalance(currentBalance)}
+                {riskDollars != null
+                  ? ` = ${formatBalance(riskDollars)}`
+                  : ""}. Stop distance sets the exact lot size.
               </p>
 
               <div className="mt-4 space-y-3">

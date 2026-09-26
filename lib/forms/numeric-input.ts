@@ -3,7 +3,7 @@ export function sanitizeNumericDraft(
   options?: { allowNegative?: boolean }
 ): string {
   const allowNegative = options?.allowNegative ?? false;
-  const stripped = value.replace(/,/g, "");
+  const stripped = value.replace(/,/g, "").replace(/%/g, "");
   let next = "";
   let sawDot = false;
   let sawDigit = false;
@@ -39,7 +39,7 @@ export function parseNumericDraft(value: string): number | null {
   if (!trimmed || trimmed === "-" || trimmed === "." || trimmed === "-.") {
     return null;
   }
-  const parsed = Number(trimmed.replace(/,/g, ""));
+  const parsed = Number(trimmed.replace(/,/g, "").replace(/%/g, ""));
   return Number.isFinite(parsed) ? parsed : null;
 }
 

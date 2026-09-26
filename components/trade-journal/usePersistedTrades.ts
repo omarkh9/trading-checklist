@@ -9,8 +9,8 @@ import {
 } from "@/lib/supabase/trades";
 import {
   balancesByAccount,
-  computeCurrentBalance,
   fallbackAccountId,
+  resolveAccountCurrentBalance,
   tradesForAccount,
 } from "@/lib/trades/account-balance";
 import type { TradeFormData } from "@/lib/types/trade";
@@ -47,12 +47,8 @@ export function usePersistedTrades() {
 
   const currentBalance = useMemo(
     () =>
-      computeCurrentBalance(
-        startingBalance,
-        trades,
-        activeAccount?.mt5Balance
-      ),
-    [activeAccount?.mt5Balance, startingBalance, trades]
+      resolveAccountCurrentBalance(accounts, allTrades, activeAccountId),
+    [accounts, activeAccountId, allTrades]
   );
 
   const accountBalances = useMemo(

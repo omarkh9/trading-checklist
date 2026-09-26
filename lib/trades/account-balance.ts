@@ -2,6 +2,7 @@ import {
   ACCOUNT_STORAGE_KEY,
   TRADE_ACCOUNT_MAP_STORAGE_KEY,
 } from "@/lib/storage/keys";
+import { readMt5AccountMetrics } from "@/lib/mt5/trades";
 import {
   defaultAccountSettings,
   type AccountSettings,
@@ -86,6 +87,44 @@ export function formatBalance(value: number): string {
   });
 }
 
+export function liveAccountMoney(account: TradingAccount | null | undefined) {
+  if (!account) return null;
+  return (
+    finiteBrokerMoney(account.mt5Balance) ??
+    finiteBrokerMoney(account.mt5Equity) ??
+    readMt5AccountMetrics(account).balance
+  );
+}
+
+export function resolveAccount(
+  accounts: TradingAccount[],
+  accountId?: string | null
+) {
+  const fallbackId = fallbackAccountId(accounts);
+  const id = accountId?.trim() || fallbackId;
+  return (
+    accounts.find((account) => account.id === id) ??
+    accounts.find((account) => account.id === fallbackId) ??
+    accounts[0] ??
+    null
+  );
+}
+
+export function resolveAccountCurrentBalance(
+  accounts: TradingAccount[],
+  trades: Trade[],
+  accountId?: string | null
+) {
+  const account = resolveAccount(accounts, accountId);
+  if (!account) return 0;
+  const fallbackId = fallbackAccountId(accounts);
+  return computeCurrentBalance(
+    account.startingBalance,
+    tradesForAccount(trades, account.id, fallbackId),
+    liveAccountMoney(account)
+  );
+}
+
 export function fallbackAccountId(accounts: TradingAccount[]) {
   return accounts[0]?.id ?? "";
 }
@@ -118,7 +157,7 @@ export function balancesByAccount(
     result[account.id] = computeCurrentBalance(
       account.startingBalance,
       tradesForAccount(trades, account.id, fallbackId),
-      account.mt5Balance
+      liveAccountMoney(account)
     );
   }
   return result;

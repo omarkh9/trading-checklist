@@ -6,9 +6,9 @@ import { useCachedTrades } from "@/components/trade-journal/useCachedTrades";
 import type { Outcome, Trade } from "@/lib/types/trade";
 import { formatLocalDate, startOfLocalWeek, timestampMs } from "@/lib/time";
 import {
-  computeCurrentBalance,
   computeDisplayedNetPnl,
   formatBalance,
+  resolveAccountCurrentBalance,
   tradesForAccount,
 } from "@/lib/trades/account-balance";
 import { formatPnlDollars, sumTradePnl } from "@/lib/trades/pnl";
@@ -223,10 +223,10 @@ export const DashboardHome = memo(function DashboardHome() {
 
   const metrics = useMemo(() => computeDashboardMetrics(trades), [trades]);
   const startingBalance = activeAccount?.startingBalance ?? 0;
-  const currentBalance = computeCurrentBalance(
-    startingBalance,
-    trades,
-    activeAccount?.mt5Balance
+  const currentBalance = resolveAccountCurrentBalance(
+    accounts,
+    allTrades,
+    activeAccount?.id
   );
   const displayedNetPnl = computeDisplayedNetPnl(
     startingBalance,
