@@ -5,7 +5,6 @@ import {
   Mt5GatewayError,
   provisionMt5Connection,
 } from "@/lib/mt5/gateway";
-import { canFetchMt5History } from "@/lib/mt5/env";
 import {
   persistMt5ConnectionMeta,
   persistMt5Credentials,
@@ -283,24 +282,22 @@ export async function POST(request: Request) {
   });
 
   let ingested = 0;
-  if (canFetchMt5History()) {
-    try {
-      const backfill = await syncMt5Journal({
-        supabase,
-        userId: user.id,
-        accountId: target.id,
-        login: parsed.login,
-        investorPassword: parsed.investorPassword,
-        server: parsed.server,
-        connectionId: provisioned.connectionId,
-      });
-      ingested = backfill.ingested;
-    } catch (cause) {
-      console.error(
-        "MT5 history backfill failed:",
-        cause instanceof Error ? cause.message : cause
-      );
-    }
+  try {
+    const backfill = await syncMt5Journal({
+      supabase,
+      userId: user.id,
+      accountId: target.id,
+      login: parsed.login,
+      investorPassword: parsed.investorPassword,
+      server: parsed.server,
+      connectionId: provisioned.connectionId,
+    });
+    ingested = backfill.ingested;
+  } catch (cause) {
+    console.error(
+      "MT5 history backfill failed:",
+      cause instanceof Error ? cause.message : cause
+    );
   }
 
   return json({

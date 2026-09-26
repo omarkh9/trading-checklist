@@ -6,6 +6,18 @@ export function normalizeMt5Server(value: string) {
   return value.trim().replace(/\s+/g, "");
 }
 
+export function hasMt5InvestorCredentials(input?: {
+  login?: string | null;
+  investorPassword?: string | null;
+  server?: string | null;
+}) {
+  return Boolean(
+    input?.login?.trim() &&
+      input?.investorPassword?.trim() &&
+      input?.server?.trim()
+  );
+}
+
 export function validateMt5LinkInput(input: {
   login: string;
   investorPassword: string;

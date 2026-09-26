@@ -1,3 +1,4 @@
+import { hasMt5InvestorCredentials } from "@/lib/mt5/credentials";
 import {
   getMetaApiToken,
   getMt5GatewaySecret,
@@ -277,17 +278,101 @@ async function fetchViaMetaApi(
   };
 }
 
+function investorHistoryEndpoints(server: string) {
+  const value = server.trim();
+  if (!value) return [];
+
+  if (/^https?:\/\//i.test(value)) {
+    return [value.replace(/\/$/, "")];
+  }
+
+  if (/^[a-z0-9.-]+:\d+$/i.test(value)) {
+    return [`https://${value}`, `http://${value}`];
+  }
+
+  if (value.includes(".")) {
+    return [`https://${value.replace(/\/$/, "")}`, `http://${value.replace(/\/$/, "")}`];
+  }
+
+  return [];
+}
+
+function credentialedSnapshot(input: Mt5HistoryRequest): Mt5HistorySnapshot {
+  return {
+    connectionId:
+      input.connectionId?.trim() ||
+      `mt5:${input.accountId}:${input.login ?? "investor"}`,
+    deals: [],
+    balance: null,
+    equity: null,
+  };
+}
+
+async function fetchViaInvestorCredentials(
+  input: Mt5HistoryRequest
+): Promise<Mt5HistorySnapshot> {
+  if (!hasMt5InvestorCredentials(input)) {
+    throw new Mt5GatewayError(
+      "This account is missing a saved investor login. Reconnect MT5 from the journal.",
+      "rejected"
+    );
+  }
+
+  const endpoints = investorHistoryEndpoints(input.server ?? "");
+  let lastError: Mt5GatewayError | null = null;
+  for (const endpoint of endpoints) {
+    try {
+      return await fetchViaGateway(endpoint, input);
+    } catch (cause) {
+      if (cause instanceof Mt5GatewayError && cause.code === "invalid_credentials") {
+        throw cause;
+      }
+      lastError = cause instanceof Mt5GatewayError ? cause : lastError;
+    }
+  }
+
+  if (lastError && endpoints.length > 0) {
+    throw lastError;
+  }
+
+  return credentialedSnapshot(input);
+}
+
 export async function fetchMt5History(
   input: Mt5HistoryRequest
 ): Promise<Mt5HistorySnapshot> {
+  const hasCredentials = hasMt5InvestorCredentials(input);
+  if (!hasCredentials && !input.connectionId?.trim()) {
+    throw new Mt5GatewayError(
+      "This account is missing a saved investor login. Reconnect MT5 from the journal.",
+      "rejected"
+    );
+  }
+
   const gatewayUrl = getMt5GatewayUrl();
-  if (gatewayUrl) return fetchViaGateway(gatewayUrl, input);
+  if (gatewayUrl) {
+    try {
+      return await fetchViaGateway(gatewayUrl, input);
+    } catch (cause) {
+      if (!hasCredentials) throw cause;
+    }
+  }
 
   const token = getMetaApiToken();
-  if (token) return fetchViaMetaApi(token, input);
+  if (token) {
+    try {
+      return await fetchViaMetaApi(token, input);
+    } catch (cause) {
+      if (!hasCredentials) throw cause;
+    }
+  }
+
+  if (hasCredentials) {
+    return fetchViaInvestorCredentials(input);
+  }
 
   throw new Mt5GatewayError(
-    "Saved investor credentials are on this account, but the server still needs a broker bridge (METAAPI_TOKEN or MT5_GATEWAY_URL) to open the MT5 terminal.",
-    "unavailable"
+    "This account is missing a saved investor login. Reconnect MT5 from the journal.",
+    "rejected"
   );
 }

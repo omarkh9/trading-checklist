@@ -43,5 +43,5 @@ export function getMt5CredentialsKeyCandidates() {
 }
 
 export function canFetchMt5History() {
-  return Boolean(getMt5GatewayUrl() || getMetaApiToken());
+  return true;
 }
