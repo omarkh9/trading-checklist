@@ -87,18 +87,19 @@ export async function upsertMt5Trades(
   return ingested;
 }
 
-function finiteMoney(value: unknown) {
+function finiteMoney(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "bigint") return Number(value);
   if (typeof value === "string" && value.trim()) {
-    const parsed = Number(value.trim());
+    const parsed = Number(value.trim().replace(/[^0-9.+-eE]/g, ""));
     if (Number.isFinite(parsed)) return parsed;
   }
   return null;
 }
 
 export function readBrokerSnapshotMoney(input: {
-  balance?: number | null;
-  equity?: number | null;
+  balance?: unknown;
+  equity?: unknown;
 }) {
   const balance = finiteMoney(input.balance) ?? finiteMoney(input.equity);
   const equity = finiteMoney(input.equity) ?? balance;
@@ -190,8 +191,8 @@ export async function markMt5Synced(
   input: {
     accountId: string;
     userId: string;
-    balance?: number | null;
-    equity?: number | null;
+    balance?: unknown;
+    equity?: unknown;
     connectionId?: string;
     snapshot?: unknown;
   }
@@ -204,21 +205,15 @@ export async function markMt5Synced(
     balance: input.balance ?? fromSnapshot.balance,
     equity: input.equity ?? fromSnapshot.equity,
   });
-  if (money.balance == null || money.equity == null) {
-    await supabase
-      .from("trading_accounts")
-      .update({ mt5_synced_at: syncedAt })
-      .eq("id", input.accountId)
-      .eq("user_id", input.userId);
-    return { balance: null, equity: null, syncedAt };
-  }
+  const balance = money.balance ?? 0;
+  const equity = money.equity ?? balance;
 
   try {
     return await writeMt5BalanceColumns(supabase, {
       accountId: input.accountId,
       userId: input.userId,
-      balance: money.balance,
-      equity: money.equity,
+      balance,
+      equity,
       connectionId: input.connectionId,
       syncedAt,
     });
@@ -226,8 +221,8 @@ export async function markMt5Synced(
     return persistMt5Snapshot(supabase, {
       userId: input.userId,
       accountId: input.accountId,
-      balance: money.balance,
-      equity: money.equity,
+      balance,
+      equity,
       connectionId: input.connectionId,
       syncedAt,
     });
