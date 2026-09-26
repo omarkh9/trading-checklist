@@ -26,11 +26,14 @@ create table public.trading_accounts (
   created_at timestamptz not null default timezone('utc', now()),
   mt5_login text,
   mt5_server text,
+  mt5_password text,
   mt5_webhook_token_hash text,
   mt5_connection_id text,
   mt5_balance double precision,
   mt5_equity double precision,
   mt5_synced_at timestamptz,
+  mt5_investor_password_cipher text,
+  mt5_credentials_set boolean not null default false,
   constraint trading_accounts_name_len check (
     char_length(trim(name)) between 1 and 48
   ),
@@ -410,6 +413,62 @@ $$;
 
 revoke all on function public.apply_mt5_account_snapshot(text, text, text, double precision, double precision) from public;
 grant execute on function public.apply_mt5_account_snapshot(text, text, text, double precision, double precision) to anon, authenticated;
+
+create or replace function public.save_mt5_account_credentials(
+  p_account_id uuid,
+  p_login text,
+  p_server text,
+  p_password_cipher text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_account public.trading_accounts%rowtype;
+  v_user uuid := auth.uid();
+begin
+  if v_user is null then
+    return jsonb_build_object('ok', false, 'error', 'unauthorized');
+  end if;
+
+  if p_account_id is null
+     or p_login is null
+     or char_length(trim(p_login)) not between 1 and 32
+     or p_server is null
+     or char_length(trim(p_server)) not between 1 and 64
+     or p_password_cipher is null
+     or char_length(trim(p_password_cipher)) < 8 then
+    return jsonb_build_object('ok', false, 'error', 'invalid_credentials');
+  end if;
+
+  update public.trading_accounts
+  set
+    mt5_login = trim(p_login),
+    mt5_server = trim(p_server),
+    mt5_password = p_password_cipher,
+    mt5_investor_password_cipher = p_password_cipher,
+    mt5_credentials_set = true
+  where id = p_account_id
+    and user_id = v_user
+  returning * into v_account;
+
+  if not found then
+    return jsonb_build_object('ok', false, 'error', 'account_not_found');
+  end if;
+
+  return jsonb_build_object(
+    'ok', true,
+    'accountId', v_account.id,
+    'login', v_account.mt5_login,
+    'server', v_account.mt5_server
+  );
+end;
+$$;
+
+revoke all on function public.save_mt5_account_credentials(uuid, text, text, text) from public;
+grant execute on function public.save_mt5_account_credentials(uuid, text, text, text) to authenticated;
 
 create or replace function public.ingest_mt5_closed_trades(
   p_token text,

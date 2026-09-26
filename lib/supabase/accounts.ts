@@ -45,6 +45,7 @@ function emptyMt5DbFields() {
     mt5_balance: null,
     mt5_equity: null,
     mt5_synced_at: null,
+    mt5_password: null,
     mt5_investor_password_cipher: null,
     mt5_credentials_set: false,
   };

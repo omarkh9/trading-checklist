@@ -126,7 +126,7 @@ export async function POST(request: Request) {
   let query = supabase
     .from("trading_accounts")
     .select(
-      "id, user_id, mt5_login, mt5_server, mt5_connection_id, mt5_investor_password_cipher, mt5_credentials_set"
+      "id, user_id, mt5_login, mt5_server, mt5_connection_id, mt5_password, mt5_investor_password_cipher, mt5_credentials_set"
     );
   if (!worker) query = query.eq("user_id", userId);
   if (requestedAccountId) query = query.eq("id", requestedAccountId);
@@ -137,7 +137,7 @@ export async function POST(request: Request) {
   }
 
   let { data: accounts, error: accountError } = await query;
-  if (accountError && /mt5_investor_password_cipher|mt5_credentials_set/i.test(accountError.message)) {
+  if (accountError && /mt5_investor_password_cipher|mt5_credentials_set|mt5_password/i.test(accountError.message)) {
     const fallback = supabase
       .from("trading_accounts")
       .select("id, user_id, mt5_login, mt5_server, mt5_connection_id");
@@ -150,6 +150,7 @@ export async function POST(request: Request) {
     const retry = await filtered;
     accounts = (retry.data ?? []).map((row) => ({
       ...row,
+      mt5_password: null,
       mt5_investor_password_cipher: null,
       mt5_credentials_set: false,
     }));
@@ -177,9 +178,10 @@ export async function POST(request: Request) {
     let storedPassword = "";
     try {
       storedPassword = decryptStoredInvestorPassword(
-        "mt5_investor_password_cipher" in account
+        ("mt5_investor_password_cipher" in account
           ? account.mt5_investor_password_cipher
-          : null
+          : null) ||
+          ("mt5_password" in account ? account.mt5_password : null)
       );
     } catch (cause) {
       console.error(

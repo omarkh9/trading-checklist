@@ -108,6 +108,7 @@ export type Database = {
           created_at: string;
           mt5_login: string | null;
           mt5_server: string | null;
+          mt5_password?: string | null;
           mt5_webhook_token_hash: string | null;
           mt5_connection_id: string | null;
           mt5_balance: number | null;
@@ -124,6 +125,7 @@ export type Database = {
           created_at?: string;
           mt5_login?: string | null;
           mt5_server?: string | null;
+          mt5_password?: string | null;
           mt5_webhook_token_hash?: string | null;
           mt5_connection_id?: string | null;
           mt5_balance?: number | null;
@@ -140,6 +142,7 @@ export type Database = {
           created_at?: string;
           mt5_login?: string | null;
           mt5_server?: string | null;
+          mt5_password?: string | null;
           mt5_webhook_token_hash?: string | null;
           mt5_connection_id?: string | null;
           mt5_balance?: number | null;
@@ -241,6 +244,15 @@ export type Database = {
         Args: {
           p_token: string;
           p_trades?: Json;
+        };
+        Returns: Json;
+      };
+      save_mt5_account_credentials: {
+        Args: {
+          p_account_id: string;
+          p_login: string;
+          p_server: string;
+          p_password_cipher: string;
         };
         Returns: Json;
       };

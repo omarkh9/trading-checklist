@@ -6,6 +6,10 @@ import {
   provisionMt5Connection,
 } from "@/lib/mt5/gateway";
 import { canFetchMt5History } from "@/lib/mt5/env";
+import {
+  persistMt5ConnectionMeta,
+  persistMt5Credentials,
+} from "@/lib/mt5/persist-credentials";
 import { canEncryptMt5Secret, encryptMt5Secret } from "@/lib/mt5/secret";
 import { syncMt5Journal } from "@/lib/mt5/sync";
 import { generateMt5WebhookToken, hashMt5WebhookToken } from "@/lib/mt5/token";
@@ -183,6 +187,37 @@ export async function POST(request: Request) {
     };
   }
 
+  if (!canEncryptMt5Secret()) {
+    return json(
+      {
+        ok: false,
+        error:
+          "Cannot lock investor passwords. Set MT5_CREDENTIALS_KEY on the server.",
+      },
+      503
+    );
+  }
+
+  let passwordCipher = "";
+  try {
+    passwordCipher = encryptMt5Secret(parsed.investorPassword);
+  } catch (cause) {
+    console.error(
+      "MT5 credential encrypt failed:",
+      cause instanceof Error ? cause.message : cause
+    );
+    return json(
+      {
+        ok: false,
+        error:
+          cause instanceof Error
+            ? cause.message
+            : "Could not encrypt the MT5 investor password.",
+      },
+      503
+    );
+  }
+
   const webhookToken = generateMt5WebhookToken();
   const tokenHash = await hashMt5WebhookToken(webhookToken);
 
@@ -216,31 +251,6 @@ export async function POST(request: Request) {
     await disconnectMt5Connection(target.mt5_connection_id);
   }
 
-  let passwordCipher: string | null = null;
-  if (canEncryptMt5Secret()) {
-    try {
-      passwordCipher = encryptMt5Secret(parsed.investorPassword);
-    } catch (cause) {
-      console.error(
-        "MT5 credential encrypt failed:",
-        cause instanceof Error ? cause.message : cause
-      );
-    }
-  }
-
-  const mt5Fields = {
-    mt5_login: parsed.login,
-    mt5_server: parsed.server,
-    mt5_webhook_token_hash: tokenHash,
-    mt5_connection_id: provisioned.connectionId,
-    mt5_balance: provisioned.balance,
-    mt5_equity: provisioned.equity,
-    mt5_synced_at:
-      provisioned.balance != null ? new Date().toISOString() : null,
-    mt5_investor_password_cipher: passwordCipher,
-    mt5_credentials_set: Boolean(passwordCipher),
-  };
-
   const startingBalance =
     provisioned.balance != null &&
     Number.isFinite(provisioned.balance) &&
@@ -248,76 +258,43 @@ export async function POST(request: Request) {
       ? provisioned.balance
       : DEFAULT_STARTING_BALANCE;
 
-  const persistPayloads: Record<string, unknown>[] = [mt5Fields];
-  if ("mt5_connection_id" in mt5Fields) {
-    const { mt5_connection_id: _connectionId, ...withoutConnection } = mt5Fields;
-    persistPayloads.push(withoutConnection);
+  if (created) {
+    const inserted = await supabase.from("trading_accounts").insert({
+      id: target.id,
+      user_id: user.id,
+      name: createdName,
+      starting_balance: startingBalance,
+    } as TradingAccountInsert);
+    if (inserted.error) {
+      await disconnectMt5Connection(provisioned.connectionId);
+      return json({ ok: false, error: inserted.error.message }, 400);
+    }
   }
-  persistPayloads.push({
-    mt5_login: parsed.login,
-    mt5_server: parsed.server,
-    mt5_webhook_token_hash: tokenHash,
-    mt5_investor_password_cipher: passwordCipher,
-    mt5_credentials_set: Boolean(passwordCipher),
+
+  const saved = await persistMt5Credentials(supabase, {
+    userId: user.id,
+    accountId: target.id,
+    login: parsed.login,
+    server: parsed.server,
+    passwordCipher,
   });
-
-  let persistError: { message: string } | null = null;
-  for (let index = 0; index < persistPayloads.length; index += 1) {
-    let fields = persistPayloads[index];
-    if (persistError) {
-      fields = stripUnknownMt5Fields(fields, persistError.message);
-    }
-
-    const payload = {
-      id: target.id,
-      user_id: user.id,
-      name: createdName,
-      starting_balance: startingBalance,
-      ...fields,
-    } as TradingAccountInsert;
-    const result = created
-      ? await supabase.from("trading_accounts").insert(payload)
-      : await supabase
-          .from("trading_accounts")
-          .update(fields as TradingAccountUpdate)
-          .eq("id", target.id)
-          .eq("user_id", user.id);
-
-    persistError = result.error;
-    if (!persistError) break;
-    if (!isUnknownMt5Column(persistError.message)) break;
-  }
-
-  if (persistError && created) {
-    const coreInsert = await supabase.from("trading_accounts").insert({
-      id: target.id,
-      user_id: user.id,
-      name: createdName,
-      starting_balance: startingBalance,
-    });
-    if (!coreInsert.error) {
-      const retry = await supabase
-        .from("trading_accounts")
-          .update(mt5Fields as TradingAccountUpdate)
-        .eq("id", target.id)
-        .eq("user_id", user.id);
-      persistError = retry.error;
-      if (persistError && isUnknownMt5Column(persistError.message)) {
-        const reduced = stripUnknownMt5Fields(mt5Fields, persistError.message);
-        const reducedUpdate = await supabase
-          .from("trading_accounts")
-          .update(reduced as TradingAccountUpdate)
-          .eq("id", target.id)
-          .eq("user_id", user.id);
-        persistError = reducedUpdate.error;
-      }
-    }
-  }
-
-  if (persistError) {
+  if (!saved.ok) {
     await disconnectMt5Connection(provisioned.connectionId);
-    return json({ ok: false, error: persistError.message }, 400);
+    return json({ ok: false, error: saved.error }, 400);
   }
+
+  await persistMt5ConnectionMeta(supabase, {
+    userId: user.id,
+    accountId: target.id,
+    fields: {
+      mt5_webhook_token_hash: tokenHash,
+      mt5_connection_id: provisioned.connectionId,
+      mt5_balance: provisioned.balance,
+      mt5_equity: provisioned.equity,
+      mt5_synced_at:
+        provisioned.balance != null ? new Date().toISOString() : null,
+    },
+  });
 
   let ingested = 0;
   if (canFetchMt5History()) {
@@ -393,6 +370,7 @@ export async function DELETE(request: Request) {
         mt5_balance: null,
         mt5_equity: null,
         mt5_synced_at: null,
+        mt5_password: null,
         mt5_investor_password_cipher: null,
         mt5_credentials_set: false,
       })
@@ -415,6 +393,7 @@ export async function DELETE(request: Request) {
       mt5_balance: null,
       mt5_equity: null,
       mt5_synced_at: null,
+      mt5_password: null,
       mt5_investor_password_cipher: null,
       mt5_credentials_set: false,
     })
@@ -431,6 +410,7 @@ export async function DELETE(request: Request) {
         mt5_balance: null,
         mt5_equity: null,
         mt5_synced_at: null,
+        mt5_password: null,
         mt5_investor_password_cipher: null,
         mt5_credentials_set: false,
       },
