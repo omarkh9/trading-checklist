@@ -241,6 +241,19 @@ function asSnapshotRpcResult(data: Json | null) {
   };
 }
 
+function requireScopedAccount(accountId: string, userId: string) {
+  const id = accountId.trim();
+  const uid = userId.trim();
+  const scoped =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!id || !uid || !scoped.test(id) || !scoped.test(uid)) {
+    throw new Error(
+      "MT5 sync refused to update trading_accounts without an exact account id and user id."
+    );
+  }
+  return { accountId: id, userId: uid };
+}
+
 export async function persistMt5Snapshot(
   supabase: SupabaseClient<Database>,
   input: {
@@ -252,11 +265,12 @@ export async function persistMt5Snapshot(
     syncedAt: string;
   }
 ) {
+  const scope = requireScopedAccount(input.accountId, input.userId);
   const { data: rpcData, error: rpcError } = await supabase.rpc(
     "save_mt5_account_snapshot",
     {
-      p_account_id: input.accountId,
-      p_user_id: input.userId,
+      p_account_id: scope.accountId,
+      p_user_id: scope.userId,
       p_balance: input.balance,
       p_equity: input.equity,
       p_connection_id: input.connectionId ?? "",
@@ -283,10 +297,14 @@ export async function persistMt5Snapshot(
     const { data, error } = await supabase
       .from("trading_accounts")
       .update(fields as TradingAccountUpdate)
-      .eq("id", input.accountId)
-      .eq("user_id", input.userId)
-      .select("mt5_balance, mt5_equity, mt5_synced_at")
+      .eq("id", scope.accountId)
+      .eq("user_id", scope.userId)
+      .select("id, mt5_balance, mt5_equity, mt5_synced_at")
       .maybeSingle();
+
+    if (data && "id" in data && data.id !== scope.accountId) {
+      throw new Error("MT5 sync matched a different trading account.");
+    }
 
     if (
       !error &&

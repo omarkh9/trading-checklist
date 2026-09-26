@@ -93,6 +93,10 @@ export async function POST(request: Request) {
   const days = typeof body.days === "number" ? body.days : undefined;
   const syncAll = worker && body.all === true;
 
+  if (!requestedAccountId && !syncAll) {
+    return json({ ok: false, error: "accountId is required." }, 400);
+  }
+
   if (worker && (body.investorPassword || body.password)) {
     return json(
       { ok: false, error: "Worker sync uses stored investor passwords only." },
@@ -158,10 +162,19 @@ export async function POST(request: Request) {
 
   const results: Record<string, unknown>[] = [];
   for (const account of targets) {
-    const login = requestCredentials?.login || account.login || "";
-    const server = requestCredentials?.server || account.server || "";
+    const useRequestCredentials =
+      Boolean(requestCredentials) && account.id === requestedAccountId;
+    const login =
+      (useRequestCredentials ? requestCredentials?.login : "") ||
+      account.login ||
+      "";
+    const server =
+      (useRequestCredentials ? requestCredentials?.server : "") ||
+      account.server ||
+      "";
     const investorPassword =
-      requestCredentials?.investorPassword || account.investorPassword;
+      (useRequestCredentials ? requestCredentials?.investorPassword : "") ||
+      account.investorPassword;
 
     if (!login || !server || !investorPassword) {
       const message =

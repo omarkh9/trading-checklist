@@ -87,6 +87,20 @@ export async function upsertMt5Trades(
   return ingested;
 }
 
+const ACCOUNT_SCOPE_ID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function requireScopedAccount(accountId: string, userId: string) {
+  const id = accountId.trim();
+  const uid = userId.trim();
+  if (!id || !uid || !ACCOUNT_SCOPE_ID.test(id) || !ACCOUNT_SCOPE_ID.test(uid)) {
+    throw new Error(
+      "MT5 sync refused to update trading_accounts without an exact account id and user id."
+    );
+  }
+  return { accountId: id, userId: uid };
+}
+
 function asObject(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   return value as Record<string, unknown>;
@@ -138,6 +152,7 @@ async function writeMt5BalanceColumns(
     syncedAt: string;
   }
 ) {
+  const scope = requireScopedAccount(input.accountId, input.userId);
   const moneyFields: TradingAccountUpdate = {
     mt5_balance: input.balance,
     mt5_equity: input.equity,
@@ -155,10 +170,14 @@ async function writeMt5BalanceColumns(
     const { data, error } = await supabase
       .from("trading_accounts")
       .update(fields)
-      .eq("id", input.accountId)
-      .eq("user_id", input.userId)
+      .eq("id", scope.accountId)
+      .eq("user_id", scope.userId)
       .select("id, mt5_balance, mt5_equity, mt5_synced_at")
       .maybeSingle();
+
+    if (data?.id && data.id !== scope.accountId) {
+      throw new Error("MT5 sync matched a different trading account.");
+    }
 
     if (
       !error &&
@@ -180,15 +199,21 @@ async function writeMt5BalanceColumns(
     }
   }
 
-  const { error } = await supabase
+  const { data: written, error } = await supabase
     .from("trading_accounts")
     .update({
       mt5_balance: input.balance,
       mt5_equity: input.equity,
       mt5_synced_at: input.syncedAt,
     })
-    .eq("id", input.accountId)
-    .eq("user_id", input.userId);
+    .eq("id", scope.accountId)
+    .eq("user_id", scope.userId)
+    .select("id")
+    .maybeSingle();
+
+  if (written?.id && written.id !== scope.accountId) {
+    throw new Error("MT5 sync matched a different trading account.");
+  }
 
   if (error) {
     console.error("Full Supabase Error:", error);
@@ -215,6 +240,7 @@ export async function markMt5Synced(
     snapshot?: unknown;
   }
 ) {
+  const scope = requireScopedAccount(input.accountId, input.userId);
   const payload = input.snapshot ?? input;
   console.log(JSON.stringify(payload));
   const syncedAt = new Date().toISOString();
@@ -225,15 +251,15 @@ export async function markMt5Synced(
     await supabase
       .from("trading_accounts")
       .update({ mt5_synced_at: syncedAt })
-      .eq("id", input.accountId)
-      .eq("user_id", input.userId);
+      .eq("id", scope.accountId)
+      .eq("user_id", scope.userId);
     return { balance: null, equity: null, syncedAt };
   }
 
   try {
     return await writeMt5BalanceColumns(supabase, {
-      accountId: input.accountId,
-      userId: input.userId,
+      accountId: scope.accountId,
+      userId: scope.userId,
       balance,
       equity,
       connectionId: input.connectionId,
@@ -241,8 +267,8 @@ export async function markMt5Synced(
     });
   } catch {
     return persistMt5Snapshot(supabase, {
-      userId: input.userId,
-      accountId: input.accountId,
+      userId: scope.userId,
+      accountId: scope.accountId,
       balance,
       equity,
       connectionId: input.connectionId,
