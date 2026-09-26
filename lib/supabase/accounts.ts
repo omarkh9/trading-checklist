@@ -25,6 +25,7 @@ import {
   readTradeAccountMap,
   writeTradeAccountMapEntry,
 } from "@/lib/trades/account-balance";
+import { readMt5AccountMetrics } from "@/lib/mt5/trades";
 
 function throwIfError(error: { message: string } | null) {
   if (error) throw new Error(error.message);
@@ -115,8 +116,12 @@ function mt5FieldsFromUnknown(value: Partial<TradingAccount> | null | undefined)
     mt5CredentialsSet: Boolean(value?.mt5CredentialsSet),
     mt5ConnectionId:
       typeof value?.mt5ConnectionId === "string" ? value.mt5ConnectionId : "",
-    mt5Balance: finiteOrNull(value?.mt5Balance),
-    mt5Equity: finiteOrNull(value?.mt5Equity),
+    mt5Balance:
+      finiteOrNull(value?.mt5Balance) ??
+      finiteOrNull((value as { mt5_balance?: unknown })?.mt5_balance),
+    mt5Equity:
+      finiteOrNull(value?.mt5Equity) ??
+      finiteOrNull((value as { mt5_equity?: unknown })?.mt5_equity),
     mt5SyncedAt:
       typeof value?.mt5SyncedAt === "string" ? value.mt5SyncedAt : null,
   };
@@ -754,30 +759,27 @@ export async function linkMt5Account(
 function applyMt5SyncSnapshot(
   accounts: TradingAccount[],
   accountId: string,
-  snapshot: {
-    balance?: unknown;
-    equity?: unknown;
-    syncedAt?: unknown;
-    connectionId?: unknown;
-  }
+  snapshot: Record<string, unknown>
 ) {
-  const balance = finiteOrNull(snapshot.balance);
-  const equity = finiteOrNull(snapshot.equity);
+  const metrics = readMt5AccountMetrics(snapshot);
   const syncedAt =
-    typeof snapshot.syncedAt === "string" && snapshot.syncedAt.trim()
-      ? snapshot.syncedAt
-      : null;
+    (typeof snapshot.syncedAt === "string" && snapshot.syncedAt.trim()) ||
+    (typeof snapshot.mt5_synced_at === "string" && snapshot.mt5_synced_at.trim()) ||
+    null;
   const connectionId =
-    typeof snapshot.connectionId === "string" ? snapshot.connectionId.trim() : "";
+    (typeof snapshot.connectionId === "string" && snapshot.connectionId.trim()) ||
+    (typeof snapshot.mt5_connection_id === "string" &&
+      snapshot.mt5_connection_id.trim()) ||
+    "";
 
   return rememberAccounts(
     accounts.map((account) =>
       account.id === accountId
         ? {
             ...account,
-            mt5Balance: balance ?? account.mt5Balance,
-            mt5Equity: equity ?? account.mt5Equity,
-            mt5SyncedAt: syncedAt ?? account.mt5SyncedAt,
+            mt5Balance: metrics.balance ?? account.mt5Balance,
+            mt5Equity: metrics.equity ?? account.mt5Equity,
+            mt5SyncedAt: syncedAt || account.mt5SyncedAt,
             mt5ConnectionId: connectionId || account.mt5ConnectionId,
           }
         : account
@@ -837,15 +839,13 @@ export async function syncMt5AccountHistory(
   const row =
     payload.results?.find((item) => item.accountId === accountId) ??
     payload.results?.[0] ??
-    payload;
+    {};
   const accounts = applyMt5SyncSnapshot(
     await loadTradingAccounts({ force: true }),
     accountId,
     {
-      balance: row.balance ?? payload.balance,
-      equity: row.equity ?? payload.equity,
-      syncedAt: row.syncedAt ?? payload.syncedAt,
-      connectionId: row.connectionId ?? payload.connectionId,
+      ...(payload as Record<string, unknown>),
+      ...(row as Record<string, unknown>),
     }
   );
   return {

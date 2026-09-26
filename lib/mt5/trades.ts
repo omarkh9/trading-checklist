@@ -25,14 +25,23 @@ function pickString(record: JsonRecord, keys: string[]) {
   return "";
 }
 
+function asFiniteNumber(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value.trim());
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+
 function pickNumber(record: JsonRecord, keys: string[]) {
+  const entries = Object.entries(record);
   for (const key of keys) {
-    const value = record[key];
-    if (typeof value === "number" && Number.isFinite(value)) return value;
-    if (typeof value === "string" && value.trim()) {
-      const parsed = Number(value.trim());
-      if (Number.isFinite(parsed)) return parsed;
-    }
+    const match = entries.find(
+      ([name]) => name.toLowerCase() === key.toLowerCase()
+    );
+    const parsed = asFiniteNumber(match ? match[1] : record[key]);
+    if (parsed != null) return parsed;
   }
   return null;
 }
@@ -122,6 +131,7 @@ export function readMt5AccountMetrics(body: unknown) {
     asRecord(record.account_information),
     asRecord(record.info),
     asRecord(record.snapshot),
+    asRecord(Array.isArray(record.results) ? record.results[0] : null),
   ];
   let balance: number | null = null;
   let equity: number | null = null;
@@ -129,6 +139,8 @@ export function readMt5AccountMetrics(body: unknown) {
     balance ??= pickNumber(layer, BALANCE_KEYS);
     equity ??= pickNumber(layer, EQUITY_KEYS);
   }
+  if (balance == null && equity != null) balance = equity;
+  if (equity == null && balance != null) equity = balance;
   return { balance, equity };
 }
 

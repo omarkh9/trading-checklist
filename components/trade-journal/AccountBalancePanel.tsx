@@ -3,6 +3,7 @@
 import { useAccounts } from "@/components/accounts/AccountProvider";
 import { DeskCard } from "@/components/ui/DeskCard";
 import { Mt5LinkModal } from "@/components/trade-journal/Mt5LinkModal";
+import { readMt5AccountMetrics } from "@/lib/mt5/trades";
 import { formatBalance } from "@/lib/trades/account-balance";
 import {
   MAX_TRADING_ACCOUNTS,
@@ -25,6 +26,10 @@ function toBalanceDraft(value: number) {
 function parseBalanceDraft(value: string) {
   const parsed = parseNumericDraft(value);
   return parsed != null && parsed >= 0 ? parsed : 0;
+}
+
+function accountMt5Balance(account: { mt5Balance?: number | null } | null) {
+  return account?.mt5Balance ?? readMt5AccountMetrics(account).balance;
 }
 
 function formatSyncedAt(value: string | null) {
@@ -75,6 +80,9 @@ export const AccountBalancePanel = memo(function AccountBalancePanel({
   const netPnl = currentBalance - startingBalance;
   const canAdd = accounts.length < MAX_TRADING_ACCOUNTS;
   const mt5Linked = Boolean(activeAccount?.mt5TokenSet);
+  const mt5Metrics = readMt5AccountMetrics(activeAccount);
+  const mt5Balance = activeAccount?.mt5Balance ?? mt5Metrics.balance;
+  const mt5Equity = activeAccount?.mt5Equity ?? mt5Metrics.equity;
 
   const persistName = async () => {
     if (!activeAccount) return;
@@ -276,17 +284,13 @@ export const AccountBalancePanel = memo(function AccountBalancePanel({
                 <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
                   <p className={desk.label}>MT5 Balance</p>
                   <p className="mt-1 text-xl font-semibold text-zinc-100">
-                    {activeAccount?.mt5Balance != null
-                      ? formatBalance(activeAccount.mt5Balance)
-                      : "—"}
+                    {mt5Balance != null ? formatBalance(mt5Balance) : "—"}
                   </p>
                 </div>
                 <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
                   <p className={desk.label}>MT5 Equity</p>
                   <p className="mt-1 text-xl font-semibold text-zinc-100">
-                    {activeAccount?.mt5Equity != null
-                      ? formatBalance(activeAccount.mt5Equity)
-                      : "—"}
+                    {mt5Equity != null ? formatBalance(mt5Equity) : "—"}
                   </p>
                 </div>
                 <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
@@ -397,8 +401,8 @@ export const AccountBalancePanel = memo(function AccountBalancePanel({
                   <p className="text-[11px] text-zinc-500">
                     Start {formatBalance(account.startingBalance)}
                     {account.mt5TokenSet
-                      ? account.mt5Balance != null
-                        ? ` · MT5 ${formatBalance(account.mt5Balance)}`
+                      ? accountMt5Balance(account) != null
+                        ? ` · MT5 ${formatBalance(accountMt5Balance(account) as number)}`
                         : " · MT5 linked"
                       : ""}
                     {selected ? " · Active journal" : ""}

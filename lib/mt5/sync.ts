@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
 import { fetchMt5History } from "@/lib/mt5/history";
 import { markMt5Synced, mt5TradesToInserts, upsertMt5Trades } from "@/lib/mt5/ingest";
-import { parseMt5ClosedTrades } from "@/lib/mt5/trades";
+import { parseMt5ClosedTrades, readMt5AccountMetrics } from "@/lib/mt5/trades";
 
 export const MT5_HISTORY_MAX_DAYS = 1095;
 export const MT5_HISTORY_DEFAULT_DAYS = 365;
@@ -60,15 +60,40 @@ export async function syncMt5Journal(options: {
     connectionId: snapshot.connectionId,
   });
 
+  const saved = await options.supabase
+    .from("trading_accounts")
+    .select("mt5_balance, mt5_equity, mt5_synced_at, mt5_connection_id")
+    .eq("id", options.accountId)
+    .eq("user_id", options.userId)
+    .maybeSingle();
+
+  const metrics = readMt5AccountMetrics({
+    ...snapshot,
+    ...saved.data,
+    balance: snapshot.balance,
+    equity: snapshot.equity,
+    mt5_balance: saved.data?.mt5_balance,
+    mt5_equity: saved.data?.mt5_equity,
+  });
+  const syncedAt =
+    typeof saved.data?.mt5_synced_at === "string"
+      ? saved.data.mt5_synced_at
+      : new Date().toISOString();
+
   return {
     ok: true as const,
     accountId: options.accountId,
-    connectionId: snapshot.connectionId,
+    connectionId:
+      snapshot.connectionId || saved.data?.mt5_connection_id || undefined,
     ingested,
     scanned: snapshot.deals.length,
     days: window.days,
-    balance: snapshot.balance,
-    equity: snapshot.equity,
-    syncedAt: new Date().toISOString(),
+    balance: metrics.balance,
+    equity: metrics.equity,
+    mt5_balance: metrics.balance,
+    mt5_equity: metrics.equity,
+    mt5Balance: metrics.balance,
+    mt5Equity: metrics.equity,
+    syncedAt,
   };
 }

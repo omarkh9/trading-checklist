@@ -5,6 +5,7 @@ import { Mt5GatewayError } from "@/lib/mt5/gateway";
 import { canFetchMt5History, getMt5SyncSecret, getSupabaseServiceRoleKey } from "@/lib/mt5/env";
 import { loadMt5StoredCredentials } from "@/lib/mt5/stored-credentials";
 import { syncMt5Journal } from "@/lib/mt5/sync";
+import { readMt5AccountMetrics } from "@/lib/mt5/trades";
 import type { Database } from "@/lib/supabase/database.types";
 import { getSupabaseUrl } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
@@ -206,6 +207,7 @@ export async function POST(request: Request) {
   );
 
   const primary = results[0] ?? {};
+  const metrics = readMt5AccountMetrics({ ...primary, results });
 
   return json({
     ok: true,
@@ -213,8 +215,12 @@ export async function POST(request: Request) {
     accounts: results.length,
     results,
     accountId: primary.accountId ?? requestedAccountId,
-    balance: primary.balance ?? null,
-    equity: primary.equity ?? null,
+    balance: metrics.balance,
+    equity: metrics.equity,
+    mt5_balance: metrics.balance,
+    mt5_equity: metrics.equity,
+    mt5Balance: metrics.balance,
+    mt5Equity: metrics.equity,
     syncedAt: primary.syncedAt ?? null,
     connectionId: primary.connectionId ?? null,
     scanned: primary.scanned ?? 0,
