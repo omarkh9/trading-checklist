@@ -74,12 +74,7 @@ export async function syncMt5Journal(options: {
     balance: money.balance ?? snapshot.balance ?? snapshotMetrics.balance,
     equity: money.equity ?? snapshot.equity ?? snapshotMetrics.equity,
     connectionId: snapshot.connectionId,
-    snapshot: {
-      ...snapshot,
-      deals: snapshot.deals,
-      balance: snapshot.balance ?? snapshotMetrics.balance,
-      equity: snapshot.equity ?? snapshotMetrics.equity,
-    },
+    snapshot: snapshot.raw ?? snapshot,
   });
 
   const metrics = readMt5AccountMetrics({

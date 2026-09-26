@@ -5,6 +5,7 @@ import {
   getMt5GatewayUrl,
 } from "@/lib/mt5/env";
 import { Mt5GatewayError } from "@/lib/mt5/gateway";
+import { readMt5GatewayMoney } from "@/lib/mt5/ingest";
 import { extractMt5TradeList, readMt5AccountMetrics } from "@/lib/mt5/trades";
 
 export type Mt5HistoryRequest = {
@@ -23,6 +24,7 @@ export type Mt5HistorySnapshot = {
   deals: unknown[];
   balance: number | null;
   equity: number | null;
+  raw?: unknown;
 };
 
 type JsonRecord = Record<string, unknown>;
@@ -65,7 +67,7 @@ function snapshotFromBody(
 ): Mt5HistorySnapshot {
   console.log(JSON.stringify(body));
   const record = asRecord(body);
-  const metrics = readMt5AccountMetrics(body);
+  const money = readMt5GatewayMoney(body);
   return {
     connectionId:
       pickString(record, ["connectionId", "id"]) ||
@@ -73,8 +75,9 @@ function snapshotFromBody(
       input.connectionId ||
       `mt5:${input.accountId}:${input.login ?? "history"}`,
     deals: extractMt5TradeList(body),
-    balance: metrics.balance,
-    equity: metrics.equity,
+    balance: money.balance,
+    equity: money.equity,
+    raw: body,
   };
 }
 
@@ -272,11 +275,13 @@ async function fetchViaMetaApi(
     account: infoBody,
   });
 
+  const gatewayMoney = readMt5GatewayMoney(infoBody);
   return {
     connectionId,
     deals,
-    balance: metrics.balance,
-    equity: metrics.equity,
+    balance: gatewayMoney.balance ?? metrics.balance,
+    equity: gatewayMoney.equity ?? metrics.equity,
+    raw: infoBody,
   };
 }
 

@@ -5,7 +5,7 @@ import type {
   TradingAccountUpdate,
 } from "@/lib/supabase/database.types";
 import { persistMt5Snapshot } from "@/lib/mt5/persist-credentials";
-import { readMt5AccountMetrics, type Mt5IngestTrade } from "@/lib/mt5/trades";
+import type { Mt5IngestTrade } from "@/lib/mt5/trades";
 
 const CHUNK = 40;
 
@@ -87,26 +87,44 @@ export async function upsertMt5Trades(
   return ingested;
 }
 
-function finiteMoney(value: unknown): number | null {
+function asObject(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return value as Record<string, unknown>;
+}
+
+function toFloat(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "bigint") return Number(value);
   if (typeof value === "string" && value.trim()) {
-    const parsed = Number(value.trim().replace(/[^0-9.+-eE]/g, ""));
+    const parsed = Number.parseFloat(value.trim().replace(/,/g, ""));
     if (Number.isFinite(parsed)) return parsed;
   }
   return null;
+}
+
+export function readMt5GatewayMoney(payload: unknown) {
+  const root = asObject(payload);
+  const answer = asObject(root.answer);
+  const balance = toFloat(answer.Balance ?? root.Balance);
+  const equity = toFloat(answer.Equity ?? root.Equity);
+  if (balance == null && equity == null) {
+    return { balance: null, equity: null };
+  }
+  return {
+    balance: balance ?? equity,
+    equity: equity ?? balance,
+  };
 }
 
 export function readBrokerSnapshotMoney(input: {
   balance?: unknown;
   equity?: unknown;
 }) {
-  const balance = finiteMoney(input.balance) ?? finiteMoney(input.equity);
-  const equity = finiteMoney(input.equity) ?? balance;
-  if (balance == null || equity == null) {
-    return { balance: null, equity: null };
-  }
-  return { balance, equity };
+  return readMt5GatewayMoney({
+    answer: { Balance: input.balance, Equity: input.equity },
+    Balance: input.balance,
+    Equity: input.equity,
+  });
 }
 
 async function writeMt5BalanceColumns(
@@ -200,15 +218,17 @@ export async function markMt5Synced(
   const payload = input.snapshot ?? input;
   console.log(JSON.stringify(payload));
   const syncedAt = new Date().toISOString();
-  const fromSnapshot = input.snapshot
-    ? readMt5AccountMetrics(input.snapshot)
-    : { balance: null, equity: null };
-  const money = readBrokerSnapshotMoney({
-    balance: input.balance ?? fromSnapshot.balance,
-    equity: input.equity ?? fromSnapshot.equity,
-  });
-  const balance = money.balance ?? 0;
-  const equity = money.equity ?? balance;
+  const money = readMt5GatewayMoney(payload);
+  const balance = toFloat(input.balance) ?? money.balance;
+  const equity = toFloat(input.equity) ?? money.equity ?? balance;
+  if (balance == null || equity == null) {
+    await supabase
+      .from("trading_accounts")
+      .update({ mt5_synced_at: syncedAt })
+      .eq("id", input.accountId)
+      .eq("user_id", input.userId);
+    return { balance: null, equity: null, syncedAt };
+  }
 
   try {
     return await writeMt5BalanceColumns(supabase, {
