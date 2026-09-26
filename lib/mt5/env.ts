@@ -31,7 +31,7 @@ export function getSupabaseServiceRoleKey() {
 export function getMt5CredentialsKey() {
   return (
     sanitizeEnvValue(process.env.MT5_CREDENTIALS_KEY) ||
-    getMt5GatewaySecret() ||
+    getMt5SyncSecret() ||
     getSupabaseServiceRoleKey()
   );
 }

@@ -10,7 +10,7 @@ import {
   persistMt5ConnectionMeta,
   persistMt5Credentials,
 } from "@/lib/mt5/persist-credentials";
-import { canEncryptMt5Secret, encryptMt5Secret } from "@/lib/mt5/secret";
+import { encryptMt5Secret } from "@/lib/mt5/secret";
 import { syncMt5Journal } from "@/lib/mt5/sync";
 import { generateMt5WebhookToken, hashMt5WebhookToken } from "@/lib/mt5/token";
 import { getMt5WebhookUrl } from "@/lib/mt5/webhook";
@@ -187,17 +187,6 @@ export async function POST(request: Request) {
     };
   }
 
-  if (!canEncryptMt5Secret()) {
-    return json(
-      {
-        ok: false,
-        error:
-          "Cannot lock investor passwords. Set MT5_CREDENTIALS_KEY on the server.",
-      },
-      503
-    );
-  }
-
   let passwordCipher = "";
   try {
     passwordCipher = encryptMt5Secret(parsed.investorPassword);
@@ -209,10 +198,7 @@ export async function POST(request: Request) {
     return json(
       {
         ok: false,
-        error:
-          cause instanceof Error
-            ? cause.message
-            : "Could not encrypt the MT5 investor password.",
+        error: "Could not encrypt the MT5 investor password.",
       },
       503
     );

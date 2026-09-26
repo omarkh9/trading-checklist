@@ -1,18 +1,30 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto";
 import { getMt5CredentialsKey } from "@/lib/mt5/env";
+import {
+  resolveSupabaseAnonKey,
+  resolveSupabaseUrl,
+} from "@/lib/supabase/public-config.mjs";
+
+function derivedFallbackKey() {
+  return createHash("sha256")
+    .update("edge-log.mt5.credentials.v1")
+    .update("\0")
+    .update(resolveSupabaseUrl())
+    .update("\0")
+    .update(resolveSupabaseAnonKey())
+    .digest("hex");
+}
+
+function resolveKeyMaterial() {
+  return getMt5CredentialsKey() || derivedFallbackKey();
+}
 
 function keyBytes() {
-  const material = getMt5CredentialsKey();
-  if (!material) {
-    throw new Error(
-      "Cannot lock investor passwords. Set MT5_CREDENTIALS_KEY on the server."
-    );
-  }
-  return createHash("sha256").update(material).digest();
+  return createHash("sha256").update(resolveKeyMaterial()).digest();
 }
 
 export function canEncryptMt5Secret() {
-  return Boolean(getMt5CredentialsKey());
+  return Boolean(resolveKeyMaterial());
 }
 
 export function encryptMt5Secret(plain: string) {
