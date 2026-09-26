@@ -7,15 +7,23 @@ import {
   loadCoachInsights,
 } from "@/lib/ai/coach-context";
 import { buildSystemPrompt } from "@/lib/ai/prompts";
-import { createSseResponse, streamFromText, streamOpenAiChat } from "@/lib/ai/stream";
+import {
+  createSseResponse,
+  encodeSse,
+  pipeSse,
+  streamFromText,
+  streamOpenAiChat,
+} from "@/lib/ai/stream";
 import type { AiChatMessage, AiChatRequest, AiMode } from "@/lib/ai/types";
 import { getAuthUser } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const runtime = "nodejs";
+export const maxDuration = 26;
 
-const MAX_MESSAGES = 16;
-const MAX_CONTENT = 4000;
+const MAX_MESSAGES = 12;
+const MAX_CONTENT = 2000;
+const COACH_DEADLINE_MS = 8_000;
 
 function cleanMessages(input: unknown): AiChatMessage[] {
   if (!Array.isArray(input)) return [];
@@ -35,6 +43,34 @@ function cleanMessages(input: unknown): AiChatMessage[] {
 
 function isMode(value: unknown): value is AiMode {
   return value === "coach" || value === "support" || value === "audit";
+}
+
+function fallbackForMode(
+  mode: AiMode,
+  insights: string | null,
+  lastUser: string,
+  pathname?: string
+) {
+  if (mode === "coach") return fallbackCoachReply(insights, lastUser);
+  if (mode === "audit") return fallbackAuditReply(insights, lastUser);
+  return fallbackSupportReply(pathname, lastUser);
+}
+
+function deadlineSignal(request: Request, ms: number) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  if (request.signal.aborted) controller.abort();
+  else {
+    request.signal.addEventListener("abort", () => controller.abort(), {
+      once: true,
+    });
+  }
+  return {
+    signal: controller.signal,
+    stop() {
+      clearTimeout(timer);
+    },
+  };
 }
 
 export async function POST(request: Request) {
@@ -57,54 +93,89 @@ export async function POST(request: Request) {
     return Response.json({ ok: false, error: "empty" }, { status: 400 });
   }
 
-  const insights =
-    mode === "coach"
-      ? await loadCoachInsights(body.context?.accountId)
-      : mode === "audit"
-        ? await loadAuditInsights(body.context?.accountId)
-        : null;
-  const emailDomain = user.email?.split("@")[1] ?? null;
-  const system = buildSystemPrompt(mode, {
-    context: body.context,
-    insights: insights ?? undefined,
-    emailDomain,
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const deadline = deadlineSignal(request, COACH_DEADLINE_MS);
+      const emit = (event: Parameters<typeof encodeSse>[0]) => {
+        controller.enqueue(encoder.encode(encodeSse(event)));
+      };
+
+      let replied = false;
+      const writeFallback = async (text: string) => {
+        if (replied) return;
+        replied = true;
+        await pipeSse(streamFromText(text), controller);
+      };
+
+      try {
+        emit({ type: "delta", text: "" });
+
+        const insights =
+          mode === "coach"
+            ? await loadCoachInsights(body.context?.accountId, user.id)
+            : mode === "audit"
+              ? await loadAuditInsights(body.context?.accountId, user.id)
+              : null;
+
+        if (deadline.signal.aborted) {
+          await writeFallback(
+            fallbackForMode(mode, insights, lastUser.content, body.context?.pathname)
+          );
+          return;
+        }
+
+        const system = buildSystemPrompt(mode, {
+          context: body.context,
+          insights: insights ?? undefined,
+          emailDomain: user.email?.split("@")[1] ?? null,
+        });
+        const config = getAiConfig();
+
+        if (!config.enabled) {
+          await writeFallback(
+            fallbackForMode(mode, insights, lastUser.content, body.context?.pathname)
+          );
+          return;
+        }
+
+        const modelStream = await streamOpenAiChat({
+          apiKey: config.apiKey,
+          baseUrl: config.baseUrl,
+          model: config.model,
+          messages: [
+            { role: "system", content: system },
+            ...messages.map((item) => ({
+              role: item.role,
+              content: item.content,
+            })),
+          ],
+          signal: deadline.signal,
+        });
+        await pipeSse(modelStream, controller);
+        replied = true;
+      } catch (error) {
+        if (deadline.signal.aborted) {
+          await writeFallback(
+            `${fallbackForMode(mode, null, lastUser.content, body.context?.pathname)}\n\n_The live model timed out, so this is the local read._`
+          );
+          return;
+        }
+        const message =
+          error instanceof Error ? error.message : "The model could not respond.";
+        await writeFallback(
+          `${fallbackForMode(mode, null, lastUser.content, body.context?.pathname)}\n\n_Live model error:_ ${message}`
+        );
+      } finally {
+        deadline.stop();
+        try {
+          controller.close();
+        } catch {
+          // Stream already closed after a finished reply.
+        }
+      }
+    },
   });
 
-  const config = getAiConfig();
-  if (!config.enabled) {
-    const text =
-      mode === "coach"
-        ? fallbackCoachReply(insights, lastUser.content)
-        : mode === "audit"
-          ? fallbackAuditReply(insights, lastUser.content)
-          : fallbackSupportReply(body.context?.pathname, lastUser.content);
-    return createSseResponse(streamFromText(text));
-  }
-
-  try {
-    const stream = await streamOpenAiChat({
-      apiKey: config.apiKey,
-      baseUrl: config.baseUrl,
-      model: config.model,
-      messages: [
-        { role: "system", content: system },
-        ...messages.map((item) => ({
-          role: item.role,
-          content: item.content,
-        })),
-      ],
-      signal: request.signal,
-    });
-    return createSseResponse(stream);
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "The model could not respond.";
-    const fallback =
-      mode === "coach"
-        ? `${fallbackCoachReply(insights, lastUser.content)}\n\n_Live model error:_ ${message}`
-        : mode === "audit"
-          ? `${fallbackAuditReply(insights, lastUser.content)}\n\n_Live model error:_ ${message}`
-          : `${fallbackSupportReply(body.context?.pathname, lastUser.content)}\n\n_Live model error:_ ${message}`;
-    return createSseResponse(streamFromText(fallback, { delayMs: 12 }));
-  }
+  return createSseResponse(stream);
 }

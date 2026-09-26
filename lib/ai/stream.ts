@@ -15,12 +15,28 @@ export function createSseResponse(stream: ReadableStream<Uint8Array>) {
   });
 }
 
+export async function pipeSse(
+  source: ReadableStream<Uint8Array>,
+  dest: ReadableStreamDefaultController<Uint8Array>
+) {
+  const reader = source.getReader();
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      dest.enqueue(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 export function streamFromText(
   text: string,
   options?: { delayMs?: number }
 ): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
-  const delayMs = options?.delayMs ?? 16;
+  const delayMs = options?.delayMs ?? 0;
   const chunks = text.split(/(\s+)/).filter(Boolean);
 
   return new ReadableStream({
@@ -66,6 +82,7 @@ export async function streamOpenAiChat(options: {
       model: options.model,
       stream: true,
       temperature: 0.6,
+      max_tokens: 500,
       messages: options.messages,
     }),
     signal: options.signal,

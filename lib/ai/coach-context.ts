@@ -12,8 +12,12 @@ import type { TradeRow } from "@/lib/supabase/database.types";
 import { formatLocalDate } from "@/lib/time";
 import type { Trade } from "@/lib/types/trade";
 
-const RECENT_TRADE_LIMIT = 20;
-const AUDIT_TRADE_LIMIT = 200;
+const RECENT_TRADE_LIMIT = 15;
+const AUDIT_TRADE_LIMIT = 20;
+const QUERY_CAP = 20;
+const QUERY_TIMEOUT_MS = 2500;
+const COACH_TRADE_COLUMNS =
+  "id, pair, direction, entry_price, stop_loss, take_profit, outcome, pnl_dollars, strategy, notes, created_at, account_id, lot_size, risk_percent, account_balance_at_entry";
 
 function money(value: number) {
   return formatCompactPnl(value);
@@ -24,21 +28,47 @@ function signedMoney(value: number) {
   return money(value);
 }
 
+async function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((resolve) => {
+        timer = setTimeout(() => resolve(fallback), ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 export async function getTradesForUser(
   userId: string,
   options: { limit?: number; accountId?: string } = {}
 ): Promise<Trade[]> {
   const supabase = await createClient();
-  const limit = options.limit ?? RECENT_TRADE_LIMIT;
-  const { data, error } = await supabase
+  const limit = Math.min(QUERY_CAP, options.limit ?? RECENT_TRADE_LIMIT);
+  type TimedQuery = {
+    data: Pick<TradeRow, "id">[] | null;
+    error: { message: string } | null;
+  };
+  const query = supabase
     .from("trades")
-    .select("*")
+    .select(COACH_TRADE_COLUMNS)
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
-    .limit(200);
+    .limit(limit);
+
+  const { data, error } = await withTimeout<TimedQuery>(
+    Promise.resolve(query) as Promise<TimedQuery>,
+    QUERY_TIMEOUT_MS,
+    { data: null, error: { message: "trade_query_timeout" } }
+  );
 
   if (error) {
-    console.error("Full Supabase Error:", error);
+    if (error.message !== "trade_query_timeout") {
+      console.error("Full Supabase Error:", error);
+    }
     return [];
   }
 
@@ -62,11 +92,11 @@ export function formatTradeContext(trades: Trade[]): string {
     .join("\n");
 }
 
-export async function loadCoachInsights(accountId?: string) {
-  const user = await getAuthUser();
-  if (!user) return null;
+export async function loadCoachInsights(accountId?: string, userId?: string) {
+  const id = userId ?? (await getAuthUser())?.id;
+  if (!id) return null;
 
-  const trades = await getTradesForUser(user.id, {
+  const trades = await getTradesForUser(id, {
     limit: RECENT_TRADE_LIMIT,
     accountId,
   });
@@ -106,11 +136,11 @@ export async function loadCoachInsights(accountId?: string) {
   ].join("\n");
 }
 
-export async function loadAuditInsights(accountId?: string) {
-  const user = await getAuthUser();
-  if (!user) return null;
+export async function loadAuditInsights(accountId?: string, userId?: string) {
+  const id = userId ?? (await getAuthUser())?.id;
+  if (!id) return null;
 
-  const trades = await getTradesForUser(user.id, {
+  const trades = await getTradesForUser(id, {
     limit: AUDIT_TRADE_LIMIT,
     accountId,
   });

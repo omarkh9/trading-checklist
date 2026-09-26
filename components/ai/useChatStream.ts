@@ -73,6 +73,11 @@ export function useChatStream(mode: AiMode, context: AiClientContext) {
 
       const controller = new AbortController();
       abortRef.current = controller;
+      let timedOut = false;
+      const timeout = window.setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+      }, 18_000);
       let assembled = "";
 
       try {
@@ -144,7 +149,12 @@ export function useChatStream(mode: AiMode, context: AiClientContext) {
           }
         }
       } catch (cause) {
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted) {
+          if (timedOut && !assembled) {
+            setError("The coach timed out. Try a shorter question.");
+          }
+          return;
+        }
         // Proxies often RST the SSE socket after a finished reply. Keep the text.
         if (isIgnorableStreamClose(cause, Boolean(assembled))) return;
         const message =
@@ -158,6 +168,7 @@ export function useChatStream(mode: AiMode, context: AiClientContext) {
           )
         );
       } finally {
+        window.clearTimeout(timeout);
         if (abortRef.current === controller) abortRef.current = null;
         setStreaming(false);
       }
