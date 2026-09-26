@@ -96,16 +96,32 @@ export async function markMt5Synced(
     connectionId?: string;
   }
 ) {
+  const syncedAt = new Date().toISOString();
   const fields: TradingAccountUpdate = {
-    mt5_synced_at: new Date().toISOString(),
-    ...(input.balance != null ? { mt5_balance: input.balance } : {}),
-    ...(input.equity != null ? { mt5_equity: input.equity } : {}),
+    mt5_synced_at: syncedAt,
     ...(input.connectionId ? { mt5_connection_id: input.connectionId } : {}),
   };
+  if (typeof input.balance === "number" && Number.isFinite(input.balance)) {
+    fields.mt5_balance = input.balance;
+  }
+  if (typeof input.equity === "number" && Number.isFinite(input.equity)) {
+    fields.mt5_equity = input.equity;
+  }
 
-  await supabase
+  const { error } = await supabase
     .from("trading_accounts")
     .update(fields)
     .eq("id", input.accountId)
-    .eq("user_id", input.userId);
+    .eq("user_id", input.userId)
+    .select("id, mt5_balance, mt5_equity, mt5_synced_at")
+    .maybeSingle();
+
+  if (error) {
+    console.error("Full Supabase Error:", error);
+    await supabase
+      .from("trading_accounts")
+      .update({ mt5_synced_at: syncedAt })
+      .eq("id", input.accountId)
+      .eq("user_id", input.userId);
+  }
 }

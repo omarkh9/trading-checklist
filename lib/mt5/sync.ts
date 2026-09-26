@@ -40,7 +40,11 @@ export async function syncMt5Journal(options: {
   });
 
   const trades = parseMt5ClosedTrades(
-    { deals: snapshot.deals },
+    {
+      deals: snapshot.deals,
+      balance: snapshot.balance,
+      equity: snapshot.equity,
+    },
     snapshot.balance
   );
   const ingested = await upsertMt5Trades(

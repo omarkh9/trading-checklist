@@ -205,10 +205,18 @@ export async function POST(request: Request) {
     0
   );
 
+  const primary = results[0] ?? {};
+
   return json({
     ok: true,
     ingested,
     accounts: results.length,
     results,
+    accountId: primary.accountId ?? requestedAccountId,
+    balance: primary.balance ?? null,
+    equity: primary.equity ?? null,
+    syncedAt: primary.syncedAt ?? null,
+    connectionId: primary.connectionId ?? null,
+    scanned: primary.scanned ?? 0,
   });
 }

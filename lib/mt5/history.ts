@@ -5,7 +5,7 @@ import {
   getMt5GatewayUrl,
 } from "@/lib/mt5/env";
 import { Mt5GatewayError } from "@/lib/mt5/gateway";
-import { extractMt5TradeList } from "@/lib/mt5/trades";
+import { extractMt5TradeList, readMt5AccountMetrics } from "@/lib/mt5/trades";
 
 export type Mt5HistoryRequest = {
   login?: string;
@@ -40,14 +40,6 @@ function pickString(record: JsonRecord, keys: string[]) {
   return "";
 }
 
-function pickNumber(record: JsonRecord, keys: string[]) {
-  for (const key of keys) {
-    const value = record[key];
-    if (typeof value === "number" && Number.isFinite(value)) return value;
-  }
-  return null;
-}
-
 async function readJson(response: Response) {
   const text = await response.text();
   if (!text.trim()) return {};
@@ -64,6 +56,25 @@ function sleep(ms: number) {
 
 function isoStamp(date: Date) {
   return date.toISOString();
+}
+
+function snapshotFromBody(
+  body: unknown,
+  input: Mt5HistoryRequest,
+  fallbackConnectionId = ""
+): Mt5HistorySnapshot {
+  const record = asRecord(body);
+  const metrics = readMt5AccountMetrics(body);
+  return {
+    connectionId:
+      pickString(record, ["connectionId", "id"]) ||
+      fallbackConnectionId ||
+      input.connectionId ||
+      `mt5:${input.accountId}:${input.login ?? "history"}`,
+    deals: extractMt5TradeList(body),
+    balance: metrics.balance,
+    equity: metrics.equity,
+  };
 }
 
 async function fetchViaGateway(
@@ -88,14 +99,7 @@ async function fetchViaGateway(
         signal: AbortSignal.timeout(25000),
       });
       if (response.ok) {
-        const body = await readJson(response);
-        return {
-          connectionId:
-            pickString(body, ["connectionId", "id"]) || input.connectionId,
-          deals: extractMt5TradeList(body),
-          balance: pickNumber(body, ["balance"]),
-          equity: pickNumber(body, ["equity"]),
-        };
+        return snapshotFromBody(await readJson(response), input, input.connectionId);
       }
     } catch {
       // Fall through to the credentialed history POST.
@@ -144,15 +148,7 @@ async function fetchViaGateway(
     );
   }
 
-  return {
-    connectionId:
-      pickString(body, ["connectionId", "id"]) ||
-      input.connectionId ||
-      `mt5:${input.accountId}:${input.login ?? "history"}`,
-    deals: extractMt5TradeList(body),
-    balance: pickNumber(body, ["balance"]),
-    equity: pickNumber(body, ["equity"]),
-  };
+  return snapshotFromBody(body, input);
 }
 
 function clientApiHost(region: string) {
@@ -269,12 +265,17 @@ async function fetchViaMetaApi(
   const deals = Array.isArray(dealsBody)
     ? dealsBody
     : extractMt5TradeList(dealsBody);
+  const metrics = readMt5AccountMetrics({
+    ...infoBody,
+    deals,
+    account: infoBody,
+  });
 
   return {
     connectionId,
     deals,
-    balance: pickNumber(infoBody, ["balance"]),
-    equity: pickNumber(infoBody, ["equity"]),
+    balance: metrics.balance,
+    equity: metrics.equity,
   };
 }
 

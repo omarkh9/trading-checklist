@@ -97,19 +97,46 @@ export type Mt5IngestTrade = {
   notes: string;
 };
 
+const BALANCE_KEYS = [
+  "balance",
+  "accountBalance",
+  "account_balance",
+  "mt5Balance",
+  "mt5_balance",
+];
+const EQUITY_KEYS = [
+  "equity",
+  "accountEquity",
+  "account_equity",
+  "mt5Equity",
+  "mt5_equity",
+];
+
+export function readMt5AccountMetrics(body: unknown) {
+  const record = asRecord(body);
+  const layers = [
+    record,
+    asRecord(record.data),
+    asRecord(record.account),
+    asRecord(record.accountInformation),
+    asRecord(record.account_information),
+    asRecord(record.info),
+    asRecord(record.snapshot),
+  ];
+  let balance: number | null = null;
+  let equity: number | null = null;
+  for (const layer of layers) {
+    balance ??= pickNumber(layer, BALANCE_KEYS);
+    equity ??= pickNumber(layer, EQUITY_KEYS);
+  }
+  return { balance, equity };
+}
+
 export function parseMt5ClosedTrades(
   body: unknown,
   accountBalance: number | null
 ): Mt5IngestTrade[] {
-  const record = asRecord(body);
-  const nested = asRecord(record.data);
-  const rows = [
-    ...asList(record.trades),
-    ...asList(record.deals),
-    ...asList(record.closedTrades),
-    ...asList(nested.trades),
-    ...asList(nested.deals),
-  ];
+  const rows = extractMt5TradeList(body);
 
   const seen = new Set<string>();
   const trades: Mt5IngestTrade[] = [];
@@ -161,6 +188,8 @@ export function parseMt5ClosedTrades(
       "openPrice",
       "priceOpen",
       "entryPrice",
+      "closePrice",
+      "priceClose",
       "price",
     ]);
     if (!ticket || !pair || !direction || !entry) continue;
@@ -202,9 +231,21 @@ export function parseMt5ClosedTrades(
 
 export function extractMt5TradeList(body: unknown) {
   const record = asRecord(body);
+  const nested = asRecord(record.data);
+  const account = asRecord(record.account);
   return [
     ...asList(record.trades),
     ...asList(record.deals),
     ...asList(record.closedTrades),
+    ...asList(record.history),
+    ...asList(record.historyDeals),
+    ...asList(record.items),
+    ...asList(record.result),
+    ...asList(nested.trades),
+    ...asList(nested.deals),
+    ...asList(nested.closedTrades),
+    ...asList(nested.history),
+    ...asList(account.trades),
+    ...asList(account.deals),
   ];
 }

@@ -99,7 +99,12 @@ function isDuplicateMt5Token(error: { message: string } | null) {
 }
 
 function finiteOrNull(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value.trim());
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
 }
 
 function mt5FieldsFromUnknown(value: Partial<TradingAccount> | null | undefined) {
@@ -746,6 +751,40 @@ export async function linkMt5Account(
   };
 }
 
+function applyMt5SyncSnapshot(
+  accounts: TradingAccount[],
+  accountId: string,
+  snapshot: {
+    balance?: unknown;
+    equity?: unknown;
+    syncedAt?: unknown;
+    connectionId?: unknown;
+  }
+) {
+  const balance = finiteOrNull(snapshot.balance);
+  const equity = finiteOrNull(snapshot.equity);
+  const syncedAt =
+    typeof snapshot.syncedAt === "string" && snapshot.syncedAt.trim()
+      ? snapshot.syncedAt
+      : null;
+  const connectionId =
+    typeof snapshot.connectionId === "string" ? snapshot.connectionId.trim() : "";
+
+  return rememberAccounts(
+    accounts.map((account) =>
+      account.id === accountId
+        ? {
+            ...account,
+            mt5Balance: balance ?? account.mt5Balance,
+            mt5Equity: equity ?? account.mt5Equity,
+            mt5SyncedAt: syncedAt ?? account.mt5SyncedAt,
+            mt5ConnectionId: connectionId || account.mt5ConnectionId,
+          }
+        : account
+    )
+  );
+}
+
 export async function syncMt5AccountHistory(
   accountId: string,
   credentials?: {
@@ -766,7 +805,23 @@ export async function syncMt5AccountHistory(
       ...(credentials ?? {}),
     }),
   });
-  let payload: { ok?: boolean; error?: string; ingested?: number } = {};
+  let payload: {
+    ok?: boolean;
+    error?: string;
+    ingested?: number;
+    balance?: number | null;
+    equity?: number | null;
+    syncedAt?: string;
+    connectionId?: string;
+    results?: Array<{
+      accountId?: string;
+      balance?: number | null;
+      equity?: number | null;
+      syncedAt?: string;
+      connectionId?: string;
+      ingested?: number;
+    }>;
+  } = {};
   try {
     payload = (await response.json()) as typeof payload;
   } catch {
@@ -779,7 +834,20 @@ export async function syncMt5AccountHistory(
         : "Could not sync MT5 deal history."
     );
   }
-  const accounts = await loadTradingAccounts({ force: true });
+  const row =
+    payload.results?.find((item) => item.accountId === accountId) ??
+    payload.results?.[0] ??
+    payload;
+  const accounts = applyMt5SyncSnapshot(
+    await loadTradingAccounts({ force: true }),
+    accountId,
+    {
+      balance: row.balance ?? payload.balance,
+      equity: row.equity ?? payload.equity,
+      syncedAt: row.syncedAt ?? payload.syncedAt,
+      connectionId: row.connectionId ?? payload.connectionId,
+    }
+  );
   return {
     accounts,
     ingested: typeof payload.ingested === "number" ? payload.ingested : 0,
