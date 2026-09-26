@@ -21,7 +21,9 @@ export type AiChatRequest = {
   context?: AiClientContext;
 };
 
-export type AiStreamEvent =
-  | { type: "delta"; text: string }
-  | { type: "done" }
-  | { type: "error"; message: string };
+export type AiChatResponse = {
+  ok: boolean;
+  text?: string;
+  error?: string;
+  fallback?: boolean;
+};

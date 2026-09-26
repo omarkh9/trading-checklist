@@ -1,7 +1,6 @@
 "use client";
 
-import { isIgnorableStreamClose, parseSseFrames } from "@/lib/ai/sse";
-import type { AiClientContext, AiStreamEvent } from "@/lib/ai/types";
+import type { AiChatResponse, AiClientContext } from "@/lib/ai/types";
 import { useCallback, useRef, useState } from "react";
 
 const AUDIT_PROMPT =
@@ -29,7 +28,6 @@ export function useBehavioralAudit(context: AiClientContext) {
     setError(null);
     setText("");
     setStreaming(true);
-    let assembled = "";
 
     try {
       const response = await fetch("/api/ai/chat", {
@@ -43,64 +41,20 @@ export function useBehavioralAudit(context: AiClientContext) {
         signal: controller.signal,
       });
 
-      if (!response.ok || !response.body) {
-        const payload = (await response.json().catch(() => null)) as {
-          error?: string;
-        } | null;
-        throw new Error(payload?.error || `Unable to run the audit (${response.status}).`);
+      const payload = (await response.json().catch(() => null)) as AiChatResponse | null;
+      const reply = payload?.text?.trim() ?? "";
+      if (!response.ok || !reply) {
+        throw new Error(
+          payload?.error || `Unable to run the audit (${response.status}).`
+        );
       }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let finished = false;
-
-      const applyEvents = (events: AiStreamEvent[]) => {
-        for (const event of events) {
-          if (event.type === "delta" && event.text) {
-            assembled += event.text;
-            setText(assembled);
-          }
-          if (event.type === "error") {
-            throw new Error(event.message);
-          }
-          if (event.type === "done") {
-            finished = true;
-          }
-        }
-      };
-
-      while (!finished) {
-        const { value, done } = await reader.read();
-        if (done) {
-          const leftover = buffer + decoder.decode();
-          if (leftover.trim()) {
-            applyEvents(parseSseFrames(`${leftover}\n\n`).events);
-          }
-          break;
-        }
-        buffer += decoder.decode(value, { stream: true });
-        const parsed = parseSseFrames(buffer);
-        buffer = parsed.rest;
-        applyEvents(parsed.events);
-      }
-
-      if (finished) {
-        try {
-          await reader.cancel();
-        } catch {
-          // The proxy may already have closed the body.
-        }
-      }
+      setText(reply);
     } catch (cause) {
       if (controller.signal.aborted) return;
-      if (isIgnorableStreamClose(cause, Boolean(assembled))) return;
       const message =
-        cause instanceof Error ? cause.message : "The audit stream dropped.";
+        cause instanceof Error ? cause.message : "The audit could not finish.";
       setError(message);
-      if (!assembled) {
-        setText(`I could not finish that audit. ${message}`);
-      }
+      setText(`I could not finish that audit. ${message}`);
     } finally {
       if (abortRef.current === controller) abortRef.current = null;
       setStreaming(false);

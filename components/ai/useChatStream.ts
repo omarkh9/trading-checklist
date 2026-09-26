@@ -1,7 +1,6 @@
 "use client";
 
-import { isIgnorableStreamClose, parseSseFrames } from "@/lib/ai/sse";
-import type { AiChatMessage, AiClientContext, AiMode, AiStreamEvent } from "@/lib/ai/types";
+import type { AiChatMessage, AiChatResponse, AiClientContext, AiMode } from "@/lib/ai/types";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 function newId() {
@@ -77,8 +76,7 @@ export function useChatStream(mode: AiMode, context: AiClientContext) {
       const timeout = window.setTimeout(() => {
         timedOut = true;
         controller.abort();
-      }, 18_000);
-      let assembled = "";
+      }, 15_000);
 
       try {
         const response = await fetch("/api/ai/chat", {
@@ -92,73 +90,28 @@ export function useChatStream(mode: AiMode, context: AiClientContext) {
           signal: controller.signal,
         });
 
-        if (!response.ok || !response.body) {
-          const payload = (await response.json().catch(() => null)) as {
-            error?: string;
-          } | null;
-          throw new Error(payload?.error || `Unable to reach the coach (${response.status}).`);
+        const payload = (await response.json().catch(() => null)) as AiChatResponse | null;
+        const reply = payload?.text?.trim() ?? "";
+        if (!response.ok || !reply) {
+          throw new Error(
+            payload?.error || `Unable to reach the coach (${response.status}).`
+          );
         }
 
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-        let finished = false;
-
-        const applyEvents = (events: AiStreamEvent[]) => {
-          for (const event of events) {
-            if (event.type === "delta" && event.text) {
-              assembled += event.text;
-              setMessages((current) =>
-                current.map((item) =>
-                  item.id === assistantId
-                    ? { ...item, content: item.content + event.text }
-                    : item
-                )
-              );
-            }
-            if (event.type === "error") {
-              throw new Error(event.message);
-            }
-            if (event.type === "done") {
-              finished = true;
-            }
-          }
-        };
-
-        while (!finished) {
-          const { value, done } = await reader.read();
-          if (done) {
-            const leftover = buffer + decoder.decode();
-            if (leftover.trim()) {
-              applyEvents(parseSseFrames(`${leftover}\n\n`).events);
-            }
-            break;
-          }
-
-          buffer += decoder.decode(value, { stream: true });
-          const parsed = parseSseFrames(buffer);
-          buffer = parsed.rest;
-          applyEvents(parsed.events);
-        }
-
-        if (finished) {
-          try {
-            await reader.cancel();
-          } catch {
-            // The proxy may already have closed the body.
-          }
-        }
+        setMessages((current) =>
+          current.map((item) =>
+            item.id === assistantId ? { ...item, content: reply } : item
+          )
+        );
       } catch (cause) {
         if (controller.signal.aborted) {
-          if (timedOut && !assembled) {
+          if (timedOut) {
             setError("The coach timed out. Try a shorter question.");
           }
           return;
         }
-        // Proxies often RST the SSE socket after a finished reply. Keep the text.
-        if (isIgnorableStreamClose(cause, Boolean(assembled))) return;
         const message =
-          cause instanceof Error ? cause.message : "The stream dropped.";
+          cause instanceof Error ? cause.message : "The coach could not respond.";
         setError(message);
         setMessages((current) =>
           current.map((item) =>

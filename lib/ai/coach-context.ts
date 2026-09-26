@@ -12,9 +12,9 @@ import type { TradeRow } from "@/lib/supabase/database.types";
 import { formatLocalDate } from "@/lib/time";
 import type { Trade } from "@/lib/types/trade";
 
-const RECENT_TRADE_LIMIT = 15;
-const AUDIT_TRADE_LIMIT = 20;
-const QUERY_CAP = 20;
+const RECENT_TRADE_LIMIT = 10;
+const AUDIT_TRADE_LIMIT = 10;
+const QUERY_CAP = 10;
 const QUERY_TIMEOUT_MS = 2500;
 const COACH_TRADE_COLUMNS =
   "id, pair, direction, entry_price, stop_loss, take_profit, outcome, pnl_dollars, strategy, notes, created_at, account_id, lot_size, risk_percent, account_balance_at_entry";
