@@ -96,7 +96,7 @@ export function readBrokerSnapshotMoney(input: {
   balance?: number | null;
   equity?: number | null;
 }) {
-  const balance = finiteMoney(input.balance);
+  const balance = finiteMoney(input.balance) ?? finiteMoney(input.equity);
   const equity = finiteMoney(input.equity) ?? balance;
   if (balance == null || equity == null) {
     return { balance: null, equity: null };
@@ -119,11 +119,7 @@ export async function markMt5Synced(
   if (money.balance == null || money.equity == null) {
     await supabase
       .from("trading_accounts")
-      .update({
-        mt5_synced_at: syncedAt,
-        mt5_balance: null,
-        mt5_equity: null,
-      })
+      .update({ mt5_synced_at: syncedAt })
       .eq("id", input.accountId)
       .eq("user_id", input.userId);
     return { balance: null, equity: null, syncedAt };

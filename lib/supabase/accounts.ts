@@ -761,7 +761,15 @@ function applyMt5SyncSnapshot(
   accountId: string,
   snapshot: Record<string, unknown>
 ) {
-  const metrics = readMt5AccountMetrics(snapshot);
+  const metrics = readMt5AccountMetrics({
+    ...snapshot,
+    balance: snapshot.balance ?? snapshot.mt5_balance ?? snapshot.mt5Balance,
+    equity: snapshot.equity ?? snapshot.mt5_equity ?? snapshot.mt5Equity,
+    mt5_balance: snapshot.mt5_balance ?? snapshot.balance,
+    mt5_equity: snapshot.mt5_equity ?? snapshot.equity,
+    mt5Balance: snapshot.mt5Balance ?? snapshot.balance,
+    mt5Equity: snapshot.mt5Equity ?? snapshot.equity,
+  });
   const syncedAt =
     (typeof snapshot.syncedAt === "string" && snapshot.syncedAt.trim()) ||
     (typeof snapshot.mt5_synced_at === "string" && snapshot.mt5_synced_at.trim()) ||
@@ -777,8 +785,8 @@ function applyMt5SyncSnapshot(
       account.id === accountId
         ? {
             ...account,
-            mt5Balance: metrics.balance,
-            mt5Equity: metrics.equity,
+            mt5Balance: metrics.balance ?? account.mt5Balance,
+            mt5Equity: metrics.equity ?? account.mt5Equity,
             mt5SyncedAt: syncedAt || account.mt5SyncedAt,
             mt5ConnectionId: connectionId || account.mt5ConnectionId,
           }

@@ -78,10 +78,11 @@ export async function syncMt5Journal(options: {
 
   const metrics = readMt5AccountMetrics({
     ...snapshot,
-    balance: saved.balance ?? money.balance,
-    equity: saved.equity ?? money.equity,
-    mt5_balance: saved.balance ?? money.balance,
-    mt5_equity: saved.equity ?? money.equity,
+    deals: snapshot.deals,
+    balance: saved.balance ?? money.balance ?? snapshotMetrics.balance,
+    equity: saved.equity ?? money.equity ?? snapshotMetrics.equity,
+    mt5_balance: saved.balance ?? money.balance ?? snapshotMetrics.balance,
+    mt5_equity: saved.equity ?? money.equity ?? snapshotMetrics.equity,
   });
   const syncedAt = saved.syncedAt ?? new Date().toISOString();
 

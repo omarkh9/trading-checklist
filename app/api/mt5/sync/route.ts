@@ -207,7 +207,9 @@ export async function POST(request: Request) {
   );
 
   const primary = results[0] ?? {};
-  const metrics = readMt5AccountMetrics({ ...primary, results });
+  const metrics = readMt5AccountMetrics(primary);
+  const balance = metrics.balance;
+  const equity = metrics.equity;
 
   return json({
     ok: true,
@@ -215,12 +217,12 @@ export async function POST(request: Request) {
     accounts: results.length,
     results,
     accountId: primary.accountId ?? requestedAccountId,
-    balance: metrics.balance,
-    equity: metrics.equity,
-    mt5_balance: metrics.balance,
-    mt5_equity: metrics.equity,
-    mt5Balance: metrics.balance,
-    mt5Equity: metrics.equity,
+    balance,
+    equity,
+    mt5_balance: balance,
+    mt5_equity: equity,
+    mt5Balance: balance,
+    mt5Equity: equity,
     syncedAt: primary.syncedAt ?? null,
     connectionId: primary.connectionId ?? null,
     scanned: primary.scanned ?? 0,

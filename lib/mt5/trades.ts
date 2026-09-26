@@ -125,6 +125,39 @@ const EQUITY_KEYS = [
   "equity_after",
 ];
 
+function dealTimestamp(row: JsonRecord) {
+  const iso = pickTime(row, [
+    "time",
+    "closeTime",
+    "timeUTC",
+    "brokerTime",
+    "createdAt",
+    "dealTime",
+  ]);
+  const parsed = iso ? Date.parse(iso) : Number.NaN;
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function moneyFromLatestDeal(deals: unknown[]) {
+  const ranked = deals
+    .map((deal) => {
+      const row = asRecord(deal);
+      return {
+        time: dealTimestamp(row),
+        balance: pickNumber(row, BALANCE_KEYS),
+        equity: pickNumber(row, EQUITY_KEYS),
+      };
+    })
+    .filter((row) => row.balance != null || row.equity != null)
+    .sort((left, right) => left.time - right.time);
+  const latest = ranked[ranked.length - 1];
+  if (!latest) return { balance: null, equity: null };
+  return {
+    balance: latest.balance ?? latest.equity,
+    equity: latest.equity ?? latest.balance,
+  };
+}
+
 export function readMt5AccountMetrics(body: unknown) {
   const record = asRecord(body);
   const result = Array.isArray(record.result) ? {} : asRecord(record.result);
@@ -146,6 +179,11 @@ export function readMt5AccountMetrics(body: unknown) {
   for (const layer of layers) {
     balance ??= pickNumber(layer, BALANCE_KEYS);
     equity ??= pickNumber(layer, EQUITY_KEYS);
+  }
+  if (balance == null || equity == null) {
+    const fromDeals = moneyFromLatestDeal(extractMt5TradeList(body));
+    balance ??= fromDeals.balance;
+    equity ??= fromDeals.equity;
   }
   if (balance == null && equity != null) balance = equity;
   if (equity == null && balance != null) equity = balance;
