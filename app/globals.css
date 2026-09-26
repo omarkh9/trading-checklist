@@ -14,15 +14,16 @@ html.dark {
 
 html.light {
   color-scheme: light;
-  --surface: #f8fafc;
-  --surface-raised: #e2e8f0;
-  --surface-overlay: #f1f5f9;
-  --desk: #f1f5f9;
-  --desk-muted: #e2e8f0;
+  --surface: #e4e9ef;
+  --surface-raised: #d7dee7;
+  --surface-overlay: #eef2f6;
+  --desk: #e8edf3;
+  --desk-muted: #dde3eb;
+  --paper: #eef2f6;
   --ink: #1e293b;
   --ink-muted: #475569;
   --ink-faint: #64748b;
-  --line: rgb(148 163 184 / 0.35);
+  --line: rgb(100 116 139 / 0.28);
   --pnl-win: #047857;
   --pnl-loss: #be123c;
   --pnl-even: #0369a1;
@@ -49,6 +50,49 @@ html.light {
 
   html.light body {
     color: var(--ink);
+    background-color: var(--surface);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    a,
+    button,
+    [role="button"],
+    [role="option"],
+    summary {
+      transition:
+        background-color 220ms ease,
+        border-color 220ms ease,
+        color 220ms ease,
+        box-shadow 220ms ease,
+        opacity 220ms ease,
+        transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    input,
+    textarea,
+    select {
+      transition:
+        background-color 220ms ease,
+        border-color 220ms ease,
+        box-shadow 220ms ease,
+        color 220ms ease;
+    }
+
+    button.transition-all:not(:disabled):hover,
+    a.transition-all:hover {
+      transform: translateY(-1px);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      scroll-behavior: auto !important;
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 
   ::-webkit-scrollbar {
@@ -88,9 +132,33 @@ html.light {
   html.light .desk-atmosphere,
   html.light .dashboard-atmosphere {
     background:
-      radial-gradient(ellipse 80% 45% at 12% -8%, rgba(99, 102, 241, 0.08), transparent 52%),
-      radial-gradient(ellipse 55% 40% at 92% 0%, rgba(16, 185, 129, 0.04), transparent 48%);
+      radial-gradient(ellipse 80% 45% at 12% -8%, rgba(99, 102, 241, 0.07), transparent 52%),
+      radial-gradient(ellipse 55% 40% at 92% 0%, rgba(16, 185, 129, 0.04), transparent 48%),
+      var(--surface);
   }
+
+}
+
+.desk-card {
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  transition:
+    transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 280ms ease,
+    border-color 280ms ease;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .desk-card:hover {
+    transform: translateY(-2px) scale(1.006);
+  }
+}
+
+html.light .desk-card {
+  box-shadow: 0 8px 24px rgb(15 23 42 / 0.06);
+}
+
+html.light .desk-card:hover {
+  box-shadow: 0 14px 32px rgb(15 23 42 / 0.1);
 }
 
 html.light .text-zinc-50,
@@ -145,10 +213,20 @@ html.light .border-white\/5 {
   border-color: var(--line);
 }
 
+html.light .bg-white,
+html.light .hover\:bg-white:hover {
+  background-color: var(--paper);
+}
+
+html.light .bg-white\/\[0\.06\],
+html.light .hover\:bg-white\/\[0\.06\]:hover,
+html.light .bg-white\/\[0\.04\],
+html.light .hover\:bg-white\/\[0\.04\]:hover,
 html.light .bg-white\/\[0\.03\],
 html.light .bg-white\/\[0\.02\],
-html.light .bg-white\/5 {
-  background-color: rgb(226 232 240 / 0.7);
+html.light .bg-white\/5,
+html.light .hover\:bg-white\/5:hover {
+  background-color: rgb(148 163 184 / 0.18);
 }
 
 html.light .ring-offset-\[\#0c0c16\] {

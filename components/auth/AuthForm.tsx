@@ -287,7 +287,7 @@ export function AuthForm({ mode }: AuthFormProps) {
         </div>
 
         {isPasswordRecovery ? (
-          <div className="rounded-xl border border-border bg-surface-raised p-6">
+          <div className="desk-card rounded-xl border border-border bg-surface-raised p-6">
             <h2 className="mb-1 text-lg font-semibold text-zinc-100">
               Update password
             </h2>
@@ -296,7 +296,7 @@ export function AuthForm({ mode }: AuthFormProps) {
         ) : (
         <form
           onSubmit={handleSubmit}
-          className="rounded-xl border border-border bg-surface-raised p-6"
+          className="desk-card rounded-xl border border-border bg-surface-raised p-6"
         >
           {(error || queryError) && (
             <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-3">
