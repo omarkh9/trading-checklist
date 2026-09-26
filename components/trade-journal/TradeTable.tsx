@@ -88,8 +88,7 @@ export function TradeTable({ trades, onDelete }: TradeTableProps) {
               const hasTimeframeCharts =
                 Boolean(trade.higherTimeFrame) ||
                 Boolean(trade.middleTimeFrame) ||
-                Boolean(trade.lowerTimeFrame) ||
-                Boolean(trade.entry);
+                Boolean(trade.lowerTimeFrame);
               const canExpand = hasCharts || hasNotes || hasTimeframeCharts;
               const asset = resolveAsset(trade.pair);
               const pnl = trade.pnlDollars ?? 0;

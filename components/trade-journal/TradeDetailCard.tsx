@@ -155,19 +155,22 @@ export function TradeDetailCard({ trade }: TradeDetailCardProps) {
           <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">
             Multi-timeframe charts
           </p>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <ChartPreview
-              label="Higher Time Frame"
-              src={trade.higherTimeFrame}
-            />
-            <ChartPreview
-              label="Middle Time Frame"
-              src={trade.middleTimeFrame}
-            />
+          <div className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <ChartPreview
+                label="Higher Time Frame"
+                src={trade.higherTimeFrame}
+              />
+              <ChartPreview
+                label="Middle Time Frame"
+                src={trade.middleTimeFrame}
+              />
+            </div>
             <ChartPreview label="Lower Time Frame" src={trade.lowerTimeFrame} />
-            <ChartPreview label="Entry" src={trade.entry} />
-            <ChartPreview label="Before Chart (Setup)" src={trade.beforeChart} />
-            <ChartPreview label="After Chart (Result)" src={trade.afterChart} />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <ChartPreview label="Before Chart (Setup)" src={trade.beforeChart} />
+              <ChartPreview label="After Chart (Result)" src={trade.afterChart} />
+            </div>
           </div>
         </div>
 

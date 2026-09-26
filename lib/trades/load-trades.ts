@@ -82,7 +82,6 @@ export function normalizeTrade(trade: Trade): Trade {
     higherTimeFrame: toChartImage(trade.higherTimeFrame),
     middleTimeFrame: toChartImage(trade.middleTimeFrame),
     lowerTimeFrame: toChartImage(trade.lowerTimeFrame),
-    entry: toChartImage(trade.entry),
     exitPrice: meta.exitPrice ?? "",
     pnlMode: trade.pnlMode ?? "dollar",
     pnlInput: trade.pnlInput ?? "",

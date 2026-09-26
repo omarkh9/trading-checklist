@@ -550,43 +550,41 @@ export const TradeForm = memo(function TradeForm({
       <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
         <div className="space-y-4">
           <p className={desk.label}>Multi-timeframe charts</p>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <ImageDropzone
-              compact
-              label="Higher Time Frame"
-              value={form.higherTimeFrame}
-              onChange={(v) => update("higherTimeFrame", v)}
-            />
-            <ImageDropzone
-              compact
-              label="Middle Time Frame"
-              value={form.middleTimeFrame}
-              onChange={(v) => update("middleTimeFrame", v)}
-            />
+          <div className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <ImageDropzone
+                compact
+                label="Higher Time Frame"
+                value={form.higherTimeFrame}
+                onChange={(v) => update("higherTimeFrame", v)}
+              />
+              <ImageDropzone
+                compact
+                label="Middle Time Frame"
+                value={form.middleTimeFrame}
+                onChange={(v) => update("middleTimeFrame", v)}
+              />
+            </div>
             <ImageDropzone
               compact
               label="Lower Time Frame"
               value={form.lowerTimeFrame}
               onChange={(v) => update("lowerTimeFrame", v)}
             />
-            <ImageDropzone
-              compact
-              label="Entry"
-              value={form.entry}
-              onChange={(v) => update("entry", v)}
-            />
-            <ImageDropzone
-              compact
-              label="Before Chart (Setup)"
-              value={form.beforeChart}
-              onChange={(v) => update("beforeChart", v)}
-            />
-            <ImageDropzone
-              compact
-              label="After Chart (Result)"
-              value={form.afterChart}
-              onChange={(v) => update("afterChart", v)}
-            />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <ImageDropzone
+                compact
+                label="Before Chart (Setup)"
+                value={form.beforeChart}
+                onChange={(v) => update("beforeChart", v)}
+              />
+              <ImageDropzone
+                compact
+                label="After Chart (Result)"
+                value={form.afterChart}
+                onChange={(v) => update("afterChart", v)}
+              />
+            </div>
           </div>
         </div>
 

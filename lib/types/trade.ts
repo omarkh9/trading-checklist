@@ -11,7 +11,6 @@ export type Trade = {
   higherTimeFrame: string | null;
   middleTimeFrame: string | null;
   lowerTimeFrame: string | null;
-  entry: string | null;
   direction: Direction;
   entryPrice: string;
   exitPrice: string;
@@ -47,7 +46,6 @@ export const emptyTradeForm = (): TradeFormData => ({
   higherTimeFrame: null,
   middleTimeFrame: null,
   lowerTimeFrame: null,
-  entry: null,
   direction: "Long",
   entryPrice: "",
   exitPrice: "",

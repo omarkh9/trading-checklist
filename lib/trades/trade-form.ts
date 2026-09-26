@@ -11,7 +11,6 @@ export function formDataToTrade(
     higherTimeFrame: data.higherTimeFrame,
     middleTimeFrame: data.middleTimeFrame,
     lowerTimeFrame: data.lowerTimeFrame,
-    entry: data.entry,
     direction: data.direction,
     entryPrice: data.entryPrice,
     exitPrice: data.exitPrice,
