@@ -71,9 +71,15 @@ export async function syncMt5Journal(options: {
   const saved = await markMt5Synced(options.supabase, {
     accountId: options.accountId,
     userId: options.userId,
-    balance: money.balance,
-    equity: money.equity,
+    balance: money.balance ?? snapshot.balance ?? snapshotMetrics.balance,
+    equity: money.equity ?? snapshot.equity ?? snapshotMetrics.equity,
     connectionId: snapshot.connectionId,
+    snapshot: {
+      ...snapshot,
+      deals: snapshot.deals,
+      balance: snapshot.balance ?? snapshotMetrics.balance,
+      equity: snapshot.equity ?? snapshotMetrics.equity,
+    },
   });
 
   const metrics = readMt5AccountMetrics({
