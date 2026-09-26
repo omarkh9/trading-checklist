@@ -113,6 +113,8 @@ export type Database = {
           mt5_balance: number | null;
           mt5_equity: number | null;
           mt5_synced_at: string | null;
+          mt5_investor_password_cipher?: string | null;
+          mt5_credentials_set?: boolean;
         };
         Insert: {
           id?: string;
@@ -127,6 +129,8 @@ export type Database = {
           mt5_balance?: number | null;
           mt5_equity?: number | null;
           mt5_synced_at?: string | null;
+          mt5_investor_password_cipher?: string | null;
+          mt5_credentials_set?: boolean;
         };
         Update: {
           id?: string;
@@ -141,6 +145,8 @@ export type Database = {
           mt5_balance?: number | null;
           mt5_equity?: number | null;
           mt5_synced_at?: string | null;
+          mt5_investor_password_cipher?: string | null;
+          mt5_credentials_set?: boolean;
         };
         Relationships: [];
       };

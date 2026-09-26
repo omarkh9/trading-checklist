@@ -86,8 +86,9 @@ export function Mt5LinkModal({
               Link MetaTrader 5
             </h3>
             <p className="mt-1 text-sm text-zinc-500">
-              Connect {accountName} with a valid investor login. If this MT5
-              account is not in your journal yet, Edge Log provisions it.
+              Enter this desk&apos;s MT5 account number, investor password, and
+              broker server. Edge Log stores them on {accountName} and the
+              worker uses those saved credentials to sync closed trades.
             </p>
           </div>
           <button

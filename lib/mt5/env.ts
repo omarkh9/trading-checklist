@@ -28,6 +28,14 @@ export function getSupabaseServiceRoleKey() {
   );
 }
 
+export function getMt5CredentialsKey() {
+  return (
+    sanitizeEnvValue(process.env.MT5_CREDENTIALS_KEY) ||
+    getMt5GatewaySecret() ||
+    getSupabaseServiceRoleKey()
+  );
+}
+
 export function canFetchMt5History() {
   return Boolean(getMt5GatewayUrl() || getMetaApiToken());
 }

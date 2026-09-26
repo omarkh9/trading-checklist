@@ -247,9 +247,9 @@ export const AccountBalancePanel = memo(function AccountBalancePanel({
             <div>
               <p className={desk.label}>MetaTrader 5</p>
               <p className="mt-1 text-sm text-zinc-400">
-                Connect with your account number, investor password, and broker
-                server. Closed deals backfill into this journal and keep
-                arriving from the broker.
+                Enter your MT5 login, investor password, and server here. They
+                are saved on this account so history sync can run without a
+                global broker key.
               </p>
             </div>
             <span
@@ -268,6 +268,9 @@ export const AccountBalancePanel = memo(function AccountBalancePanel({
               <p className="mt-4 text-sm text-zinc-300">
                 {activeAccount?.mt5Login}
                 {activeAccount?.mt5Server ? ` · ${activeAccount.mt5Server}` : ""}
+                {activeAccount?.mt5CredentialsSet
+                  ? " · investor login saved"
+                  : ""}
               </p>
               <div className="mt-4 grid gap-3 sm:grid-cols-3">
                 <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">

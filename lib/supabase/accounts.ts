@@ -30,6 +30,26 @@ function throwIfError(error: { message: string } | null) {
   if (error) throw new Error(error.message);
 }
 
+const TRADING_ACCOUNT_PUBLIC_COLUMNS =
+  "id, user_id, name, starting_balance, created_at, mt5_login, mt5_server, mt5_webhook_token_hash, mt5_connection_id, mt5_balance, mt5_equity, mt5_synced_at, mt5_credentials_set";
+
+const TRADING_ACCOUNT_PUBLIC_COLUMNS_LEGACY =
+  "id, user_id, name, starting_balance, created_at, mt5_login, mt5_server, mt5_webhook_token_hash, mt5_connection_id, mt5_balance, mt5_equity, mt5_synced_at";
+
+function emptyMt5DbFields() {
+  return {
+    mt5_login: null,
+    mt5_server: null,
+    mt5_webhook_token_hash: null,
+    mt5_connection_id: null,
+    mt5_balance: null,
+    mt5_equity: null,
+    mt5_synced_at: null,
+    mt5_investor_password_cipher: null,
+    mt5_credentials_set: false,
+  };
+}
+
 function isMissingAccountsTable(error: { message: string } | null) {
   const message = error?.message.toLowerCase() ?? "";
   if (
@@ -85,7 +105,8 @@ function mt5FieldsFromUnknown(value: Partial<TradingAccount> | null | undefined)
   return {
     mt5Login: typeof value?.mt5Login === "string" ? value.mt5Login : "",
     mt5Server: typeof value?.mt5Server === "string" ? value.mt5Server : "",
-    mt5TokenSet: Boolean(value?.mt5TokenSet),
+    mt5TokenSet: Boolean(value?.mt5TokenSet || value?.mt5CredentialsSet),
+    mt5CredentialsSet: Boolean(value?.mt5CredentialsSet),
     mt5ConnectionId:
       typeof value?.mt5ConnectionId === "string" ? value.mt5ConnectionId : "",
     mt5Balance: finiteOrNull(value?.mt5Balance),
@@ -101,7 +122,25 @@ async function requireUserId() {
   return requireUserSession();
 }
 
-function accountFromRow(row: TradingAccountRow): TradingAccount {
+function accountFromRow(
+  row: Pick<
+    TradingAccountRow,
+    | "id"
+    | "name"
+    | "starting_balance"
+    | "created_at"
+    | "mt5_login"
+    | "mt5_server"
+    | "mt5_webhook_token_hash"
+    | "mt5_connection_id"
+    | "mt5_balance"
+    | "mt5_equity"
+    | "mt5_synced_at"
+  > &
+    Partial<
+      Pick<TradingAccountRow, "mt5_credentials_set" | "mt5_investor_password_cipher">
+    >
+): TradingAccount {
   return {
     id: row.id,
     name: row.name,
@@ -109,7 +148,13 @@ function accountFromRow(row: TradingAccountRow): TradingAccount {
     createdAt: row.created_at,
     mt5Login: row.mt5_login ?? "",
     mt5Server: row.mt5_server ?? "",
-    mt5TokenSet: Boolean(row.mt5_webhook_token_hash || row.mt5_connection_id),
+    mt5TokenSet: Boolean(
+      row.mt5_webhook_token_hash ||
+        row.mt5_connection_id ||
+        row.mt5_credentials_set ||
+        row.mt5_login
+    ),
+    mt5CredentialsSet: Boolean(row.mt5_credentials_set),
     mt5ConnectionId: row.mt5_connection_id ?? "",
     mt5Balance: finiteOrNull(row.mt5_balance),
     mt5Equity: finiteOrNull(row.mt5_equity),
@@ -324,12 +369,22 @@ async function findRemoteAccountById(
   userId: string,
   accountId: string
 ) {
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("trading_accounts")
-    .select("*")
+    .select(TRADING_ACCOUNT_PUBLIC_COLUMNS)
     .eq("id", accountId)
     .eq("user_id", userId)
     .maybeSingle();
+  if (error && isMissingMt5Column(error)) {
+    const fallback = await supabase
+      .from("trading_accounts")
+      .select(TRADING_ACCOUNT_PUBLIC_COLUMNS_LEGACY)
+      .eq("id", accountId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    data = fallback.data as typeof data;
+    error = fallback.error;
+  }
   if (error || !data) return null;
   return accountFromRow(data);
 }
@@ -341,7 +396,7 @@ async function findRemoteAccountByName(
 ) {
   const { data, error } = await supabase
     .from("trading_accounts")
-    .select("*")
+    .select(TRADING_ACCOUNT_PUBLIC_COLUMNS)
     .eq("user_id", userId)
     .ilike("name", name)
     .maybeSingle();
@@ -364,7 +419,7 @@ async function insertRemoteAccount(
   const { data, error } = await supabase
     .from("trading_accounts")
     .insert(payload)
-    .select()
+    .select(TRADING_ACCOUNT_PUBLIC_COLUMNS)
     .single();
   if (isMissingAccountsTable(error)) return null;
   if (isAccountIdTaken(error)) {
@@ -422,11 +477,21 @@ export async function loadTradingAccounts(options?: {
 
 async function loadTradingAccountsFromNetwork(): Promise<TradingAccount[]> {
   const { supabase, userId } = await requireUserId();
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("trading_accounts")
-    .select("*")
+    .select(TRADING_ACCOUNT_PUBLIC_COLUMNS)
     .eq("user_id", userId)
     .order("created_at", { ascending: true });
+
+  if (error && isMissingMt5Column(error)) {
+    const fallback = await supabase
+      .from("trading_accounts")
+      .select(TRADING_ACCOUNT_PUBLIC_COLUMNS_LEGACY)
+      .eq("user_id", userId)
+      .order("created_at", { ascending: true });
+    data = fallback.data as typeof data;
+    error = fallback.error;
+  }
 
   if (isMissingAccountsTable(error)) {
     return rememberAccounts(ensureLocalAccounts());
@@ -560,6 +625,8 @@ export async function updateTradingAccount(
     mt5_balance?: number | null;
     mt5_equity?: number | null;
     mt5_synced_at?: string | null;
+    mt5_investor_password_cipher?: string | null;
+    mt5_credentials_set?: boolean;
   } = {
     name: next.name,
     starting_balance: next.startingBalance,
@@ -567,13 +634,7 @@ export async function updateTradingAccount(
 
   if (patch.unlinkMt5) {
     next = { ...next, ...emptyMt5Link() };
-    payload.mt5_login = null;
-    payload.mt5_server = null;
-    payload.mt5_webhook_token_hash = null;
-    payload.mt5_connection_id = null;
-    payload.mt5_balance = null;
-    payload.mt5_equity = null;
-    payload.mt5_synced_at = null;
+    Object.assign(payload, emptyMt5DbFields());
   }
 
   const { supabase, userId } = await requireUserId();

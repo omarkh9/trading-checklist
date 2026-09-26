@@ -1,13 +1,12 @@
 -- Run this in the Supabase SQL editor for existing Edge Log projects.
 -- SQL Editor: https://supabase.com/dashboard/project/agfzhwyhrrcbadbzvmpy/sql/new
 --
--- Stores MetaTrader 5 login/server metadata and a hashed webhook token on
--- each trading account. Linking is done from the journal modal. The app then
--- pulls historical deals through POST https://edgelog.org/api/mt5/sync
--- (METAAPI_TOKEN or MT5_GATEWAY_URL) and the gateway can still POST live
--- balance, equity, and closed trades to POST https://edgelog.org/api/mt5/webhook.
--- Investor passwords are never stored. Cron workers may call /api/mt5/sync
--- with Authorization: Bearer MT5_SYNC_SECRET and { "all": true }.
+-- Stores MetaTrader 5 login/server metadata, a hashed webhook token, and an
+-- encrypted investor password on each trading account. Users enter login,
+-- investor password, and server from the journal. The worker reads those
+-- saved credentials via POST https://edgelog.org/api/mt5/sync.
+-- The gateway can still POST live snapshots to /api/mt5/webhook.
+-- Cron: Authorization: Bearer MT5_SYNC_SECRET with { "all": true }.
 
 create extension if not exists pgcrypto with schema extensions;
 
@@ -24,7 +23,12 @@ alter table public.trading_accounts
   add column if not exists mt5_connection_id text,
   add column if not exists mt5_balance double precision,
   add column if not exists mt5_equity double precision,
-  add column if not exists mt5_synced_at timestamptz;
+  add column if not exists mt5_synced_at timestamptz,
+  add column if not exists mt5_investor_password_cipher text,
+  add column if not exists mt5_credentials_set boolean not null default false;
+
+comment on column public.trading_accounts.mt5_investor_password_cipher is
+  'AES-GCM ciphertext of the investor password. Server-only; never send to the browser.';
 
 do $$
 begin

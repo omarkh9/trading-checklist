@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { validateMt5LinkInput } from "@/lib/mt5/credentials";
 import { Mt5GatewayError } from "@/lib/mt5/gateway";
 import { canFetchMt5History, getMt5SyncSecret, getSupabaseServiceRoleKey } from "@/lib/mt5/env";
+import { decryptStoredInvestorPassword } from "@/lib/mt5/secret";
 import { syncMt5Journal } from "@/lib/mt5/sync";
 import type { Database } from "@/lib/supabase/database.types";
 import { getSupabaseUrl } from "@/lib/supabase/env";
@@ -86,37 +87,28 @@ export async function POST(request: Request) {
     userId = user.id;
   }
 
-  if (!canFetchMt5History()) {
-    return json(
-      {
-        ok: false,
-        error:
-          "MT5 history sync needs METAAPI_TOKEN or MT5_GATEWAY_URL on the server.",
-      },
-      503
-    );
-  }
-
   const requestedAccountId =
     typeof body.accountId === "string" ? body.accountId.trim() : "";
   const days = typeof body.days === "number" ? body.days : undefined;
   const syncAll = worker && body.all === true;
 
-  let credentials:
+  if (worker && (body.investorPassword || body.password)) {
+    return json(
+      { ok: false, error: "Worker sync uses stored investor passwords only." },
+      400
+    );
+  }
+
+  let requestCredentials:
     | { login: string; investorPassword: string; server: string }
     | null = null;
   if (
-    typeof body.login === "string" ||
-    typeof body.investorPassword === "string" ||
-    typeof body.password === "string" ||
-    typeof body.server === "string"
+    !worker &&
+    (typeof body.login === "string" ||
+      typeof body.investorPassword === "string" ||
+      typeof body.password === "string" ||
+      typeof body.server === "string")
   ) {
-    if (worker) {
-      return json(
-        { ok: false, error: "Worker sync cannot accept investor passwords." },
-        400
-      );
-    }
     const parsed = validateMt5LinkInput({
       login: typeof body.login === "string" ? body.login : "",
       investorPassword:
@@ -128,19 +120,41 @@ export async function POST(request: Request) {
       server: typeof body.server === "string" ? body.server : "",
     });
     if (!parsed.ok) return json({ ok: false, error: parsed.error }, 400);
-    credentials = parsed;
+    requestCredentials = parsed;
   }
 
   let query = supabase
     .from("trading_accounts")
-    .select("id, user_id, mt5_login, mt5_server, mt5_connection_id");
+    .select(
+      "id, user_id, mt5_login, mt5_server, mt5_connection_id, mt5_investor_password_cipher, mt5_credentials_set"
+    );
   if (!worker) query = query.eq("user_id", userId);
   if (requestedAccountId) query = query.eq("id", requestedAccountId);
   if (syncAll || !requestedAccountId) {
-    query = query.not("mt5_connection_id", "is", null);
+    query = query.or(
+      "mt5_credentials_set.eq.true,mt5_connection_id.not.is.null,mt5_login.not.is.null"
+    );
   }
 
-  const { data: accounts, error: accountError } = await query;
+  let { data: accounts, error: accountError } = await query;
+  if (accountError && /mt5_investor_password_cipher|mt5_credentials_set/i.test(accountError.message)) {
+    const fallback = supabase
+      .from("trading_accounts")
+      .select("id, user_id, mt5_login, mt5_server, mt5_connection_id");
+    const scoped = !worker
+      ? fallback.eq("user_id", userId)
+      : fallback;
+    const filtered = requestedAccountId
+      ? scoped.eq("id", requestedAccountId)
+      : scoped.not("mt5_connection_id", "is", null);
+    const retry = await filtered;
+    accounts = (retry.data ?? []).map((row) => ({
+      ...row,
+      mt5_investor_password_cipher: null,
+      mt5_credentials_set: false,
+    }));
+    accountError = retry.error;
+  }
   if (accountError) {
     return json({ ok: false, error: accountError.message }, 400);
   }
@@ -160,14 +174,43 @@ export async function POST(request: Request) {
 
   const results: Record<string, unknown>[] = [];
   for (const account of targets) {
+    let storedPassword = "";
+    try {
+      storedPassword = decryptStoredInvestorPassword(
+        "mt5_investor_password_cipher" in account
+          ? account.mt5_investor_password_cipher
+          : null
+      );
+    } catch (cause) {
+      console.error(
+        "MT5 credential decrypt failed:",
+        cause instanceof Error ? cause.message : cause
+      );
+    }
+
+    const login = requestCredentials?.login || account.mt5_login || "";
+    const server = requestCredentials?.server || account.mt5_server || "";
+    const investorPassword =
+      requestCredentials?.investorPassword || storedPassword;
+
+    if (!login || !server || !investorPassword) {
+      const message =
+        "This account is missing a saved investor login. Reconnect MT5 from the journal.";
+      if (!syncAll && targets.length === 1) {
+        return json({ ok: false, error: message }, 422);
+      }
+      results.push({ ok: false, accountId: account.id, error: message });
+      continue;
+    }
+
     try {
       const result = await syncMt5Journal({
         supabase,
         userId: worker ? account.user_id : userId,
         accountId: account.id,
-        login: credentials?.login ?? account.mt5_login ?? undefined,
-        investorPassword: credentials?.investorPassword,
-        server: credentials?.server ?? account.mt5_server ?? undefined,
+        login,
+        investorPassword,
+        server,
         connectionId: account.mt5_connection_id ?? undefined,
         days,
       });

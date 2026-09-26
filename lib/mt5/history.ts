@@ -287,7 +287,7 @@ export async function fetchMt5History(
   if (token) return fetchViaMetaApi(token, input);
 
   throw new Mt5GatewayError(
-    "MT5 history sync needs METAAPI_TOKEN or MT5_GATEWAY_URL on the server.",
+    "Saved investor credentials are on this account, but the server still needs a broker bridge (METAAPI_TOKEN or MT5_GATEWAY_URL) to open the MT5 terminal.",
     "unavailable"
   );
 }

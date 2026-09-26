@@ -6,6 +6,7 @@ import {
   provisionMt5Connection,
 } from "@/lib/mt5/gateway";
 import { canFetchMt5History } from "@/lib/mt5/env";
+import { canEncryptMt5Secret, encryptMt5Secret } from "@/lib/mt5/secret";
 import { syncMt5Journal } from "@/lib/mt5/sync";
 import { generateMt5WebhookToken, hashMt5WebhookToken } from "@/lib/mt5/token";
 import { getMt5WebhookUrl } from "@/lib/mt5/webhook";
@@ -215,6 +216,18 @@ export async function POST(request: Request) {
     await disconnectMt5Connection(target.mt5_connection_id);
   }
 
+  let passwordCipher: string | null = null;
+  if (canEncryptMt5Secret()) {
+    try {
+      passwordCipher = encryptMt5Secret(parsed.investorPassword);
+    } catch (cause) {
+      console.error(
+        "MT5 credential encrypt failed:",
+        cause instanceof Error ? cause.message : cause
+      );
+    }
+  }
+
   const mt5Fields = {
     mt5_login: parsed.login,
     mt5_server: parsed.server,
@@ -224,6 +237,8 @@ export async function POST(request: Request) {
     mt5_equity: provisioned.equity,
     mt5_synced_at:
       provisioned.balance != null ? new Date().toISOString() : null,
+    mt5_investor_password_cipher: passwordCipher,
+    mt5_credentials_set: Boolean(passwordCipher),
   };
 
   const startingBalance =
@@ -242,6 +257,8 @@ export async function POST(request: Request) {
     mt5_login: parsed.login,
     mt5_server: parsed.server,
     mt5_webhook_token_hash: tokenHash,
+    mt5_investor_password_cipher: passwordCipher,
+    mt5_credentials_set: Boolean(passwordCipher),
   });
 
   let persistError: { message: string } | null = null;
@@ -333,6 +350,7 @@ export async function POST(request: Request) {
     balance: provisioned.balance,
     equity: provisioned.equity,
     ingested,
+    credentialsStored: Boolean(passwordCipher),
   });
 }
 
@@ -375,6 +393,8 @@ export async function DELETE(request: Request) {
         mt5_balance: null,
         mt5_equity: null,
         mt5_synced_at: null,
+        mt5_investor_password_cipher: null,
+        mt5_credentials_set: false,
       })
       .eq("id", accountId)
       .eq("user_id", user.id);
@@ -395,6 +415,8 @@ export async function DELETE(request: Request) {
       mt5_balance: null,
       mt5_equity: null,
       mt5_synced_at: null,
+      mt5_investor_password_cipher: null,
+      mt5_credentials_set: false,
     })
     .eq("id", accountId)
     .eq("user_id", user.id);
@@ -409,6 +431,8 @@ export async function DELETE(request: Request) {
         mt5_balance: null,
         mt5_equity: null,
         mt5_synced_at: null,
+        mt5_investor_password_cipher: null,
+        mt5_credentials_set: false,
       },
       updateError.message
     );
