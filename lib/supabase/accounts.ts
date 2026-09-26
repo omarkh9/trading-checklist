@@ -777,8 +777,8 @@ function applyMt5SyncSnapshot(
       account.id === accountId
         ? {
             ...account,
-            mt5Balance: metrics.balance ?? account.mt5Balance,
-            mt5Equity: metrics.equity ?? account.mt5Equity,
+            mt5Balance: metrics.balance ?? account.mt5Balance ?? null,
+            mt5Equity: metrics.equity ?? account.mt5Equity ?? null,
             mt5SyncedAt: syncedAt || account.mt5SyncedAt,
             mt5ConnectionId: connectionId || account.mt5ConnectionId,
           }

@@ -81,7 +81,10 @@ export const AccountBalancePanel = memo(function AccountBalancePanel({
   const canAdd = accounts.length < MAX_TRADING_ACCOUNTS;
   const mt5Linked = Boolean(activeAccount?.mt5TokenSet);
   const mt5Metrics = readMt5AccountMetrics(activeAccount);
-  const mt5Balance = activeAccount?.mt5Balance ?? mt5Metrics.balance;
+  const mt5Balance =
+    activeAccount?.mt5Balance ??
+    mt5Metrics.balance ??
+    accountMt5Balance(activeAccount);
   const mt5Equity = activeAccount?.mt5Equity ?? mt5Metrics.equity;
 
   const persistName = async () => {

@@ -231,6 +231,62 @@ $$;
 revoke all on function public.save_mt5_account_credentials(uuid, text, text, text) from public;
 grant execute on function public.save_mt5_account_credentials(uuid, text, text, text) to authenticated;
 
+create or replace function public.save_mt5_account_snapshot(
+  p_account_id uuid,
+  p_user_id uuid,
+  p_balance double precision,
+  p_equity double precision default null,
+  p_connection_id text default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_account public.trading_accounts%rowtype;
+  v_user uuid := auth.uid();
+begin
+  if p_account_id is null
+     or p_user_id is null
+     or p_balance is null then
+    return jsonb_build_object('ok', false, 'error', 'invalid_snapshot');
+  end if;
+
+  if v_user is not null and v_user is distinct from p_user_id then
+    return jsonb_build_object('ok', false, 'error', 'unauthorized');
+  end if;
+
+  update public.trading_accounts
+  set
+    mt5_balance = p_balance,
+    mt5_equity = coalesce(p_equity, p_balance),
+    mt5_synced_at = timezone('utc', now()),
+    mt5_connection_id = coalesce(nullif(trim(p_connection_id), ''), mt5_connection_id)
+  where id = p_account_id
+    and user_id = p_user_id
+  returning * into v_account;
+
+  if not found then
+    return jsonb_build_object('ok', false, 'error', 'account_not_found');
+  end if;
+
+  return jsonb_build_object(
+    'ok', true,
+    'accountId', v_account.id,
+    'balance', v_account.mt5_balance,
+    'equity', v_account.mt5_equity,
+    'mt5_balance', v_account.mt5_balance,
+    'mt5_equity', v_account.mt5_equity,
+    'syncedAt', v_account.mt5_synced_at,
+    'mt5_synced_at', v_account.mt5_synced_at
+  );
+end;
+$$;
+
+revoke all on function public.save_mt5_account_snapshot(uuid, uuid, double precision, double precision, text) from public;
+grant execute on function public.save_mt5_account_snapshot(uuid, uuid, double precision, double precision, text) to authenticated, service_role;
+
 create or replace function public.load_mt5_account_credentials(
   p_account_id uuid
 )

@@ -299,6 +299,8 @@ function investorHistoryEndpoints(server: string) {
 }
 
 function credentialedSnapshot(input: Mt5HistoryRequest): Mt5HistorySnapshot {
+  // Broker server names are not HTTP hosts. This placeholder only keeps the
+  // connection id. syncMt5Journal resolves and persists live money after fetch.
   return {
     connectionId:
       input.connectionId?.trim() ||

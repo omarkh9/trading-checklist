@@ -13,10 +13,10 @@ function isUnknownMt5Column(message: string) {
   );
 }
 
-function isMissingRpc(message: string) {
+function isMissingRpc(message: string, name: string) {
   const normalized = message.toLowerCase();
   return (
-    normalized.includes("save_mt5_account_credentials") &&
+    normalized.includes(name) &&
     (normalized.includes("could not find") ||
       normalized.includes("schema cache") ||
       normalized.includes("does not exist") ||
@@ -75,7 +75,7 @@ async function persistViaRpc(
     p_password_cipher: input.passwordCipher,
   });
   if (error) {
-    if (isMissingRpc(error.message)) return null;
+    if (isMissingRpc(error.message, "save_mt5_account_credentials")) return null;
     console.error("Full Supabase Error:", error);
     return { ok: false as const, error: error.message };
   }
@@ -210,4 +210,125 @@ export async function persistMt5ConnectionMeta(
   if (error) {
     console.error("Full Supabase Error:", error);
   }
+}
+
+function asSnapshotRpcResult(data: Json | null) {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+  const row = data as Record<string, unknown>;
+  if (row.ok !== true) return null;
+  const balance =
+    typeof row.balance === "number" && Number.isFinite(row.balance)
+      ? row.balance
+      : typeof row.mt5_balance === "number" && Number.isFinite(row.mt5_balance)
+        ? row.mt5_balance
+        : null;
+  const equity =
+    typeof row.equity === "number" && Number.isFinite(row.equity)
+      ? row.equity
+      : typeof row.mt5_equity === "number" && Number.isFinite(row.mt5_equity)
+        ? row.mt5_equity
+        : null;
+  if (balance == null) return null;
+  return {
+    balance,
+    equity: equity ?? balance,
+    syncedAt:
+      typeof row.syncedAt === "string"
+        ? row.syncedAt
+        : typeof row.mt5_synced_at === "string"
+          ? row.mt5_synced_at
+          : null,
+  };
+}
+
+export async function persistMt5Snapshot(
+  supabase: SupabaseClient<Database>,
+  input: {
+    userId: string;
+    accountId: string;
+    balance: number;
+    equity: number;
+    connectionId?: string;
+    syncedAt: string;
+  }
+) {
+  const { data: rpcData, error: rpcError } = await supabase.rpc(
+    "save_mt5_account_snapshot",
+    {
+      p_account_id: input.accountId,
+      p_user_id: input.userId,
+      p_balance: input.balance,
+      p_equity: input.equity,
+      p_connection_id: input.connectionId ?? "",
+    }
+  );
+  if (!rpcError) {
+    const parsed = asSnapshotRpcResult(rpcData);
+    if (parsed) return parsed;
+  } else if (!isMissingRpc(rpcError.message, "save_mt5_account_snapshot")) {
+    console.error("Full Supabase Error:", rpcError);
+  }
+
+  let fields: Record<string, unknown> = {
+    mt5_balance: input.balance,
+    mt5_equity: input.equity,
+    mt5_synced_at: input.syncedAt,
+    ...(input.connectionId ? { mt5_connection_id: input.connectionId } : {}),
+  };
+
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    if (!("mt5_balance" in fields) || !("mt5_equity" in fields)) {
+      break;
+    }
+    const { data, error } = await supabase
+      .from("trading_accounts")
+      .update(fields as TradingAccountUpdate)
+      .eq("id", input.accountId)
+      .eq("user_id", input.userId)
+      .select("mt5_balance, mt5_equity, mt5_synced_at")
+      .maybeSingle();
+
+    if (
+      !error &&
+      typeof data?.mt5_balance === "number" &&
+      Number.isFinite(data.mt5_balance)
+    ) {
+      return {
+        balance: data.mt5_balance,
+        equity:
+          typeof data.mt5_equity === "number" && Number.isFinite(data.mt5_equity)
+            ? data.mt5_equity
+            : input.equity,
+        syncedAt: data.mt5_synced_at ?? input.syncedAt,
+      };
+    }
+
+    if (error) {
+      console.error("Full Supabase Error:", error);
+      if (!isUnknownMt5Column(error.message)) break;
+      const reduced = { ...fields };
+      const matches = error.message.toLowerCase().match(/mt5_[a-z0-9_]+/g) ?? [];
+      for (const column of matches) {
+        if (
+          column === "mt5_balance" ||
+          column === "mt5_equity" ||
+          column === "mt5_synced_at"
+        ) {
+          continue;
+        }
+        delete reduced[column];
+      }
+      if (Object.keys(reduced).length === Object.keys(fields).length) break;
+      fields = reduced;
+      continue;
+    }
+
+    break;
+  }
+
+  return {
+    balance: input.balance,
+    equity: input.equity,
+    syncedAt: input.syncedAt,
+  };
 }

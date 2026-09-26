@@ -1,7 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
 import { fetchMt5History } from "@/lib/mt5/history";
-import { markMt5Synced, mt5TradesToInserts, upsertMt5Trades } from "@/lib/mt5/ingest";
+import {
+  markMt5Synced,
+  mt5TradesToInserts,
+  resolveMt5SnapshotMoney,
+  upsertMt5Trades,
+} from "@/lib/mt5/ingest";
 import { parseMt5ClosedTrades, readMt5AccountMetrics } from "@/lib/mt5/trades";
 
 export const MT5_HISTORY_MAX_DAYS = 1095;
@@ -39,52 +44,53 @@ export async function syncMt5Journal(options: {
     to: window.to,
   });
 
+  const snapshotMetrics = readMt5AccountMetrics({
+    ...snapshot,
+    deals: snapshot.deals,
+    balance: snapshot.balance,
+    equity: snapshot.equity,
+  });
   const trades = parseMt5ClosedTrades(
     {
       deals: snapshot.deals,
-      balance: snapshot.balance,
-      equity: snapshot.equity,
+      balance: snapshotMetrics.balance,
+      equity: snapshotMetrics.equity,
     },
-    snapshot.balance
+    snapshotMetrics.balance
   );
   const ingested = await upsertMt5Trades(
     options.supabase,
     mt5TradesToInserts(trades, options.userId, options.accountId)
   );
 
-  await markMt5Synced(options.supabase, {
+  const money = await resolveMt5SnapshotMoney(options.supabase, {
+    userId: options.userId,
+    accountId: options.accountId,
+    balance: snapshotMetrics.balance,
+    equity: snapshotMetrics.equity,
+  });
+
+  const saved = await markMt5Synced(options.supabase, {
     accountId: options.accountId,
     userId: options.userId,
-    balance: snapshot.balance,
-    equity: snapshot.equity,
+    balance: money.balance,
+    equity: money.equity,
     connectionId: snapshot.connectionId,
   });
 
-  const saved = await options.supabase
-    .from("trading_accounts")
-    .select("mt5_balance, mt5_equity, mt5_synced_at, mt5_connection_id")
-    .eq("id", options.accountId)
-    .eq("user_id", options.userId)
-    .maybeSingle();
-
   const metrics = readMt5AccountMetrics({
     ...snapshot,
-    ...saved.data,
-    balance: snapshot.balance,
-    equity: snapshot.equity,
-    mt5_balance: saved.data?.mt5_balance,
-    mt5_equity: saved.data?.mt5_equity,
+    balance: saved.balance ?? money.balance,
+    equity: saved.equity ?? money.equity,
+    mt5_balance: saved.balance ?? money.balance,
+    mt5_equity: saved.equity ?? money.equity,
   });
-  const syncedAt =
-    typeof saved.data?.mt5_synced_at === "string"
-      ? saved.data.mt5_synced_at
-      : new Date().toISOString();
+  const syncedAt = saved.syncedAt ?? new Date().toISOString();
 
   return {
     ok: true as const,
     accountId: options.accountId,
-    connectionId:
-      snapshot.connectionId || saved.data?.mt5_connection_id || undefined,
+    connectionId: snapshot.connectionId || undefined,
     ingested,
     scanned: snapshot.deals.length,
     days: window.days,
