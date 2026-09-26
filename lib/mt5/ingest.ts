@@ -197,6 +197,8 @@ export async function markMt5Synced(
     snapshot?: unknown;
   }
 ) {
+  const payload = input.snapshot ?? input;
+  console.log(JSON.stringify(payload));
   const syncedAt = new Date().toISOString();
   const fromSnapshot = input.snapshot
     ? readMt5AccountMetrics(input.snapshot)

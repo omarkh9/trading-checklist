@@ -63,6 +63,7 @@ function snapshotFromBody(
   input: Mt5HistoryRequest,
   fallbackConnectionId = ""
 ): Mt5HistorySnapshot {
+  console.log(JSON.stringify(body));
   const record = asRecord(body);
   const metrics = readMt5AccountMetrics(body);
   return {
