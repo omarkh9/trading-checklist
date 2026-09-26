@@ -125,32 +125,20 @@ const EQUITY_KEYS = [
   "equity_after",
 ];
 
-function moneyFromDeals(deals: unknown[]) {
-  for (let index = deals.length - 1; index >= 0; index -= 1) {
-    const row = asRecord(deals[index]);
-    const balance = pickNumber(row, BALANCE_KEYS);
-    const equity = pickNumber(row, EQUITY_KEYS);
-    if (balance != null || equity != null) {
-      return {
-        balance: balance ?? equity,
-        equity: equity ?? balance,
-      };
-    }
-  }
-  return { balance: null, equity: null };
-}
-
 export function readMt5AccountMetrics(body: unknown) {
   const record = asRecord(body);
+  const result = Array.isArray(record.result) ? {} : asRecord(record.result);
   const layers = [
     record,
     asRecord(record.data),
     asRecord(record.account),
     asRecord(record.accountInformation),
     asRecord(record.account_information),
+    asRecord(record.accountInfo),
     asRecord(record.info),
     asRecord(record.snapshot),
     asRecord(record.metrics),
+    result,
     asRecord(Array.isArray(record.results) ? record.results[0] : null),
   ];
   let balance: number | null = null;
@@ -158,11 +146,6 @@ export function readMt5AccountMetrics(body: unknown) {
   for (const layer of layers) {
     balance ??= pickNumber(layer, BALANCE_KEYS);
     equity ??= pickNumber(layer, EQUITY_KEYS);
-  }
-  if (balance == null || equity == null) {
-    const fromDeals = moneyFromDeals(extractMt5TradeList(body));
-    balance ??= fromDeals.balance;
-    equity ??= fromDeals.equity;
   }
   if (balance == null && equity != null) balance = equity;
   if (equity == null && balance != null) equity = balance;

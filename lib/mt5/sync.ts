@@ -4,7 +4,7 @@ import { fetchMt5History } from "@/lib/mt5/history";
 import {
   markMt5Synced,
   mt5TradesToInserts,
-  resolveMt5SnapshotMoney,
+  readBrokerSnapshotMoney,
   upsertMt5Trades,
 } from "@/lib/mt5/ingest";
 import { parseMt5ClosedTrades, readMt5AccountMetrics } from "@/lib/mt5/trades";
@@ -63,9 +63,7 @@ export async function syncMt5Journal(options: {
     mt5TradesToInserts(trades, options.userId, options.accountId)
   );
 
-  const money = await resolveMt5SnapshotMoney(options.supabase, {
-    userId: options.userId,
-    accountId: options.accountId,
+  const money = readBrokerSnapshotMoney({
     balance: snapshotMetrics.balance,
     equity: snapshotMetrics.equity,
   });

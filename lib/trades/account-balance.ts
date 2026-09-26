@@ -33,11 +33,48 @@ export function saveAccountSettings(settings: AccountSettings): void {
   localStorage.setItem(ACCOUNT_STORAGE_KEY, JSON.stringify(settings));
 }
 
-export function computeCurrentBalance(
+export function sanitizeStartingBalance(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+    return value;
+  }
+  return 0;
+}
+
+export function finiteBrokerMoney(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value.trim());
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+
+export function computeClosedNetPnl(trades: Trade[]): number {
+  return sumTradePnl(trades);
+}
+
+export function computeJournalBalance(
   startingBalance: number,
   trades: Trade[]
 ): number {
-  return startingBalance + sumTradePnl(trades);
+  return sanitizeStartingBalance(startingBalance) + computeClosedNetPnl(trades);
+}
+
+export function computeCurrentBalance(
+  startingBalance: number,
+  trades: Trade[],
+  liveBrokerBalance?: number | null
+): number {
+  const live = finiteBrokerMoney(liveBrokerBalance);
+  if (live != null) return live;
+  return computeJournalBalance(startingBalance, trades);
+}
+
+export function computeDisplayedNetPnl(
+  startingBalance: number,
+  currentBalance: number
+): number {
+  return currentBalance - sanitizeStartingBalance(startingBalance);
 }
 
 export function formatBalance(value: number): string {
@@ -80,7 +117,8 @@ export function balancesByAccount(
   for (const account of accounts) {
     result[account.id] = computeCurrentBalance(
       account.startingBalance,
-      tradesForAccount(trades, account.id, fallbackId)
+      tradesForAccount(trades, account.id, fallbackId),
+      account.mt5Balance
     );
   }
   return result;

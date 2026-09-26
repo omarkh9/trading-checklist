@@ -46,8 +46,13 @@ export function usePersistedTrades() {
   const startingBalance = activeAccount?.startingBalance ?? 0;
 
   const currentBalance = useMemo(
-    () => computeCurrentBalance(startingBalance, trades),
-    [startingBalance, trades]
+    () =>
+      computeCurrentBalance(
+        startingBalance,
+        trades,
+        activeAccount?.mt5Balance
+      ),
+    [activeAccount?.mt5Balance, startingBalance, trades]
   );
 
   const accountBalances = useMemo(

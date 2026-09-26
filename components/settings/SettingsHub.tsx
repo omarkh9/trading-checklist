@@ -31,7 +31,8 @@ export function SettingsHub() {
     if (!activeAccount) return 0;
     return computeCurrentBalance(
       activeAccount.startingBalance,
-      tradesForAccount(trades, activeAccount.id, fallbackId)
+      tradesForAccount(trades, activeAccount.id, fallbackId),
+      activeAccount.mt5Balance
     );
   }, [activeAccount, fallbackId, trades]);
 

@@ -236,11 +236,15 @@ export async function POST(request: Request) {
     await disconnectMt5Connection(target.mt5_connection_id);
   }
 
+  const existingStarting =
+    typeof (byId ?? byLogin)?.starting_balance === "number"
+      ? (byId ?? byLogin)?.starting_balance
+      : null;
   const startingBalance =
-    provisioned.balance != null &&
-    Number.isFinite(provisioned.balance) &&
-    provisioned.balance >= 0
-      ? provisioned.balance
+    typeof existingStarting === "number" &&
+    Number.isFinite(existingStarting) &&
+    existingStarting >= 0
+      ? existingStarting
       : DEFAULT_STARTING_BALANCE;
 
   if (created) {

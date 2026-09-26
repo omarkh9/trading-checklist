@@ -7,6 +7,7 @@ import type { Outcome, Trade } from "@/lib/types/trade";
 import { formatLocalDate, startOfLocalWeek, timestampMs } from "@/lib/time";
 import {
   computeCurrentBalance,
+  computeDisplayedNetPnl,
   formatBalance,
   tradesForAccount,
 } from "@/lib/trades/account-balance";
@@ -222,7 +223,15 @@ export const DashboardHome = memo(function DashboardHome() {
 
   const metrics = useMemo(() => computeDashboardMetrics(trades), [trades]);
   const startingBalance = activeAccount?.startingBalance ?? 0;
-  const currentBalance = computeCurrentBalance(startingBalance, trades);
+  const currentBalance = computeCurrentBalance(
+    startingBalance,
+    trades,
+    activeAccount?.mt5Balance
+  );
+  const displayedNetPnl = computeDisplayedNetPnl(
+    startingBalance,
+    currentBalance
+  );
   const hasTrades = trades.length > 0;
 
   if (!tradesLoaded || !accountsLoaded) {
@@ -273,23 +282,29 @@ export const DashboardHome = memo(function DashboardHome() {
         <StatCard
           label="Account Balance"
           value={formatBalance(currentBalance)}
-          hint={`Start ${formatBalance(startingBalance)} + net P/L`}
+          hint={
+            activeAccount?.mt5Balance != null
+              ? "Live MT5 broker balance"
+              : `Start ${formatBalance(startingBalance)} + closed P/L`
+          }
           icon={Wallet}
           accent="indigo"
         />
         <StatCard
           label="Net P/L"
-          value={formatPnlDollars(metrics.netPnl)}
+          value={formatPnlDollars(displayedNetPnl)}
           hint={
-            hasTrades
-              ? "Live total from logged wins and losses"
-              : "Updates as soon as a trade is saved"
+            activeAccount?.mt5Balance != null
+              ? "Live MT5 minus starting capital"
+              : hasTrades
+                ? "Closed trades vs starting capital"
+                : "Updates as soon as a trade is saved"
           }
           icon={TrendingUp}
           accent={
-            metrics.netPnl > 0
+            displayedNetPnl > 0
               ? "emerald"
-              : metrics.netPnl < 0
+              : displayedNetPnl < 0
                 ? "rose"
                 : "violet"
           }

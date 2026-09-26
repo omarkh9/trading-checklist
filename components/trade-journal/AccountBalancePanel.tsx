@@ -4,7 +4,10 @@ import { useAccounts } from "@/components/accounts/AccountProvider";
 import { DeskCard } from "@/components/ui/DeskCard";
 import { Mt5LinkModal } from "@/components/trade-journal/Mt5LinkModal";
 import { readMt5AccountMetrics } from "@/lib/mt5/trades";
-import { formatBalance } from "@/lib/trades/account-balance";
+import {
+  computeDisplayedNetPnl,
+  formatBalance,
+} from "@/lib/trades/account-balance";
 import {
   MAX_TRADING_ACCOUNTS,
   nextAccountName,
@@ -76,16 +79,14 @@ export const AccountBalancePanel = memo(function AccountBalancePanel({
     setStartingBalanceDraft(toBalanceDraft(activeAccount?.startingBalance ?? 0));
   }, [activeAccount?.id, activeAccount?.name, activeAccount?.startingBalance]);
 
-  const startingBalance = parseBalanceDraft(startingBalanceDraft);
-  const netPnl = currentBalance - startingBalance;
+  const committedStarting = activeAccount?.startingBalance ?? 0;
+  const netPnl = computeDisplayedNetPnl(committedStarting, currentBalance);
   const canAdd = accounts.length < MAX_TRADING_ACCOUNTS;
   const mt5Linked = Boolean(activeAccount?.mt5TokenSet);
   const mt5Metrics = readMt5AccountMetrics(activeAccount);
-  const mt5Balance =
-    activeAccount?.mt5Balance ??
-    mt5Metrics.balance ??
-    accountMt5Balance(activeAccount);
+  const mt5Balance = accountMt5Balance(activeAccount) ?? mt5Metrics.balance;
   const mt5Equity = activeAccount?.mt5Equity ?? mt5Metrics.equity;
+  const usingLiveBroker = mt5Balance != null;
 
   const persistName = async () => {
     if (!activeAccount) return;
@@ -219,6 +220,9 @@ export const AccountBalancePanel = memo(function AccountBalancePanel({
             onBlur={() => void persistStartingBalance()}
             className={desk.input}
           />
+          <p className="mt-1 text-[11px] text-zinc-500">
+            Initial capital. MT5 sync never changes this.
+          </p>
         </div>
 
         <div className={`${desk.panel} @container min-w-0 border-indigo-400/20`}>
@@ -227,7 +231,9 @@ export const AccountBalancePanel = memo(function AccountBalancePanel({
             {formatBalance(currentBalance)}
           </p>
           <p className="mt-1 text-[11px] text-zinc-500">
-            Updates live with each win or loss
+            {usingLiveBroker
+              ? "Live MT5 broker balance"
+              : "Starting balance + closed net P/L"}
           </p>
         </div>
 
@@ -248,6 +254,9 @@ export const AccountBalancePanel = memo(function AccountBalancePanel({
           >
             {netPnl >= 0 ? "+" : ""}
             {formatBalance(netPnl)}
+          </p>
+          <p className="mt-1 text-[11px] text-zinc-500">
+            Current balance minus starting capital
           </p>
         </div>
       </div>

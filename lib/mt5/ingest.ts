@@ -92,48 +92,15 @@ function finiteMoney(value: unknown) {
   return null;
 }
 
-export async function resolveMt5SnapshotMoney(
-  supabase: SupabaseClient<Database>,
-  input: {
-    userId: string;
-    accountId: string;
-    balance?: number | null;
-    equity?: number | null;
+export function readBrokerSnapshotMoney(input: {
+  balance?: number | null;
+  equity?: number | null;
+}) {
+  const balance = finiteMoney(input.balance);
+  const equity = finiteMoney(input.equity) ?? balance;
+  if (balance == null || equity == null) {
+    return { balance: null, equity: null };
   }
-) {
-  const fetchedBalance = finiteMoney(input.balance);
-  const fetchedEquity = finiteMoney(input.equity);
-  if (fetchedBalance != null && fetchedEquity != null) {
-    return { balance: fetchedBalance, equity: fetchedEquity };
-  }
-
-  const { data: account } = await supabase
-    .from("trading_accounts")
-    .select("starting_balance, mt5_balance, mt5_equity")
-    .eq("id", input.accountId)
-    .eq("user_id", input.userId)
-    .maybeSingle();
-
-  const { data: trades } = await supabase
-    .from("trades")
-    .select("pnl_dollars, account_id")
-    .eq("user_id", input.userId);
-
-  const rows = trades ?? [];
-  const tagged = rows.filter((trade) => trade.account_id === input.accountId);
-  const used = tagged.length > 0 ? tagged : rows.filter((trade) => !trade.account_id);
-  const starting = finiteMoney(account?.starting_balance) ?? 0;
-  const pnl = used.reduce((sum, trade) => {
-    const value = finiteMoney(trade.pnl_dollars) ?? 0;
-    return sum + value;
-  }, 0);
-  const deskLive = starting + pnl;
-
-  const balance =
-    fetchedBalance ?? finiteMoney(account?.mt5_balance) ?? deskLive;
-  const equity =
-    fetchedEquity ?? finiteMoney(account?.mt5_equity) ?? balance;
-
   return { balance, equity };
 }
 
@@ -148,16 +115,20 @@ export async function markMt5Synced(
   }
 ) {
   const syncedAt = new Date().toISOString();
-  const balance = finiteMoney(input.balance);
-  const equity = finiteMoney(input.equity) ?? balance;
-  if (balance == null || equity == null) {
+  const money = readBrokerSnapshotMoney(input);
+  if (money.balance == null || money.equity == null) {
     await supabase
       .from("trading_accounts")
-      .update({ mt5_synced_at: syncedAt })
+      .update({
+        mt5_synced_at: syncedAt,
+        mt5_balance: null,
+        mt5_equity: null,
+      })
       .eq("id", input.accountId)
       .eq("user_id", input.userId);
     return { balance: null, equity: null, syncedAt };
   }
+  const { balance, equity } = money;
 
   return persistMt5Snapshot(supabase, {
     userId: input.userId,
