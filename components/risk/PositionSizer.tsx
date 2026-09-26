@@ -11,6 +11,7 @@ import {
   calculateStopLossPrice,
   formatLotSize,
   formatPrice,
+  formatRiskPercent,
 } from "@/lib/trades/lot-size";
 import { parseNumericInput } from "@/lib/trades/pnl";
 import type { Direction } from "@/lib/types/trade";
@@ -92,8 +93,16 @@ export function PositionSizer({
             {formatBalance(accountBalance)}) and your risk percentage.
           </p>
         </div>
-        <p className="rounded-full bg-indigo-500/10 px-2.5 py-1 text-[11px] font-semibold text-indigo-200">
-          {cappedRisk.toFixed(2)}% · {formatBalance(riskUsd)} risk
+        <p
+          className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+            sized?.minLotApplied
+              ? "bg-amber-500/15 text-amber-200"
+              : "bg-indigo-500/10 text-indigo-200"
+          }`}
+        >
+          {sized?.minLotApplied
+            ? `${formatRiskPercent(sized.actualRiskPercent)} · ${formatBalance(sized.riskAmount)} actual`
+            : `${cappedRisk.toFixed(2)}% · ${formatBalance(riskUsd)} risk`}
         </p>
       </div>
 
@@ -189,7 +198,7 @@ export function PositionSizer({
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
         <div className="rounded-lg border border-indigo-400/20 bg-indigo-500/10 px-3 py-3">
           <p className="text-[11px] uppercase tracking-[0.14em] text-zinc-500">
-            Lot size
+            {sized?.minLotApplied ? "Broker min lot" : "Lot size"}
           </p>
           <p className="mt-1 font-mono text-2xl font-semibold text-indigo-200">
             {formatLotSize(sized?.lots ?? null)}
@@ -212,6 +221,16 @@ export function PositionSizer({
           </p>
         </div>
       </div>
+      {sized?.minLotApplied && (
+        <p className="mt-3 text-[11px] leading-relaxed text-amber-300">
+          0.01 lot is the broker minimum. That size risks{" "}
+          {formatBalance(sized.riskAmount)} (
+          {formatRiskPercent(sized.actualRiskPercent)} of{" "}
+          {formatBalance(accountBalance)}), not the target{" "}
+          {formatRiskPercent(sized.targetRiskPercent)} (
+          {formatBalance(sized.targetRiskAmount)}).
+        </p>
+      )}
     </div>
   );
 }

@@ -3,6 +3,13 @@ import { snapLots, usdValuePerPriceUnit } from "@/lib/trades/contract-math";
 import type { Direction, RiskSizeMode } from "@/lib/types/trade";
 import { parseNumericInput } from "@/lib/trades/pnl";
 
+export const BROKER_MIN_LOT = 0.01;
+
+export function brokerMinLots(lotStep?: number) {
+  const step = lotStep != null && lotStep > 0 ? lotStep : BROKER_MIN_LOT;
+  return Math.max(BROKER_MIN_LOT, step);
+}
+
 type LotSizeInput = {
   pair: string;
   riskSizeMode: RiskSizeMode;
@@ -17,6 +24,11 @@ type LotSizeInput = {
 export type PositionSizeResult = {
   lots: number;
   riskAmount: number;
+  targetRiskAmount: number;
+  actualRiskPercent: number;
+  targetRiskPercent: number;
+  minLot: number;
+  minLotApplied: boolean;
   stopDistance: number;
   stopPips: number;
   pipValuePerLot: number;
@@ -33,9 +45,17 @@ export function calculatePositionSize(
     const lots = parseNumericInput(input.fixedLotSize);
     if (lots == null || lots <= 0) return null;
     const risk = analyzeStop(input);
+    const riskAmount = risk ? lots * risk.riskPerLot : 0;
     return {
       lots,
-      riskAmount: risk ? lots * risk.riskPerLot : 0,
+      riskAmount,
+      targetRiskAmount: riskAmount,
+      actualRiskPercent:
+        input.accountBalance > 0 ? (riskAmount / input.accountBalance) * 100 : 0,
+      targetRiskPercent:
+        input.accountBalance > 0 ? (riskAmount / input.accountBalance) * 100 : 0,
+      minLot: brokerMinLots(),
+      minLotApplied: false,
       stopDistance: risk?.stopDistance ?? 0,
       stopPips: risk?.stopPips ?? 0,
       pipValuePerLot: risk?.pipValuePerLot ?? 0,
@@ -66,16 +86,31 @@ export function calculatePositionSize(
   const riskPerLot = priceRisk * perUnit.value;
   if (riskPerLot <= 0) return null;
 
-  const riskAmount = input.accountBalance * (riskPercent / 100);
-  const lots = snapLots(riskAmount / riskPerLot, spec.lotStep);
+  const targetRiskAmount = input.accountBalance * (riskPercent / 100);
+  const rawLots = targetRiskAmount / riskPerLot;
+  const minLot = brokerMinLots(spec.lotStep);
+  const minLotApplied = rawLots > 0 && rawLots < minLot;
+  const lots = minLotApplied ? minLot : snapLots(rawLots, spec.lotStep);
   if (lots <= 0) return null;
+  const riskAmount = lots * riskPerLot;
   return {
     lots,
     riskAmount,
+    targetRiskAmount,
+    actualRiskPercent: (riskAmount / input.accountBalance) * 100,
+    targetRiskPercent: riskPercent,
+    minLot,
+    minLotApplied,
     stopDistance: priceRisk,
     stopPips: priceRisk / spec.pipSize,
     pipValuePerLot: perUnit.value * spec.pipSize,
   };
+}
+
+export function formatRiskPercent(value: number) {
+  if (!Number.isFinite(value)) return "—";
+  const rounded = Math.abs(value) >= 10 ? value.toFixed(1) : value.toFixed(2);
+  return `${rounded}%`;
 }
 
 function analyzeStop(input: LotSizeInput) {
@@ -132,6 +167,9 @@ export function formatLotSize(value: number | null): string {
   if (value === null || !Number.isFinite(value)) return "—";
   if (value >= 100) return value.toFixed(2);
   if (value >= 1) return value.toFixed(3);
+  if (Math.abs(value * 100 - Math.round(value * 100)) < 1e-8) {
+    return value.toFixed(2);
+  }
   return value.toFixed(4);
 }
 

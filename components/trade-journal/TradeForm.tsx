@@ -23,7 +23,11 @@ import {
   formatUsdCompact,
 } from "@/lib/trades/contract-math";
 import { loadQuoteToUsd } from "@/lib/trades/fx-rates";
-import { calculateLotSize, formatLotSize } from "@/lib/trades/lot-size";
+import {
+  calculatePositionSize,
+  formatLotSize,
+  formatRiskPercent,
+} from "@/lib/trades/lot-size";
 import { tradeDateKey } from "@/lib/trades/load-trades";
 import {
   formatPnlDollars,
@@ -332,9 +336,9 @@ export const TradeForm = memo(function TradeForm({
     };
   }, [needsQuoteConversion, quoteCurrency]);
 
-  const calculatedLot = useMemo(
+  const sizedPosition = useMemo(
     () =>
-      calculateLotSize({
+      calculatePositionSize({
         pair: form.pair,
         riskSizeMode: form.riskSizeMode,
         riskPercent: String(cappedRisk),
@@ -355,6 +359,7 @@ export const TradeForm = memo(function TradeForm({
       quoteToUsd,
     ]
   );
+  const calculatedLot = sizedPosition?.lots ?? null;
 
   const lotsForPnl = resolveLotsForPnl({
     lotSize: form.lotSize,
@@ -928,10 +933,11 @@ export const TradeForm = memo(function TradeForm({
                 Automated position size
               </p>
               <p className="mt-1 text-xs text-zinc-500">
-                Risk {cappedRisk}% of {formatBalance(currentBalance)}
+                Target {cappedRisk}% of {formatBalance(currentBalance)}
                 {riskDollars != null
                   ? ` = ${formatBalance(riskDollars)}`
-                  : ""}. Stop distance sets the exact lot size.
+                  : ""}. Stop distance sets the lot size, floored at the
+                broker 0.01 minimum.
               </p>
 
               <div className="mt-4 space-y-3">
@@ -966,7 +972,11 @@ export const TradeForm = memo(function TradeForm({
                 )}
 
                 <div className="rounded-lg border border-white/10 bg-[#0a0a12] px-3 py-2">
-                  <p className="text-xs text-zinc-500">Calculated lot size</p>
+                  <p className="text-xs text-zinc-500">
+                    {sizedPosition?.minLotApplied
+                      ? "Broker minimum lot size"
+                      : "Calculated lot size"}
+                  </p>
                   <p className="mt-1 font-mono text-lg text-zinc-100">
                     {displayLotSize}
                   </p>
@@ -988,6 +998,16 @@ export const TradeForm = memo(function TradeForm({
                         </p>
                       )}
                     </div>
+                  )}
+                  {sizedPosition?.minLotApplied && (
+                    <p className="mt-2 text-[11px] leading-relaxed text-amber-300">
+                      0.01 lot is the broker minimum. That size risks{" "}
+                      {formatBalance(sizedPosition.riskAmount)} (
+                      {formatRiskPercent(sizedPosition.actualRiskPercent)} of{" "}
+                      {formatBalance(currentBalance)}), not the target{" "}
+                      {formatRiskPercent(sizedPosition.targetRiskPercent)} (
+                      {formatBalance(sizedPosition.targetRiskAmount)}).
+                    </p>
                   )}
                 </div>
               </div>
