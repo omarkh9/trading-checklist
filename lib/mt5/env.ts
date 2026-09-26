@@ -29,11 +29,17 @@ export function getSupabaseServiceRoleKey() {
 }
 
 export function getMt5CredentialsKey() {
-  return (
-    sanitizeEnvValue(process.env.MT5_CREDENTIALS_KEY) ||
-    getMt5SyncSecret() ||
-    getSupabaseServiceRoleKey()
-  );
+  return getMt5CredentialsKeyCandidates()[0] ?? "";
+}
+
+export function getMt5CredentialsKeyCandidates() {
+  const keys = [
+    sanitizeEnvValue(process.env.MT5_CREDENTIALS_KEY),
+    sanitizeEnvValue(process.env.MT5_SYNC_SECRET),
+    getMt5GatewaySecret(),
+    getSupabaseServiceRoleKey(),
+  ];
+  return keys.filter((key, index) => key && keys.indexOf(key) === index);
 }
 
 export function canFetchMt5History() {

@@ -256,6 +256,12 @@ export type Database = {
         };
         Returns: Json;
       };
+      load_mt5_account_credentials: {
+        Args: {
+          p_account_id: string;
+        };
+        Returns: Json;
+      };
     };
     Enums: {
       trade_direction: "Long" | "Short";

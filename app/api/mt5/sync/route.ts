@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { validateMt5LinkInput } from "@/lib/mt5/credentials";
 import { Mt5GatewayError } from "@/lib/mt5/gateway";
 import { canFetchMt5History, getMt5SyncSecret, getSupabaseServiceRoleKey } from "@/lib/mt5/env";
-import { decryptStoredInvestorPassword } from "@/lib/mt5/secret";
+import { loadMt5StoredCredentials } from "@/lib/mt5/stored-credentials";
 import { syncMt5Journal } from "@/lib/mt5/sync";
 import type { Database } from "@/lib/supabase/database.types";
 import { getSupabaseUrl } from "@/lib/supabase/env";
@@ -123,44 +123,26 @@ export async function POST(request: Request) {
     requestCredentials = parsed;
   }
 
-  let query = supabase
-    .from("trading_accounts")
-    .select(
-      "id, user_id, mt5_login, mt5_server, mt5_connection_id, mt5_password, mt5_investor_password_cipher, mt5_credentials_set"
-    );
-  if (!worker) query = query.eq("user_id", userId);
-  if (requestedAccountId) query = query.eq("id", requestedAccountId);
-  if (syncAll || !requestedAccountId) {
-    query = query.or(
-      "mt5_credentials_set.eq.true,mt5_connection_id.not.is.null,mt5_login.not.is.null"
+  const reader = createServiceClient() ?? supabase;
+  let targets;
+  try {
+    targets = await loadMt5StoredCredentials(reader, {
+      userId: worker ? undefined : userId,
+      accountId: requestedAccountId || undefined,
+    });
+  } catch (cause) {
+    return json(
+      {
+        ok: false,
+        error:
+          cause instanceof Error
+            ? cause.message
+            : "Could not read saved MT5 credentials.",
+      },
+      400
     );
   }
 
-  let { data: accounts, error: accountError } = await query;
-  if (accountError && /mt5_investor_password_cipher|mt5_credentials_set|mt5_password/i.test(accountError.message)) {
-    const fallback = supabase
-      .from("trading_accounts")
-      .select("id, user_id, mt5_login, mt5_server, mt5_connection_id");
-    const scoped = !worker
-      ? fallback.eq("user_id", userId)
-      : fallback;
-    const filtered = requestedAccountId
-      ? scoped.eq("id", requestedAccountId)
-      : scoped.not("mt5_connection_id", "is", null);
-    const retry = await filtered;
-    accounts = (retry.data ?? []).map((row) => ({
-      ...row,
-      mt5_password: null,
-      mt5_investor_password_cipher: null,
-      mt5_credentials_set: false,
-    }));
-    accountError = retry.error;
-  }
-  if (accountError) {
-    return json({ ok: false, error: accountError.message }, 400);
-  }
-
-  const targets = accounts ?? [];
   if (targets.length === 0) {
     return json(
       {
@@ -175,25 +157,10 @@ export async function POST(request: Request) {
 
   const results: Record<string, unknown>[] = [];
   for (const account of targets) {
-    let storedPassword = "";
-    try {
-      storedPassword = decryptStoredInvestorPassword(
-        ("mt5_investor_password_cipher" in account
-          ? account.mt5_investor_password_cipher
-          : null) ||
-          ("mt5_password" in account ? account.mt5_password : null)
-      );
-    } catch (cause) {
-      console.error(
-        "MT5 credential decrypt failed:",
-        cause instanceof Error ? cause.message : cause
-      );
-    }
-
-    const login = requestCredentials?.login || account.mt5_login || "";
-    const server = requestCredentials?.server || account.mt5_server || "";
+    const login = requestCredentials?.login || account.login || "";
+    const server = requestCredentials?.server || account.server || "";
     const investorPassword =
-      requestCredentials?.investorPassword || storedPassword;
+      requestCredentials?.investorPassword || account.investorPassword;
 
     if (!login || !server || !investorPassword) {
       const message =
@@ -208,12 +175,12 @@ export async function POST(request: Request) {
     try {
       const result = await syncMt5Journal({
         supabase,
-        userId: worker ? account.user_id : userId,
+        userId: worker ? account.userId : userId,
         accountId: account.id,
         login,
         investorPassword,
         server,
-        connectionId: account.mt5_connection_id ?? undefined,
+        connectionId: account.connectionId ?? undefined,
         days,
       });
       results.push(result);

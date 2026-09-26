@@ -231,6 +231,59 @@ $$;
 revoke all on function public.save_mt5_account_credentials(uuid, text, text, text) from public;
 grant execute on function public.save_mt5_account_credentials(uuid, text, text, text) to authenticated;
 
+create or replace function public.load_mt5_account_credentials(
+  p_account_id uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_account public.trading_accounts%rowtype;
+  v_user uuid := auth.uid();
+  v_role text := coalesce(auth.role(), '');
+begin
+  if p_account_id is null then
+    return jsonb_build_object('ok', false, 'error', 'account_required');
+  end if;
+
+  if v_role = 'service_role' then
+    select * into v_account
+    from public.trading_accounts
+    where id = p_account_id;
+  elsif v_user is not null then
+    select * into v_account
+    from public.trading_accounts
+    where id = p_account_id
+      and user_id = v_user;
+  else
+    return jsonb_build_object('ok', false, 'error', 'unauthorized');
+  end if;
+
+  if not found then
+    return jsonb_build_object('ok', false, 'error', 'account_not_found');
+  end if;
+
+  return jsonb_build_object(
+    'ok', true,
+    'accountId', v_account.id,
+    'userId', v_account.user_id,
+    'login', v_account.mt5_login,
+    'server', v_account.mt5_server,
+    'passwordCipher', coalesce(
+      nullif(v_account.mt5_investor_password_cipher, ''),
+      v_account.mt5_password
+    ),
+    'connectionId', v_account.mt5_connection_id,
+    'credentialsSet', v_account.mt5_credentials_set
+  );
+end;
+$$;
+
+revoke all on function public.load_mt5_account_credentials(uuid) from public;
+grant execute on function public.load_mt5_account_credentials(uuid) to authenticated, service_role;
+
 create unique index if not exists trades_user_mt5_ticket_uidx
   on public.trades (user_id, mt5_ticket);
 
