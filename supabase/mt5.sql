@@ -2,9 +2,12 @@
 -- SQL Editor: https://supabase.com/dashboard/project/agfzhwyhrrcbadbzvmpy/sql/new
 --
 -- Stores MetaTrader 5 login/server metadata and a hashed webhook token on
--- each trading account. Linking is done from the journal modal; the gateway
--- then POSTs live balance, equity, and closed trades to
--- POST https://edgelog.org/api/mt5/webhook.
+-- each trading account. Linking is done from the journal modal. The app then
+-- pulls historical deals through POST https://edgelog.org/api/mt5/sync
+-- (METAAPI_TOKEN or MT5_GATEWAY_URL) and the gateway can still POST live
+-- balance, equity, and closed trades to POST https://edgelog.org/api/mt5/webhook.
+-- Investor passwords are never stored. Cron workers may call /api/mt5/sync
+-- with Authorization: Bearer MT5_SYNC_SECRET and { "all": true }.
 
 create extension if not exists pgcrypto with schema extensions;
 

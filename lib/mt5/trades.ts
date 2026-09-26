@@ -116,11 +116,34 @@ export function parseMt5ClosedTrades(
 
   for (const row of rows) {
     const item = asRecord(row);
+    const entryType = pickString(item, [
+      "entryType",
+      "entry",
+      "dealEntry",
+    ]).toLowerCase();
+    if (
+      entryType === "in" ||
+      entryType === "deal_entry_in" ||
+      entryType === "entry_in"
+    ) {
+      continue;
+    }
+
+    const dealKind = pickString(item, ["type", "dealType", "action"]).toLowerCase();
+    if (
+      /balance|credit|charge|correction|bonus|commission|dividend/.test(dealKind)
+    ) {
+      continue;
+    }
+    const dealCode = pickNumber(item, ["type", "dealType", "action"]);
+    if (dealCode != null && dealCode >= 2) continue;
+
     const ticket = pickString(item, [
+      "positionId",
+      "position",
       "ticket",
       "dealId",
       "deal",
-      "positionId",
       "order",
       "id",
     ]);

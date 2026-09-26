@@ -21,6 +21,7 @@ function isPublicPath(pathname: string) {
     pathname.startsWith("/auth") ||
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/api/mt5/webhook") ||
+    pathname.startsWith("/api/mt5/sync") ||
     pathname.startsWith("/api/news/calendar") ||
     pathname === "/robots.txt" ||
     pathname === "/sitemap.xml" ||
@@ -105,6 +106,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|api/mt5/webhook|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/mt5/webhook|api/mt5/sync|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

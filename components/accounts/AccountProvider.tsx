@@ -7,6 +7,7 @@ import {
   linkMt5Account,
   loadTradingAccounts,
   readActiveAccountId,
+  syncMt5AccountHistory,
   unlinkMt5Account,
   updateTradingAccount,
   writeActiveAccountId,
@@ -46,6 +47,7 @@ type AccountContextValue = {
     credentials: TradingAccountMt5Credentials
   ) => Promise<void>;
   unlinkMt5Account: (id: string) => Promise<void>;
+  syncMt5Account: (id: string) => Promise<number>;
   deleteAccount: (id: string) => Promise<void>;
 };
 
@@ -199,6 +201,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
         const result = await linkMt5Account(id, credentials);
         setAccounts(result.accounts);
         selectAccount(result.accountId, result.accounts);
+        await fetchTrades({ force: true });
         setError(null);
       } catch (cause) {
         const message = errorMessage(cause);
@@ -208,6 +211,20 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
     },
     [selectAccount]
   );
+
+  const syncMt5Account = useCallback(async (id: string) => {
+    try {
+      const result = await syncMt5AccountHistory(id);
+      setAccounts(result.accounts);
+      await fetchTrades({ force: true });
+      setError(null);
+      return result.ingested;
+    } catch (cause) {
+      const message = errorMessage(cause);
+      setError(message);
+      throw cause;
+    }
+  }, []);
 
   const disconnectMt5Account = useCallback(async (id: string) => {
     try {
@@ -267,6 +284,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       updateStartingBalance,
       linkMt5Account: connectMt5Account,
       unlinkMt5Account: disconnectMt5Account,
+      syncMt5Account,
       deleteAccount,
     }),
     [
@@ -280,6 +298,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       updateStartingBalance,
       connectMt5Account,
       disconnectMt5Account,
+      syncMt5Account,
       deleteAccount,
     ]
   );

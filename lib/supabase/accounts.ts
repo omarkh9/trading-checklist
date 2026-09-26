@@ -684,6 +684,46 @@ export async function linkMt5Account(
   };
 }
 
+export async function syncMt5AccountHistory(
+  accountId: string,
+  credentials?: {
+    login: string;
+    investorPassword: string;
+    server: string;
+  }
+): Promise<{
+  accounts: TradingAccount[];
+  ingested: number;
+}> {
+  const response = await fetch("/api/mt5/sync", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      accountId,
+      ...(credentials ?? {}),
+    }),
+  });
+  let payload: { ok?: boolean; error?: string; ingested?: number } = {};
+  try {
+    payload = (await response.json()) as typeof payload;
+  } catch {
+    payload = {};
+  }
+  if (!response.ok || payload.ok === false) {
+    throw new Error(
+      typeof payload.error === "string" && payload.error.trim()
+        ? payload.error
+        : "Could not sync MT5 deal history."
+    );
+  }
+  const accounts = await loadTradingAccounts({ force: true });
+  return {
+    accounts,
+    ingested: typeof payload.ingested === "number" ? payload.ingested : 0,
+  };
+}
+
 export async function unlinkMt5Account(accountId: string): Promise<TradingAccount[]> {
   const response = await fetch(
     `/api/mt5/link?accountId=${encodeURIComponent(accountId)}`,

@@ -5,6 +5,8 @@ import {
   Mt5GatewayError,
   provisionMt5Connection,
 } from "@/lib/mt5/gateway";
+import { canFetchMt5History } from "@/lib/mt5/env";
+import { syncMt5Journal } from "@/lib/mt5/sync";
 import { generateMt5WebhookToken, hashMt5WebhookToken } from "@/lib/mt5/token";
 import { getMt5WebhookUrl } from "@/lib/mt5/webhook";
 import type {
@@ -300,6 +302,27 @@ export async function POST(request: Request) {
     return json({ ok: false, error: persistError.message }, 400);
   }
 
+  let ingested = 0;
+  if (canFetchMt5History()) {
+    try {
+      const backfill = await syncMt5Journal({
+        supabase,
+        userId: user.id,
+        accountId: target.id,
+        login: parsed.login,
+        investorPassword: parsed.investorPassword,
+        server: parsed.server,
+        connectionId: provisioned.connectionId,
+      });
+      ingested = backfill.ingested;
+    } catch (cause) {
+      console.error(
+        "MT5 history backfill failed:",
+        cause instanceof Error ? cause.message : cause
+      );
+    }
+  }
+
   return json({
     ok: true,
     created,
@@ -309,6 +332,7 @@ export async function POST(request: Request) {
     connectionId: provisioned.connectionId,
     balance: provisioned.balance,
     equity: provisioned.equity,
+    ingested,
   });
 }
 

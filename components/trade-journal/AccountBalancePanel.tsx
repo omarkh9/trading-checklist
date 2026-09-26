@@ -15,7 +15,7 @@ import {
   formatNumericDraft,
   parseNumericDraft,
 } from "@/lib/forms/numeric-input";
-import { Plus, Trash2, Unlink } from "lucide-react";
+import { Loader2, Plus, RefreshCw, Trash2, Unlink } from "lucide-react";
 import { memo, useEffect, useState } from "react";
 
 function toBalanceDraft(value: number) {
@@ -50,6 +50,7 @@ export const AccountBalancePanel = memo(function AccountBalancePanel({
     updateStartingBalance,
     linkMt5Account,
     unlinkMt5Account,
+    syncMt5Account,
     deleteAccount,
   } = useAccounts();
   const confirm = useConfirm();
@@ -247,7 +248,8 @@ export const AccountBalancePanel = memo(function AccountBalancePanel({
               <p className={desk.label}>MetaTrader 5</p>
               <p className="mt-1 text-sm text-zinc-400">
                 Connect with your account number, investor password, and broker
-                server. Live closed trades land in this journal automatically.
+                server. Closed deals backfill into this journal and keep
+                arriving from the broker.
               </p>
             </div>
             <span
@@ -304,15 +306,36 @@ export const AccountBalancePanel = memo(function AccountBalancePanel({
               {mt5Linked ? "Reconnect MT5" : "Link MT5 account"}
             </button>
             {mt5Linked && (
-              <button
-                type="button"
-                disabled={mt5Busy}
-                onClick={() => void unlinkMt5()}
-                className={desk.btnGhost}
-              >
-                <Unlink className="h-4 w-4" />
-                Unlink
-              </button>
+              <>
+                <button
+                  type="button"
+                  disabled={mt5Busy}
+                  onClick={() => {
+                    if (!activeAccount || mt5Busy) return;
+                    setMt5Busy(true);
+                    void syncMt5Account(activeAccount.id)
+                      .catch(() => {})
+                      .finally(() => setMt5Busy(false));
+                  }}
+                  className={desk.btnGhost}
+                >
+                  {mt5Busy ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
+                  Sync history
+                </button>
+                <button
+                  type="button"
+                  disabled={mt5Busy}
+                  onClick={() => void unlinkMt5()}
+                  className={desk.btnGhost}
+                >
+                  <Unlink className="h-4 w-4" />
+                  Unlink
+                </button>
+              </>
             )}
           </div>
         </div>
