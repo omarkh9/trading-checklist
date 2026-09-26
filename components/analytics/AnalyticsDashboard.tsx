@@ -1,6 +1,7 @@
 "use client";
 
 import { useAccounts } from "@/components/accounts/AccountProvider";
+import { AdvancedAiAnalytics } from "@/components/analytics/AdvancedAiAnalytics";
 import { useCachedTrades } from "@/components/trade-journal/useCachedTrades";
 import { DeskCard } from "@/components/ui/DeskCard";
 import { tradesForAccount } from "@/lib/trades/account-balance";
@@ -217,6 +218,12 @@ export function AnalyticsDashboard() {
           {error}
         </p>
       )}
+
+      <AdvancedAiAnalytics
+        trades={trades}
+        accountId={activeAccount?.id}
+        accountName={activeAccount?.name}
+      />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard

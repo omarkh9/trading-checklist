@@ -1,4 +1,4 @@
-export type AiMode = "coach" | "support";
+export type AiMode = "coach" | "support" | "audit";
 
 export type AiChatRole = "user" | "assistant";
 

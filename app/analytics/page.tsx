@@ -5,7 +5,7 @@ import { pageMetadata } from "@/lib/site";
 export const metadata = pageMetadata({
   title: "Analytics",
   description:
-    "Review equity curves, setup performance, and risk stats in Edge Log by Owz.",
+    "Advanced AI analytics for Edge Log by Owz: win rates, session leaks, risk discipline, and behavioral audits.",
   path: "/analytics",
 });
 
@@ -13,7 +13,7 @@ export default function AnalyticsPage() {
   return (
     <DashboardShell
       title="Analytics"
-      description="Dark-terminal equity curves, setup bars, and live risk stats"
+      description="Win rates, session leaks, risk discipline, and automated behavioral audits"
     >
       <AnalyticsDashboard />
     </DashboardShell>

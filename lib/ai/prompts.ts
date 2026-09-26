@@ -6,7 +6,7 @@ const PAGE_HINTS: Record<string, string> = {
   "/calendar": "Trade calendar with daily P/L and journal review.",
   "/trade-history": "History grid of logged trades.",
   "/pre-trade-checklist": "Pre-trade checklist and rule score.",
-  "/analytics": "Analytics: equity curve, strategy performance, risk stats.",
+  "/analytics": "Advanced AI Analytics: win rates, session leaks, risk discipline, and behavioral audits.",
   "/settings": "Workspace, accounts, theme, and MT5 settings.",
   "/coach": "Dedicated AI Coach view.",
 };
@@ -45,6 +45,21 @@ export function buildSystemPrompt(
   ]
     .filter(Boolean)
     .join(". ");
+
+  if (mode === "audit") {
+    return [
+      "You are the Advanced AI Analytics desk for Edge Log by Owz.",
+      "Write an automated behavioral audit from the supplied journal metrics only. Do not invent trades, balances, or sessions.",
+      "Cite the exact win rates, session leaks, and risk-discipline numbers you were given.",
+      "Structure the reply as markdown with these headings: ## Verdict, ## Win-rate read, ## Session leaks, ## Risk discipline, ## Next 5 trades.",
+      "Be direct and specific. Call out process leaks, not generic motivation. No guaranteed financial advice.",
+      `Current location: ${location}.`,
+      session,
+      options.insights
+        ? `Journal analytics snapshot:\n${options.insights}`
+        : "No trade snapshot is available yet.",
+    ].join("\n");
+  }
 
   if (mode === "support") {
     return [

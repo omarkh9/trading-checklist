@@ -1,6 +1,10 @@
 import { createClient, getAuthUser } from "@/lib/supabase/server";
 import { formatCompactPnl } from "@/lib/trades/day-stats";
 import { computeAnalyticsSummary, computeStrategyPerformance } from "@/lib/trades/analytics";
+import {
+  computeAdvancedAnalytics,
+  formatAdvancedAnalyticsContext,
+} from "@/lib/trades/advanced-analytics";
 import { tradesForAccount } from "@/lib/trades/account-balance";
 import { normalizeTrade } from "@/lib/trades/load-trades";
 import { tradeFromRow } from "@/lib/supabase/trades";
@@ -9,6 +13,7 @@ import { formatLocalDate } from "@/lib/time";
 import type { Trade } from "@/lib/types/trade";
 
 const RECENT_TRADE_LIMIT = 20;
+const AUDIT_TRADE_LIMIT = 200;
 
 function money(value: number) {
   return formatCompactPnl(value);
@@ -99,6 +104,84 @@ export async function loadCoachInsights(accountId?: string) {
     "Recent trades:",
     formatTradeContext(trades),
   ].join("\n");
+}
+
+export async function loadAuditInsights(accountId?: string) {
+  const user = await getAuthUser();
+  if (!user) return null;
+
+  const trades = await getTradesForUser(user.id, {
+    limit: AUDIT_TRADE_LIMIT,
+    accountId,
+  });
+
+  if (trades.length === 0) {
+    return "This desk has no logged trades yet. Help the trader define a clean first journal entry before auditing behavior.";
+  }
+
+  const report = computeAdvancedAnalytics(trades);
+  return [
+    formatAdvancedAnalyticsContext(report),
+    "",
+    "Recent trades:",
+    formatTradeContext(trades.slice(0, RECENT_TRADE_LIMIT)),
+  ].join("\n");
+}
+
+export function fallbackAuditReply(insights: string | null, question: string) {
+  const empty = !insights || insights.startsWith("This desk has no");
+  if (empty) {
+    return [
+      "## Verdict",
+      "No journal sample yet — there is nothing to audit.",
+      "",
+      "## Next 5 trades",
+      "1. Log pair, direction, stop, and target before you size.",
+      "2. Keep risk at or under 1% until the sample is readable.",
+      "3. Tag the session and setup on every fill.",
+      "4. Score the checklist honestly.",
+      "5. Ask for another audit after five closed trades.",
+    ].join("\n");
+  }
+
+  return [
+    "## Verdict",
+    "Local behavioral audit from your Supabase journal. Add `OPENAI_API_KEY` on the server to switch this to a live model.",
+    "",
+    "## Win-rate read",
+    insights
+      .split("\n")
+      .filter((line) => /win rate|by direction/i.test(line))
+      .map((line) => `- ${line}`)
+      .join("\n") || "- See the snapshot below.",
+    "",
+    "## Session leaks",
+    insights
+      .split("\n")
+      .filter((line) => /session|LEAK|Off session|London|Tokyo|Sydney|New York/i.test(line))
+      .slice(0, 8)
+      .map((line) => (line.startsWith("- ") ? line : `- ${line}`))
+      .join("\n"),
+    "",
+    "## Risk discipline",
+    insights
+      .split("\n")
+      .filter((line) => /risk|rule score|stop|discipline/i.test(line))
+      .slice(0, 8)
+      .map((line) => (line.startsWith("- ") ? line : `- ${line}`))
+      .join("\n"),
+    "",
+    "## Next 5 trades",
+    "1. Keep risk constant so the next sample is comparable.",
+    "2. Avoid the flagged session unless the setup is A+.",
+    "3. Do not move the stop closer after entry.",
+    "4. Hold winners to the planned TP unless the thesis is invalid.",
+    "5. Re-run this audit after those five closes.",
+    "",
+    question.trim() ? `You asked: *${question.trim()}*` : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 export function fallbackCoachReply(insights: string | null, question: string) {

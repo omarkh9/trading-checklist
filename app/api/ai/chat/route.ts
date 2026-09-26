@@ -1,7 +1,9 @@
 import { getAiConfig } from "@/lib/ai/env";
 import {
+  fallbackAuditReply,
   fallbackCoachReply,
   fallbackSupportReply,
+  loadAuditInsights,
   loadCoachInsights,
 } from "@/lib/ai/coach-context";
 import { buildSystemPrompt } from "@/lib/ai/prompts";
@@ -32,7 +34,7 @@ function cleanMessages(input: unknown): AiChatMessage[] {
 }
 
 function isMode(value: unknown): value is AiMode {
-  return value === "coach" || value === "support";
+  return value === "coach" || value === "support" || value === "audit";
 }
 
 export async function POST(request: Request) {
@@ -56,7 +58,11 @@ export async function POST(request: Request) {
   }
 
   const insights =
-    mode === "coach" ? await loadCoachInsights(body.context?.accountId) : null;
+    mode === "coach"
+      ? await loadCoachInsights(body.context?.accountId)
+      : mode === "audit"
+        ? await loadAuditInsights(body.context?.accountId)
+        : null;
   const emailDomain = user.email?.split("@")[1] ?? null;
   const system = buildSystemPrompt(mode, {
     context: body.context,
@@ -69,7 +75,9 @@ export async function POST(request: Request) {
     const text =
       mode === "coach"
         ? fallbackCoachReply(insights, lastUser.content)
-        : fallbackSupportReply(body.context?.pathname, lastUser.content);
+        : mode === "audit"
+          ? fallbackAuditReply(insights, lastUser.content)
+          : fallbackSupportReply(body.context?.pathname, lastUser.content);
     return createSseResponse(streamFromText(text));
   }
 
@@ -94,7 +102,9 @@ export async function POST(request: Request) {
     const fallback =
       mode === "coach"
         ? `${fallbackCoachReply(insights, lastUser.content)}\n\n_Live model error:_ ${message}`
-        : `${fallbackSupportReply(body.context?.pathname, lastUser.content)}\n\n_Live model error:_ ${message}`;
+        : mode === "audit"
+          ? `${fallbackAuditReply(insights, lastUser.content)}\n\n_Live model error:_ ${message}`
+          : `${fallbackSupportReply(body.context?.pathname, lastUser.content)}\n\n_Live model error:_ ${message}`;
     return createSseResponse(streamFromText(fallback, { delayMs: 12 }));
   }
 }
