@@ -714,6 +714,7 @@ export async function linkMt5Account(
   accounts: TradingAccount[];
   accountId: string;
   created: boolean;
+  syncError: string | null;
 }> {
   const response = await fetch("/api/mt5/link", {
     method: "POST",
@@ -726,8 +727,13 @@ export async function linkMt5Account(
       server: credentials.server,
     }),
   });
-  let payload: { ok?: boolean; error?: string; accountId?: string; created?: boolean } =
-    {};
+  let payload: {
+    ok?: boolean;
+    error?: string;
+    accountId?: string;
+    created?: boolean;
+    syncError?: string | null;
+  } = {};
   try {
     payload = (await response.json()) as typeof payload;
   } catch {
@@ -740,14 +746,23 @@ export async function linkMt5Account(
         : "Could not link that MT5 account."
     );
   }
-  const accounts = await loadTradingAccounts({ force: true });
+  const linkedId =
+    typeof payload.accountId === "string" && payload.accountId
+      ? payload.accountId
+      : accountId;
+  const accounts = applyMt5SyncSnapshot(
+    await loadTradingAccounts({ force: true }),
+    linkedId,
+    payload as Record<string, unknown>
+  );
   return {
     accounts,
-    accountId:
-      typeof payload.accountId === "string" && payload.accountId
-        ? payload.accountId
-        : accountId,
+    accountId: linkedId,
     created: payload.created === true,
+    syncError:
+      typeof payload.syncError === "string" && payload.syncError.trim()
+        ? payload.syncError
+        : null,
   };
 }
 
@@ -775,13 +790,18 @@ function applyMt5SyncSnapshot(
       snapshot.mt5_connection_id.trim()) ||
     "";
 
+  const liveBalance =
+    metrics.balance != null && metrics.balance > 0 ? metrics.balance : null;
+  const liveEquity =
+    metrics.equity != null && metrics.equity > 0 ? metrics.equity : liveBalance;
+
   return rememberAccounts(
     accounts.map((account) =>
       account.id === accountId
         ? {
             ...account,
-            mt5Balance: metrics.balance ?? account.mt5Balance,
-            mt5Equity: metrics.equity ?? account.mt5Equity,
+            mt5Balance: liveBalance ?? account.mt5Balance,
+            mt5Equity: liveEquity ?? account.mt5Equity,
             mt5SyncedAt: syncedAt || account.mt5SyncedAt,
             mt5ConnectionId: connectionId || account.mt5ConnectionId,
           }

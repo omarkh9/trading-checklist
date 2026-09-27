@@ -202,7 +202,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
         setAccounts(result.accounts);
         selectAccount(result.accountId, result.accounts);
         await fetchTrades({ force: true });
-        setError(null);
+        setError(result.syncError);
       } catch (cause) {
         const message = errorMessage(cause);
         setError(message);

@@ -29,6 +29,7 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 type AccountRef = {
   id: string;
@@ -291,6 +292,10 @@ export async function POST(request: Request) {
   });
 
   let ingested = 0;
+  let balance = provisionedBalance;
+  let equity = provisionedEquity;
+  let syncedAt: string | null = null;
+  let syncError: string | null = null;
   try {
     const backfill = await syncMt5Journal({
       supabase,
@@ -302,7 +307,14 @@ export async function POST(request: Request) {
       connectionId: provisioned.connectionId,
     });
     ingested = backfill.ingested;
+    balance = backfill.balance ?? balance;
+    equity = backfill.equity ?? equity;
+    syncedAt = backfill.syncedAt;
   } catch (cause) {
+    syncError =
+      cause instanceof Mt5GatewayError
+        ? cause.message
+        : "Could not load live MT5 data yet.";
     console.error(
       "MT5 history backfill failed:",
       cause instanceof Error ? cause.message : cause
@@ -316,8 +328,12 @@ export async function POST(request: Request) {
     login: parsed.login,
     server: parsed.server,
     connectionId: provisioned.connectionId,
-    balance: provisionedBalance,
-    equity: provisionedEquity,
+    balance,
+    equity,
+    mt5_balance: balance,
+    mt5_equity: equity,
+    syncedAt,
+    syncError,
     ingested,
     credentialsStored: Boolean(passwordCipher),
   });

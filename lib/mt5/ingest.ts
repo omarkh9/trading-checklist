@@ -135,17 +135,6 @@ export function readMt5GatewayMoney(payload: unknown) {
   };
 }
 
-export function readBrokerSnapshotMoney(input: {
-  balance?: unknown;
-  equity?: unknown;
-}) {
-  return readMt5GatewayMoney({
-    answer: { Balance: input.balance, Equity: input.equity },
-    Balance: input.balance,
-    Equity: input.equity,
-  });
-}
-
 async function writeMt5BalanceColumns(
   supabase: SupabaseClient<Database>,
   input: {
@@ -254,12 +243,22 @@ export async function markMt5Synced(
   const equity =
     positiveMt5Money(input.equity) ?? positiveMt5Money(money.equity) ?? balance;
   if (balance == null || equity == null) {
-    await supabase
+    const { data: stored } = await supabase
       .from("trading_accounts")
       .update({ mt5_synced_at: syncedAt })
       .eq("id", scope.accountId)
-      .eq("user_id", scope.userId);
-    return { balance: null, equity: null, syncedAt };
+      .eq("user_id", scope.userId)
+      .select("id, mt5_balance, mt5_equity, mt5_synced_at")
+      .maybeSingle();
+    if (stored?.id && stored.id !== scope.accountId) {
+      throw new Error("MT5 sync matched a different trading account.");
+    }
+    const storedBalance = positiveMt5Money(stored?.mt5_balance);
+    return {
+      balance: storedBalance,
+      equity: positiveMt5Money(stored?.mt5_equity) ?? storedBalance,
+      syncedAt: stored?.mt5_synced_at ?? syncedAt,
+    };
   }
 
   try {

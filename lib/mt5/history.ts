@@ -304,18 +304,8 @@ function investorHistoryEndpoints(server: string) {
   return [];
 }
 
-function credentialedSnapshot(input: Mt5HistoryRequest): Mt5HistorySnapshot {
-  // Broker server names are not HTTP hosts. This placeholder only keeps the
-  // connection id. syncMt5Journal resolves and persists live money after fetch.
-  return {
-    connectionId:
-      input.connectionId?.trim() ||
-      `mt5:${input.accountId}:${input.login ?? "investor"}`,
-    deals: [],
-    balance: null,
-    equity: null,
-  };
-}
+const MT5_LIVE_SYNC_UNAVAILABLE =
+  "Live MT5 sync is not available right now. Your saved balance was not changed.";
 
 async function fetchViaInvestorCredentials(
   input: Mt5HistoryRequest
@@ -340,11 +330,7 @@ async function fetchViaInvestorCredentials(
     }
   }
 
-  if (lastError && endpoints.length > 0) {
-    throw lastError;
-  }
-
-  return credentialedSnapshot(input);
+  throw lastError ?? new Mt5GatewayError(MT5_LIVE_SYNC_UNAVAILABLE, "unavailable");
 }
 
 export async function fetchMt5History(
@@ -358,12 +344,18 @@ export async function fetchMt5History(
     );
   }
 
+  let lastError: Mt5GatewayError | null = null;
+
   const gatewayUrl = getMt5GatewayUrl();
   if (gatewayUrl) {
     try {
       return await fetchViaGateway(gatewayUrl, input);
     } catch (cause) {
       if (!hasCredentials) throw cause;
+      if (cause instanceof Mt5GatewayError && cause.code === "invalid_credentials") {
+        throw cause;
+      }
+      lastError = cause instanceof Mt5GatewayError ? cause : lastError;
     }
   }
 
@@ -373,15 +365,21 @@ export async function fetchMt5History(
       return await fetchViaMetaApi(token, input);
     } catch (cause) {
       if (!hasCredentials) throw cause;
+      if (cause instanceof Mt5GatewayError && cause.code === "invalid_credentials") {
+        throw cause;
+      }
+      lastError = cause instanceof Mt5GatewayError ? cause : lastError;
     }
   }
 
-  if (hasCredentials) {
+  if (hasCredentials && investorHistoryEndpoints(input.server ?? "").length > 0) {
     return fetchViaInvestorCredentials(input);
   }
 
-  throw new Mt5GatewayError(
-    "This account is missing a saved investor login. Reconnect MT5 from the journal.",
-    "rejected"
+  if (lastError) throw lastError;
+
+  console.error(
+    "MT5 live sync has no broker gateway. Set MT5_GATEWAY_URL or METAAPI_TOKEN on the server."
   );
+  throw new Mt5GatewayError(MT5_LIVE_SYNC_UNAVAILABLE, "unavailable");
 }

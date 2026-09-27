@@ -4,7 +4,8 @@ import { fetchMt5History } from "@/lib/mt5/history";
 import {
   markMt5Synced,
   mt5TradesToInserts,
-  readBrokerSnapshotMoney,
+  positiveMt5Money,
+  readMt5GatewayMoney,
   upsertMt5Trades,
 } from "@/lib/mt5/ingest";
 import { parseMt5ClosedTrades, readMt5AccountMetrics } from "@/lib/mt5/trades";
@@ -63,32 +64,33 @@ export async function syncMt5Journal(options: {
     mt5TradesToInserts(trades, options.userId, options.accountId)
   );
 
-  const money = readBrokerSnapshotMoney({
-    balance: snapshotMetrics.balance,
-    equity: snapshotMetrics.equity,
-  });
-
-  const resolvedBalance = money.balance ?? snapshot.balance ?? snapshotMetrics.balance;
-  const resolvedEquity = money.equity ?? snapshot.equity ?? snapshotMetrics.equity;
+  const rawMoney = readMt5GatewayMoney(snapshot.raw);
+  const rawMetrics = readMt5AccountMetrics(snapshot.raw);
+  const liveBalance = firstPositive(
+    snapshot.balance,
+    rawMoney.balance,
+    rawMetrics.balance,
+    snapshotMetrics.balance
+  );
+  const liveEquity =
+    firstPositive(
+      snapshot.equity,
+      rawMoney.equity,
+      rawMetrics.equity,
+      snapshotMetrics.equity
+    ) ?? liveBalance;
 
   const saved = await markMt5Synced(options.supabase, {
     accountId: options.accountId,
     userId: options.userId,
-    // Fallback to undefined/null instead of forcing 0 if the gateway returns nothing
-    balance: typeof resolvedBalance === "number" && resolvedBalance > 0 ? resolvedBalance : undefined,
-    equity: typeof resolvedEquity === "number" && resolvedEquity > 0 ? resolvedEquity : undefined,
+    balance: liveBalance ?? undefined,
+    equity: liveEquity ?? undefined,
     connectionId: snapshot.connectionId,
     snapshot: snapshot.raw ?? snapshot,
   });
 
-  const metrics = readMt5AccountMetrics({
-    ...snapshot,
-    deals: snapshot.deals,
-    balance: saved.balance ?? money.balance ?? snapshotMetrics.balance,
-    equity: saved.equity ?? money.equity ?? snapshotMetrics.equity,
-    mt5_balance: saved.balance ?? money.balance ?? snapshotMetrics.balance,
-    mt5_equity: saved.equity ?? money.equity ?? snapshotMetrics.equity,
-  });
+  const balance = positiveMt5Money(saved.balance);
+  const equity = positiveMt5Money(saved.equity) ?? balance;
   const syncedAt = saved.syncedAt ?? new Date().toISOString();
 
   return {
@@ -98,12 +100,21 @@ export async function syncMt5Journal(options: {
     ingested,
     scanned: snapshot.deals.length,
     days: window.days,
-    balance: metrics.balance,
-    equity: metrics.equity,
-    mt5_balance: metrics.balance,
-    mt5_equity: metrics.equity,
-    mt5Balance: metrics.balance,
-    mt5Equity: metrics.equity,
+    live: liveBalance != null,
+    balance,
+    equity,
+    mt5_balance: balance,
+    mt5_equity: equity,
+    mt5Balance: balance,
+    mt5Equity: equity,
     syncedAt,
   };
+}
+
+function firstPositive(...values: unknown[]) {
+  for (const value of values) {
+    const money = positiveMt5Money(value);
+    if (money != null) return money;
+  }
+  return null;
 }
