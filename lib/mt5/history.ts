@@ -60,6 +60,11 @@ function isoStamp(date: Date) {
   return date.toISOString();
 }
 
+function gatewayConnectionId(input: Mt5HistoryRequest) {
+  const value = input.connectionId?.trim() ?? "";
+  return value.startsWith("mt5:") ? "" : value;
+}
+
 function snapshotFromBody(
   body: unknown,
   input: Mt5HistoryRequest,
@@ -91,9 +96,10 @@ async function fetchViaGateway(
     ...(secret ? { Authorization: `Bearer ${secret}` } : {}),
   };
 
-  if (input.connectionId) {
+  const knownConnectionId = gatewayConnectionId(input);
+  if (knownConnectionId) {
     const url = new URL(
-      `${gatewayUrl}/v1/connections/${encodeURIComponent(input.connectionId)}/history`
+      `${gatewayUrl}/v1/connections/${encodeURIComponent(knownConnectionId)}/history`
     );
     url.searchParams.set("from", isoStamp(input.from));
     url.searchParams.set("to", isoStamp(input.to));
@@ -103,7 +109,7 @@ async function fetchViaGateway(
         signal: AbortSignal.timeout(25000),
       });
       if (response.ok) {
-        return snapshotFromBody(await readJson(response), input, input.connectionId);
+        return snapshotFromBody(await readJson(response), input, knownConnectionId);
       }
     } catch {
       // Fall through to the credentialed history POST.
@@ -191,7 +197,7 @@ async function fetchViaMetaApi(
   token: string,
   input: Mt5HistoryRequest
 ): Promise<Mt5HistorySnapshot> {
-  let connectionId = input.connectionId?.trim() ?? "";
+  let connectionId = gatewayConnectionId(input);
   if (!connectionId) {
     if (!input.login || !input.investorPassword || !input.server) {
       throw new Mt5GatewayError(

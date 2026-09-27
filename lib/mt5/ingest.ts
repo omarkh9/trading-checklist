@@ -245,7 +245,10 @@ export async function markMt5Synced(
   if (balance == null || equity == null) {
     const { data: stored } = await supabase
       .from("trading_accounts")
-      .update({ mt5_synced_at: syncedAt })
+      .update({
+        mt5_synced_at: syncedAt,
+        ...(input.connectionId ? { mt5_connection_id: input.connectionId } : {}),
+      })
       .eq("id", scope.accountId)
       .eq("user_id", scope.userId)
       .select("id, mt5_balance, mt5_equity, mt5_synced_at")
