@@ -9,6 +9,7 @@ import {
   persistMt5ConnectionMeta,
   persistMt5Credentials,
 } from "@/lib/mt5/persist-credentials";
+import { positiveMt5Money } from "@/lib/mt5/ingest";
 import { encryptMt5Secret } from "@/lib/mt5/secret";
 import { syncMt5Journal } from "@/lib/mt5/sync";
 import { generateMt5WebhookToken, hashMt5WebhookToken } from "@/lib/mt5/token";
@@ -272,16 +273,20 @@ export async function POST(request: Request) {
     return json({ ok: false, error: saved.error }, 400);
   }
 
+  const provisionedBalance = positiveMt5Money(provisioned.balance);
+  const provisionedEquity =
+    positiveMt5Money(provisioned.equity) ?? provisionedBalance;
+
   await persistMt5ConnectionMeta(supabase, {
     userId: user.id,
     accountId: target.id,
     fields: {
       mt5_webhook_token_hash: tokenHash,
       mt5_connection_id: provisioned.connectionId,
-      mt5_balance: provisioned.balance,
-      mt5_equity: provisioned.equity,
+      mt5_balance: provisionedBalance,
+      mt5_equity: provisionedEquity,
       mt5_synced_at:
-        provisioned.balance != null ? new Date().toISOString() : null,
+        provisionedBalance != null ? new Date().toISOString() : null,
     },
   });
 
@@ -311,8 +316,8 @@ export async function POST(request: Request) {
     login: parsed.login,
     server: parsed.server,
     connectionId: provisioned.connectionId,
-    balance: provisioned.balance,
-    equity: provisioned.equity,
+    balance: provisionedBalance,
+    equity: provisionedEquity,
     ingested,
     credentialsStored: Boolean(passwordCipher),
   });

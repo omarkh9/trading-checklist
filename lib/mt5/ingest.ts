@@ -116,6 +116,11 @@ function toFloat(value: unknown): number | null {
   return null;
 }
 
+export function positiveMt5Money(value: unknown): number | null {
+  const parsed = toFloat(value);
+  return parsed != null && parsed > 0 ? parsed : null;
+}
+
 export function readMt5GatewayMoney(payload: unknown) {
   const root = asObject(payload);
   const answer = asObject(root.answer);
@@ -245,8 +250,9 @@ export async function markMt5Synced(
   console.log(JSON.stringify(payload));
   const syncedAt = new Date().toISOString();
   const money = readMt5GatewayMoney(payload);
-  const balance = toFloat(input.balance) ?? money.balance;
-  const equity = toFloat(input.equity) ?? money.equity ?? balance;
+  const balance = positiveMt5Money(input.balance) ?? positiveMt5Money(money.balance);
+  const equity =
+    positiveMt5Money(input.equity) ?? positiveMt5Money(money.equity) ?? balance;
   if (balance == null || equity == null) {
     await supabase
       .from("trading_accounts")

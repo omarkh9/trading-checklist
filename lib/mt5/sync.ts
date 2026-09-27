@@ -68,11 +68,15 @@ export async function syncMt5Journal(options: {
     equity: snapshotMetrics.equity,
   });
 
+  const resolvedBalance = money.balance ?? snapshot.balance ?? snapshotMetrics.balance;
+  const resolvedEquity = money.equity ?? snapshot.equity ?? snapshotMetrics.equity;
+
   const saved = await markMt5Synced(options.supabase, {
     accountId: options.accountId,
     userId: options.userId,
-    balance: money.balance ?? snapshot.balance ?? snapshotMetrics.balance,
-    equity: money.equity ?? snapshot.equity ?? snapshotMetrics.equity,
+    // Fallback to undefined/null instead of forcing 0 if the gateway returns nothing
+    balance: typeof resolvedBalance === "number" && resolvedBalance > 0 ? resolvedBalance : undefined,
+    equity: typeof resolvedEquity === "number" && resolvedEquity > 0 ? resolvedEquity : undefined,
     connectionId: snapshot.connectionId,
     snapshot: snapshot.raw ?? snapshot,
   });
