@@ -1,7 +1,7 @@
 import { hasMt5InvestorCredentials } from "@/lib/mt5/credentials";
 import {
   getMetaApiToken,
-  getMt5GatewaySecret,
+  getMt5GatewayHeaders,
   getMt5GatewayUrl,
 } from "@/lib/mt5/env";
 import { Mt5GatewayError } from "@/lib/mt5/gateway";
@@ -90,10 +90,9 @@ async function fetchViaGateway(
   gatewayUrl: string,
   input: Mt5HistoryRequest
 ): Promise<Mt5HistorySnapshot> {
-  const secret = getMt5GatewaySecret();
   const headers: HeadersInit = {
     "Content-Type": "application/json",
-    ...(secret ? { Authorization: `Bearer ${secret}` } : {}),
+    ...getMt5GatewayHeaders(),
   };
 
   const knownConnectionId = gatewayConnectionId(input);

@@ -8,6 +8,15 @@ export function getMt5GatewaySecret() {
   return sanitizeEnvValue(process.env.MT5_GATEWAY_SECRET);
 }
 
+// localtunnel serves an HTML reminder page instead of proxying unless this header is sent.
+export function getMt5GatewayHeaders(): Record<string, string> {
+  const secret = getMt5GatewaySecret();
+  return {
+    "Bypass-Tunnel-Reminder": "true",
+    ...(secret ? { Authorization: `Bearer ${secret}` } : {}),
+  };
+}
+
 export function getMetaApiToken() {
   return (
     sanitizeEnvValue(process.env.METAAPI_TOKEN) ||

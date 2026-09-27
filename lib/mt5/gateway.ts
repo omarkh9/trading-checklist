@@ -1,6 +1,6 @@
 import {
   getMetaApiToken,
-  getMt5GatewaySecret,
+  getMt5GatewayHeaders,
   getMt5GatewayUrl,
 } from "@/lib/mt5/env";
 
@@ -68,14 +68,13 @@ async function provisionViaHttp(
   gatewayUrl: string,
   input: Mt5ProvisionInput
 ): Promise<Mt5ProvisionResult> {
-  const secret = getMt5GatewaySecret();
   let response: Response;
   try {
     response = await fetch(`${gatewayUrl}/v1/connections`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(secret ? { Authorization: `Bearer ${secret}` } : {}),
+        ...getMt5GatewayHeaders(),
       },
       body: JSON.stringify({
         login: input.login,
@@ -198,7 +197,6 @@ export async function provisionMt5Connection(
 
 export async function disconnectMt5Connection(connectionId: string) {
   const gatewayUrl = getMt5GatewayUrl();
-  const secret = getMt5GatewaySecret();
   if (!gatewayUrl || !connectionId) return;
 
   try {
@@ -206,7 +204,7 @@ export async function disconnectMt5Connection(connectionId: string) {
       `${gatewayUrl}/v1/connections/${encodeURIComponent(connectionId)}`,
       {
         method: "DELETE",
-        headers: secret ? { Authorization: `Bearer ${secret}` } : {},
+        headers: getMt5GatewayHeaders(),
         signal: AbortSignal.timeout(10000),
       }
     );
