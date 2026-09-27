@@ -207,6 +207,14 @@ export async function POST(request: Request) {
         cause instanceof Mt5GatewayError && cause.code === "unavailable"
           ? 503
           : 422;
+      console.error("MT5 sync failed:", {
+        accountId: account.id,
+        server,
+        status,
+        code: cause instanceof Mt5GatewayError ? cause.code : "unexpected",
+        message: cause instanceof Error ? cause.message : String(cause),
+        stack: cause instanceof Error ? cause.stack : undefined,
+      });
       if (!syncAll && targets.length === 1) {
         return json({ ok: false, error: message }, status);
       }

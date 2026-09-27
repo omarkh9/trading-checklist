@@ -136,7 +136,14 @@ async function fetchViaGateway(
       }),
       signal: AbortSignal.timeout(25000),
     });
-  } catch {
+  } catch (cause) {
+    console.error("MT5 bridge request failed before a response:", {
+      url: `${gatewayUrl}/v1/history`,
+      accountId: input.accountId,
+      server: input.server,
+      error: cause instanceof Error ? `${cause.name}: ${cause.message}` : String(cause),
+      cause: cause instanceof Error ? cause.cause : undefined,
+    });
     throw new Mt5GatewayError(
       "Could not reach the MT5 history gateway. Try again in a moment.",
       "unavailable"
@@ -144,6 +151,16 @@ async function fetchViaGateway(
   }
 
   const body = await readJson(response);
+  if (!response.ok || body.ok === false) {
+    console.error("MT5 bridge returned an error response:", {
+      url: `${gatewayUrl}/v1/history`,
+      accountId: input.accountId,
+      server: input.server,
+      status: response.status,
+      statusText: response.statusText,
+      body,
+    });
+  }
   if (response.status === 401 || response.status === 403) {
     throw new Mt5GatewayError(
       "MT5 rejected those credentials. Check the account number, investor password, and server.",
