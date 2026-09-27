@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import type { Database, Json } from "@/lib/supabase/database.types";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase/env";
+import { positiveMt5Money } from "@/lib/mt5/ingest";
 import { parseMt5ClosedTrades } from "@/lib/mt5/trades";
 import { isUsableMt5Token } from "@/lib/mt5/token";
 import {
@@ -90,25 +91,27 @@ export async function POST(request: Request) {
   }
 
   const snapshot = parseMt5WebhookPayload(body);
-  const trades = parseMt5ClosedTrades(body, snapshot.balance);
-  if (snapshot.balance == null && trades.length === 0) {
+  const liveBalance = positiveMt5Money(snapshot.balance);
+  const liveEquity = positiveMt5Money(snapshot.equity) ?? liveBalance;
+  const trades = parseMt5ClosedTrades(body, liveBalance);
+  if (liveBalance == null && trades.length === 0) {
     return json({ ok: false, error: "invalid_payload" }, 400);
   }
 
   const supabase = createAnonClient();
   let accountId: string | undefined;
-  let balance = snapshot.balance ?? undefined;
-  let equity = snapshot.equity ?? undefined;
+  let balance = liveBalance ?? undefined;
+  let equity = liveEquity ?? undefined;
   let ingested = 0;
   let syncedAt: string | undefined;
 
-  if (snapshot.balance != null) {
+  if (liveBalance != null) {
     const { data, error } = await supabase.rpc("apply_mt5_account_snapshot", {
       p_token: token,
       p_login: snapshot.login,
       p_server: snapshot.server,
-      p_balance: snapshot.balance,
-      p_equity: snapshot.equity,
+      p_balance: liveBalance,
+      p_equity: liveEquity ?? liveBalance,
     });
     if (error) {
       return json(

@@ -123,7 +123,7 @@ begin
     return jsonb_build_object('ok', false, 'error', 'unauthorized');
   end if;
 
-  if p_balance is null or p_balance != p_balance then
+  if p_balance is null or p_balance != p_balance or p_balance <= 0 then
     return jsonb_build_object('ok', false, 'error', 'invalid_payload');
   end if;
 
@@ -155,7 +155,10 @@ begin
   update public.trading_accounts
   set
     mt5_balance = p_balance,
-    mt5_equity = coalesce(p_equity, p_balance),
+    mt5_equity = case
+      when p_equity is not null and p_equity = p_equity and p_equity > 0 then p_equity
+      else p_balance
+    end,
     mt5_synced_at = timezone('utc', now()),
     mt5_login = coalesce(v_account.mt5_login, v_login),
     mt5_server = coalesce(v_account.mt5_server, v_server)
