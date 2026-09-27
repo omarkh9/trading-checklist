@@ -16,18 +16,18 @@ import { desk } from "@/lib/ui/desk";
 import { useConfirm } from "@/components/ui/ConfirmProvider";
 import { NumericDraftInput } from "@/components/ui/NumberField";
 import {
-  formatNumericDraft,
-  parseNumericDraft,
+  formatMoneyDraft,
+  parseMoneyDraft,
 } from "@/lib/forms/numeric-input";
 import { Loader2, Plus, RefreshCw, Trash2, Unlink } from "lucide-react";
 import { memo, useEffect, useState } from "react";
 
 function toBalanceDraft(value: number) {
-  return formatNumericDraft(value);
+  return formatMoneyDraft(value);
 }
 
 function parseBalanceDraft(value: string) {
-  const parsed = parseNumericDraft(value);
+  const parsed = parseMoneyDraft(value);
   return parsed != null && parsed >= 0 ? parsed : 0;
 }
 
@@ -214,7 +214,8 @@ export const AccountBalancePanel = memo(function AccountBalancePanel({
           </label>
           <NumericDraftInput
             id="starting-balance"
-            placeholder="0"
+            kind="money"
+            placeholder="10000"
             value={startingBalanceDraft}
             onValueChange={setStartingBalanceDraft}
             onBlur={() => void persistStartingBalance()}
@@ -447,6 +448,7 @@ export const AccountBalancePanel = memo(function AccountBalancePanel({
               className={desk.input}
             />
             <NumericDraftInput
+              kind="money"
               min={0}
               placeholder="Starting balance"
               value={newBalanceDraft}

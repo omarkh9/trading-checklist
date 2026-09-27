@@ -1,6 +1,7 @@
 import { ensureTradingAccountPersisted } from "@/lib/supabase/accounts";
 import { requireUserSession } from "@/lib/supabase/session";
 import type { TradeInsert, TradeRow, TradeUpdate } from "@/lib/supabase/database.types";
+import { asMoneyNumber } from "@/lib/forms/numeric-input";
 import {
   readTradeAccountMap,
   removeTradeAccountMapEntries,
@@ -128,12 +129,12 @@ export function tradeFromRow(row: TradeRow): Trade {
     outcome: row.outcome,
     pnlMode: row.pnl_mode,
     pnlInput: row.pnl_input,
-    pnlDollars: row.pnl_dollars,
+    pnlDollars: asMoneyNumber(row.pnl_dollars) ?? 0,
     riskSizeMode: row.risk_size_mode,
     riskPercent: row.risk_percent,
     fixedLotSize: row.fixed_lot_size,
     lotSize: row.lot_size,
-    accountBalanceAtEntry: row.account_balance_at_entry,
+    accountBalanceAtEntry: asMoneyNumber(row.account_balance_at_entry) ?? 0,
     accountId: row.account_id ?? "",
     strategy: row.strategy ?? "",
     notes: row.notes,

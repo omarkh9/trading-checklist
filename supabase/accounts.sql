@@ -8,7 +8,7 @@ create table if not exists public.trading_accounts (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
   name text not null,
-  starting_balance double precision not null default 10000,
+  starting_balance numeric(18, 2) not null default 10000,
   created_at timestamptz not null default timezone('utc', now()),
   constraint trading_accounts_name_len check (
     char_length(trim(name)) between 1 and 48

@@ -4,6 +4,7 @@ import {
   clampNumeric,
   formatNumericDraft,
   parseNumericDraft,
+  sanitizeMoneyDraft,
   sanitizeNumericDraft,
 } from "@/lib/forms/numeric-input";
 import {
@@ -89,12 +90,14 @@ type NumericDraftInputProps = SharedNumericProps & {
   value: string;
   onValueChange: (value: string) => void;
   allowNegative?: boolean;
+  kind?: "numeric" | "money";
 };
 
 export function NumericDraftInput({
   value,
   onValueChange,
   allowNegative = false,
+  kind = "numeric",
   className,
   ...props
 }: NumericDraftInputProps) {
@@ -109,7 +112,9 @@ export function NumericDraftInput({
       value={value}
       onChange={(event) =>
         onValueChange(
-          sanitizeNumericDraft(event.target.value, { allowNegative })
+          kind === "money"
+            ? sanitizeMoneyDraft(event.target.value, { allowNegative })
+            : sanitizeNumericDraft(event.target.value, { allowNegative })
         )
       }
     />

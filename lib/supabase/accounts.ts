@@ -20,9 +20,11 @@ import {
   type TradingAccount,
   type TradingAccountMt5Patch,
 } from "@/lib/types/account";
+import { asMoneyNumber } from "@/lib/forms/numeric-input";
 import {
   loadAccountSettings,
   readTradeAccountMap,
+  sanitizeStartingBalance,
   writeTradeAccountMapEntry,
 } from "@/lib/trades/account-balance";
 import { readMt5AccountMetrics } from "@/lib/mt5/trades";
@@ -100,12 +102,7 @@ function isDuplicateMt5Token(error: { message: string } | null) {
 }
 
 function finiteOrNull(value: unknown): number | null {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim()) {
-    const parsed = Number(value.trim());
-    if (Number.isFinite(parsed)) return parsed;
-  }
-  return null;
+  return asMoneyNumber(value);
 }
 
 function mt5FieldsFromUnknown(value: Partial<TradingAccount> | null | undefined) {
@@ -155,7 +152,7 @@ function accountFromRow(
   return {
     id: row.id,
     name: row.name,
-    startingBalance: row.starting_balance,
+    startingBalance: sanitizeStartingBalance(row.starting_balance),
     createdAt: row.created_at,
     mt5Login: row.mt5_login ?? "",
     mt5Server: row.mt5_server ?? "",
@@ -194,11 +191,9 @@ function readLocalAccounts(): TradingAccount[] {
           id: typeof account.id === "string" ? account.id : "",
           name: normalizeAccountName(account.name ?? ""),
           startingBalance:
-            typeof account.startingBalance === "number" &&
-            Number.isFinite(account.startingBalance) &&
-            account.startingBalance >= 0
-              ? account.startingBalance
-              : DEFAULT_STARTING_BALANCE,
+            account.startingBalance == null
+              ? DEFAULT_STARTING_BALANCE
+              : sanitizeStartingBalance(account.startingBalance),
           createdAt:
             typeof account.createdAt === "string"
               ? account.createdAt

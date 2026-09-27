@@ -15,15 +15,15 @@ create extension if not exists pgcrypto with schema extensions;
 -- so PostgREST stops returning schema-cache errors on insert/update.
 alter table public.trading_accounts
   add column if not exists name text,
-  add column if not exists starting_balance double precision not null default 10000,
+  add column if not exists starting_balance numeric(18, 2) not null default 10000,
   add column if not exists created_at timestamptz not null default timezone('utc', now()),
   add column if not exists mt5_login text,
   add column if not exists mt5_server text,
   add column if not exists mt5_password text,
   add column if not exists mt5_webhook_token_hash text,
   add column if not exists mt5_connection_id text,
-  add column if not exists mt5_balance double precision,
-  add column if not exists mt5_equity double precision,
+  add column if not exists mt5_balance numeric(18, 2),
+  add column if not exists mt5_equity numeric(18, 2),
   add column if not exists mt5_synced_at timestamptz,
   add column if not exists mt5_investor_password_cipher text,
   add column if not exists mt5_credentials_set boolean not null default false;
@@ -43,8 +43,8 @@ begin
       and column_name = 'balance'
   ) then
     update public.trading_accounts
-    set starting_balance = balance::double precision
-    where starting_balance is distinct from balance::double precision
+    set starting_balance = round(balance::numeric, 2)
+    where starting_balance is distinct from round(balance::numeric, 2)
       and balance is not null;
   end if;
 end $$;

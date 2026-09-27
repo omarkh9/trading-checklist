@@ -2,6 +2,7 @@ import {
   ACCOUNT_STORAGE_KEY,
   TRADE_ACCOUNT_MAP_STORAGE_KEY,
 } from "@/lib/storage/keys";
+import { asMoneyNumber } from "@/lib/forms/numeric-input";
 import { readMt5AccountMetrics } from "@/lib/mt5/trades";
 import {
   defaultAccountSettings,
@@ -17,11 +18,11 @@ export function loadAccountSettings(): AccountSettings {
     const raw = localStorage.getItem(ACCOUNT_STORAGE_KEY);
     if (!raw) return defaultAccountSettings();
     const parsed = JSON.parse(raw) as AccountSettings;
+    const startingBalance = asMoneyNumber(parsed.startingBalance);
     return {
       startingBalance:
-        typeof parsed.startingBalance === "number" &&
-        Number.isFinite(parsed.startingBalance)
-          ? parsed.startingBalance
+        startingBalance != null && startingBalance >= 0
+          ? startingBalance
           : defaultAccountSettings().startingBalance,
     };
   } catch {
@@ -35,19 +36,12 @@ export function saveAccountSettings(settings: AccountSettings): void {
 }
 
 export function sanitizeStartingBalance(value: unknown): number {
-  if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
-    return value;
-  }
-  return 0;
+  const parsed = asMoneyNumber(value);
+  return parsed != null && parsed >= 0 ? parsed : 0;
 }
 
 export function finiteBrokerMoney(value: unknown): number | null {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim()) {
-    const parsed = Number(value.trim());
-    if (Number.isFinite(parsed)) return parsed;
-  }
-  return null;
+  return asMoneyNumber(value);
 }
 
 export function computeClosedNetPnl(trades: Trade[]): number {
