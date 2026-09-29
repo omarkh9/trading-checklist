@@ -6,7 +6,8 @@ import {
 } from "@/lib/mt5/env";
 import { Mt5GatewayError } from "@/lib/mt5/gateway";
 import { readMt5GatewayMoney } from "@/lib/mt5/ingest";
-import { extractMt5TradeList, readMt5AccountMetrics } from "@/lib/mt5/trades";
+import { fetchMetaApiHistory } from "@/lib/mt5/metaapi";
+import { extractMt5TradeList } from "@/lib/mt5/trades";
 
 export type Mt5HistoryRequest = {
   login?: string;
@@ -50,10 +51,6 @@ async function readJson(response: Response) {
   } catch {
     return { message: text.slice(0, 180) };
   }
-}
-
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function isoStamp(date: Date) {
@@ -177,136 +174,6 @@ async function fetchViaGateway(
   return snapshotFromBody(body, input);
 }
 
-function clientApiHost(region: string) {
-  const clean = region.trim().toLowerCase();
-  if (!clean) return "https://mt-client-api-v1.agiliumtrade.agiliumtrade.ai";
-  return `https://mt-client-api-v1.${clean}.agiliumtrade.ai`;
-}
-
-async function metaApiAccount(token: string, connectionId: string) {
-  const response = await fetch(
-    `https://mt-provisioning-api-v1.agiliumtrade.agiliumtrade.ai/users/current/accounts/${encodeURIComponent(connectionId)}`,
-    {
-      headers: { "auth-token": token },
-      signal: AbortSignal.timeout(15000),
-    }
-  );
-  if (!response.ok) return {};
-  return readJson(response);
-}
-
-async function waitForMetaApiConnection(token: string, connectionId: string) {
-  let account = await metaApiAccount(token, connectionId);
-  for (let attempt = 0; attempt < 6; attempt += 1) {
-    const state = pickString(account, ["state"]).toUpperCase();
-    const status = pickString(account, ["connectionStatus"]).toUpperCase();
-    if (state === "DEPLOYED" && (status === "CONNECTED" || !status)) {
-      return account;
-    }
-    await sleep(2000);
-    account = await metaApiAccount(token, connectionId);
-  }
-  return account;
-}
-
-async function fetchViaMetaApi(
-  token: string,
-  input: Mt5HistoryRequest
-): Promise<Mt5HistorySnapshot> {
-  let connectionId = gatewayConnectionId(input);
-  if (!connectionId) {
-    if (!input.login || !input.investorPassword || !input.server) {
-      throw new Mt5GatewayError(
-        "Link this MT5 account first, or send the investor login to backfill history.",
-        "rejected"
-      );
-    }
-    const created = await fetch(
-      "https://mt-provisioning-api-v1.agiliumtrade.agiliumtrade.ai/users/current/accounts",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "auth-token": token,
-        },
-        body: JSON.stringify({
-          login: input.login,
-          password: input.investorPassword,
-          name: `Edge Log ${input.login}`,
-          server: input.server,
-          platform: "mt5",
-          magic: 0,
-        }),
-        signal: AbortSignal.timeout(20000),
-      }
-    );
-    const body = await readJson(created);
-    if (!created.ok) {
-      throw new Mt5GatewayError(
-        "MT5 rejected those credentials. Check the account number, investor password, and server.",
-        "invalid_credentials"
-      );
-    }
-    connectionId = pickString(body, ["id", "connectionId"]);
-    if (!connectionId) {
-      throw new Mt5GatewayError(
-        "The MT5 gateway did not return a connection id.",
-        "unavailable"
-      );
-    }
-  }
-
-  const account = await waitForMetaApiConnection(token, connectionId);
-  const host = clientApiHost(pickString(account, ["region"]));
-  const headers = { "auth-token": token };
-  const start = encodeURIComponent(isoStamp(input.from));
-  const end = encodeURIComponent(isoStamp(input.to));
-
-  const [dealsResponse, infoResponse] = await Promise.all([
-    fetch(
-      `${host}/users/current/accounts/${encodeURIComponent(connectionId)}/history-deals/time/${start}/${end}`,
-      { headers, signal: AbortSignal.timeout(25000) }
-    ),
-    fetch(
-      `${host}/users/current/accounts/${encodeURIComponent(connectionId)}/account-information`,
-      { headers, signal: AbortSignal.timeout(15000) }
-    ),
-  ]);
-
-  if (dealsResponse.status === 401 || dealsResponse.status === 403) {
-    throw new Mt5GatewayError(
-      "MT5 rejected those credentials. Check the account number, investor password, and server.",
-      "invalid_credentials"
-    );
-  }
-  if (!dealsResponse.ok) {
-    throw new Mt5GatewayError(
-      "Could not load MT5 deal history. Confirm the investor login and try again.",
-      dealsResponse.status >= 500 ? "unavailable" : "rejected"
-    );
-  }
-
-  const dealsBody = await dealsResponse.json().catch(() => []);
-  const infoBody = infoResponse.ok ? await readJson(infoResponse) : {};
-  const deals = Array.isArray(dealsBody)
-    ? dealsBody
-    : extractMt5TradeList(dealsBody);
-  const metrics = readMt5AccountMetrics({
-    ...infoBody,
-    deals,
-    account: infoBody,
-  });
-
-  const gatewayMoney = readMt5GatewayMoney(infoBody);
-  return {
-    connectionId,
-    deals,
-    balance: gatewayMoney.balance ?? metrics.balance,
-    equity: gatewayMoney.equity ?? metrics.equity,
-    raw: infoBody,
-  };
-}
-
 function investorHistoryEndpoints(server: string) {
   const value = server.trim();
   if (!value) return [];
@@ -384,7 +251,7 @@ export async function fetchMt5History(
   const token = getMetaApiToken();
   if (token) {
     try {
-      return await fetchViaMetaApi(token, input);
+      return await fetchMetaApiHistory(token, input);
     } catch (cause) {
       if (!hasCredentials) throw cause;
       if (cause instanceof Mt5GatewayError && cause.code === "invalid_credentials") {

@@ -3,19 +3,13 @@ import {
   getMt5GatewayHeaders,
   getMt5GatewayUrl,
 } from "@/lib/mt5/env";
+import { Mt5GatewayError } from "@/lib/mt5/errors";
+import {
+  ensureMetaApiAccount,
+  removeMetaApiAccount,
+} from "@/lib/mt5/metaapi";
 
-export class Mt5GatewayError extends Error {
-  code: "invalid_credentials" | "unavailable" | "rejected";
-
-  constructor(
-    message: string,
-    code: "invalid_credentials" | "unavailable" | "rejected" = "unavailable"
-  ) {
-    super(message);
-    this.name = "Mt5GatewayError";
-    this.code = code;
-  }
-}
+export { Mt5GatewayError };
 
 export type Mt5ProvisionInput = {
   login: string;
@@ -132,47 +126,16 @@ async function provisionViaMetaApi(
   token: string,
   input: Mt5ProvisionInput
 ): Promise<Mt5ProvisionResult> {
-  let response: Response;
-  try {
-    response = await fetch(
-      "https://mt-provisioning-api-v1.agiliumtrade.agiliumtrade.ai/users/current/accounts",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "auth-token": token,
-        },
-        body: JSON.stringify({
-          login: input.login,
-          password: input.investorPassword,
-          name: `Edge Log ${input.login}`,
-          server: input.server,
-          platform: "mt5",
-          magic: 0,
-        }),
-        signal: AbortSignal.timeout(20000),
-      }
-    );
-  } catch {
-    throw new Mt5GatewayError(
-      "Could not reach the MT5 gateway. Try again in a moment.",
-      "unavailable"
-    );
-  }
-
-  const body = await readGatewayJson(response);
-  if (!response.ok) {
-    throw new Mt5GatewayError(
-      "MT5 rejected those credentials. Check the account number, investor password, and server.",
-      "invalid_credentials"
-    );
-  }
-
-  return {
-    connectionId: pickString(body, ["id", "connectionId"]) || crypto.randomUUID(),
-    balance: pickNumber(body, ["balance"]),
-    equity: pickNumber(body, ["equity"]),
-  };
+  // An empty id means MetaAPI is still setting the account up; the next sync
+  // finishes it with the same request.
+  const { id } = await ensureMetaApiAccount(token, {
+    login: input.login,
+    investorPassword: input.investorPassword,
+    server: input.server,
+    accountId: input.accountId,
+    userId: input.userId,
+  });
+  return { connectionId: id, balance: null, equity: null };
 }
 
 function provisionViaEdgeGateway(input: Mt5ProvisionInput): Mt5ProvisionResult {
@@ -196,18 +159,24 @@ export async function provisionMt5Connection(
 }
 
 export async function disconnectMt5Connection(connectionId: string) {
+  if (!connectionId) return;
   const gatewayUrl = getMt5GatewayUrl();
-  if (!gatewayUrl || !connectionId) return;
 
   try {
-    await fetch(
-      `${gatewayUrl}/v1/connections/${encodeURIComponent(connectionId)}`,
-      {
-        method: "DELETE",
-        headers: getMt5GatewayHeaders(),
-        signal: AbortSignal.timeout(10000),
-      }
-    );
+    if (gatewayUrl) {
+      await fetch(
+        `${gatewayUrl}/v1/connections/${encodeURIComponent(connectionId)}`,
+        {
+          method: "DELETE",
+          headers: getMt5GatewayHeaders(),
+          signal: AbortSignal.timeout(10000),
+        }
+      );
+      return;
+    }
+    // Stops MetaAPI billing for accounts this app added.
+    const token = getMetaApiToken();
+    if (token) await removeMetaApiAccount(token, connectionId);
   } catch {
     // Unlink still succeeds locally if the gateway is briefly unreachable.
   }
