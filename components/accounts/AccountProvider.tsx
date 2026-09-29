@@ -65,6 +65,11 @@ function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Something went wrong.";
 }
 
+// Pull fresh broker data in the background while the app is open. A short
+// window keeps it light; "Sync history" still backfills the full year.
+const AUTO_SYNC_INTERVAL_MS = 5 * 60_000;
+const AUTO_SYNC_DAYS = 7;
+
 export function AccountProvider({ children }: { children: React.ReactNode }) {
   const [accounts, setAccounts] = useState<TradingAccount[]>([]);
   const [activeAccountId, setActiveAccountIdState] = useState("");
@@ -72,6 +77,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const accountsRef = useRef(accounts);
   const activeAccountIdRef = useRef(activeAccountId);
+  const autoSyncRef = useRef({ running: false, lastAttempt: 0 });
   accountsRef.current = accounts;
   activeAccountIdRef.current = activeAccountId;
 
@@ -124,12 +130,56 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       ]).catch(() => {});
     };
 
-    const onFocus = () => refresh();
-    window.addEventListener("focus", onFocus);
-    const timer = window.setInterval(refresh, 45_000);
+    const autoSync = () => {
+      if (document.visibilityState !== "visible") return;
+      const list = accountsRef.current;
+      const account =
+        list.find((item) => item.id === activeAccountIdRef.current) ?? list[0];
+      if (!account?.mt5TokenSet) return;
+
+      const state = autoSyncRef.current;
+      const lastSynced = Date.parse(account.mt5SyncedAt ?? "") || 0;
+      const now = Date.now();
+      if (
+        state.running ||
+        now - Math.max(lastSynced, state.lastAttempt) < AUTO_SYNC_INTERVAL_MS
+      ) {
+        return;
+      }
+
+      state.running = true;
+      state.lastAttempt = now;
+      void syncMt5AccountHistory(account.id, undefined, { days: AUTO_SYNC_DAYS })
+        .then(async (result) => {
+          if (!cancelled) setAccounts(result.accounts);
+          await fetchTrades({ force: true });
+        })
+        .catch((cause) => {
+          // Stay quiet in the background; "Last sync" shows staleness and the
+          // manual "Sync history" button reports the error.
+          console.warn("MT5 auto-sync failed:", errorMessage(cause));
+        })
+        .finally(() => {
+          state.running = false;
+        });
+    };
+
+    const tick = () => {
+      refresh();
+      autoSync();
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") tick();
+    };
+
+    autoSync();
+    window.addEventListener("focus", tick);
+    document.addEventListener("visibilitychange", onVisible);
+    const timer = window.setInterval(tick, 45_000);
     return () => {
       cancelled = true;
-      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("focus", tick);
+      document.removeEventListener("visibilitychange", onVisible);
       window.clearInterval(timer);
     };
   }, [hasMt5Link]);

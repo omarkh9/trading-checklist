@@ -816,7 +816,8 @@ export async function syncMt5AccountHistory(
     login: string;
     investorPassword: string;
     server: string;
-  }
+  },
+  options?: { days?: number }
 ): Promise<{
   accounts: TradingAccount[];
   ingested: number;
@@ -828,6 +829,7 @@ export async function syncMt5AccountHistory(
     body: JSON.stringify({
       accountId,
       ...(credentials ?? {}),
+      ...(options?.days ? { days: options.days } : {}),
     }),
   });
   let payload: {

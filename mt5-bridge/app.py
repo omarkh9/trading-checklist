@@ -1,6 +1,7 @@
 import hmac
 import os
 import threading
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
@@ -124,8 +125,38 @@ def iso_from_epoch(seconds: int) -> str:
     return datetime.fromtimestamp(seconds, tz=timezone.utc).isoformat()
 
 
-def closed_deals(start: datetime, end: datetime):
-    deals = mt5.history_deals_get(start, end)
+# MT5 stamps deals and ticks with the broker's server clock (often UTC+2/+3)
+# but reports them as if they were UTC. Measure that offset from a fresh tick,
+# which uses the same clock as the deal stamps, and remember it per server so a
+# closed market (weekend) can reuse the last good reading.
+OFFSET_PROBE_SYMBOLS = ("EURUSD", "GBPUSD", "XAUUSD", "BTCUSD")
+MAX_TICK_AGE_SECONDS = 300
+server_offsets: dict[str, int] = {}
+
+
+def server_utc_offset(server: str, symbols) -> int:
+    now = time.time()
+    for symbol in dict.fromkeys([*symbols, *OFFSET_PROBE_SYMBOLS]):
+        if not mt5.symbol_select(symbol, True):
+            continue
+        tick = mt5.symbol_info_tick(symbol)
+        if tick is None or not tick.time:
+            continue
+        drift = tick.time - now
+        offset = round(drift / 1800) * 1800
+        # A stale quote shows up as drift far from a whole half hour.
+        if abs(offset) <= 14 * 3600 and abs(drift - offset) <= MAX_TICK_AGE_SECONDS:
+            server_offsets[server] = offset
+            return offset
+    return server_offsets.get(server, 0)
+
+
+def closed_deals(start: datetime, end: datetime, server: str):
+    # Pad by a day: deal stamps run ahead of UTC by the server offset, so a
+    # window ending at UTC "now" would drop the most recent closes.
+    padded_start = start - timedelta(days=1)
+    padded_end = end + timedelta(days=1)
+    deals = mt5.history_deals_get(padded_start, padded_end)
     if deals is None:
         return []
 
@@ -136,24 +167,27 @@ def closed_deals(start: datetime, end: datetime):
             openings.setdefault(deal.position_id, deal)
 
     stops: dict[int, tuple[str, str]] = {}
-    for order in mt5.history_orders_get(start, end) or []:
+    for order in mt5.history_orders_get(padded_start, padded_end) or []:
         stop_loss, take_profit = stops.get(order.position_id, ("", ""))
         stops[order.position_id] = (
             stop_loss or (str(order.sl) if order.sl else ""),
             take_profit or (str(order.tp) if order.tp else ""),
         )
 
-    rows = []
-    for deal in deals:
-        if deal.type not in trade_types:
-            continue
-        if deal.entry not in (
-            mt5.DEAL_ENTRY_OUT,
-            mt5.DEAL_ENTRY_INOUT,
-            mt5.DEAL_ENTRY_OUT_BY,
-        ):
-            continue
+    closing_entries = (
+        mt5.DEAL_ENTRY_OUT,
+        mt5.DEAL_ENTRY_INOUT,
+        mt5.DEAL_ENTRY_OUT_BY,
+    )
+    closes = [
+        deal
+        for deal in deals
+        if deal.type in trade_types and deal.entry in closing_entries
+    ]
+    offset = server_utc_offset(server, [deal.symbol for deal in closes]) if closes else 0
 
+    rows = []
+    for deal in closes:
         opening = openings.get(deal.position_id)
         # A closing SELL deal closes a long position, and vice versa.
         direction = "Long" if deal.type == mt5.DEAL_TYPE_SELL else "Short"
@@ -174,8 +208,8 @@ def closed_deals(start: datetime, end: datetime):
                 "profit": float(deal.profit),
                 "commission": float(deal.commission) + float(getattr(deal, "fee", 0.0)),
                 "swap": float(deal.swap),
-                "openTime": iso_from_epoch(opening.time) if opening else None,
-                "closeTime": iso_from_epoch(deal.time),
+                "openTime": iso_from_epoch(opening.time - offset) if opening else None,
+                "closeTime": iso_from_epoch(deal.time - offset),
             }
         )
     return rows
@@ -219,7 +253,8 @@ def history(body: Credentials, authorization: Optional[str] = Header(default=Non
     start, end = parse_window(body)
     with terminal_lock:
         login = login_account(body)
-        return snapshot(login, body.server.strip(), closed_deals(start, end))
+        server = body.server.strip()
+        return snapshot(login, server, closed_deals(start, end, server))
 
 
 @app.delete("/v1/connections/{cid}")

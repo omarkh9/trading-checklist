@@ -2,6 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   Database,
   TradeInsert,
+  TradeRow,
+  TradeUpdate,
   TradingAccountUpdate,
 } from "@/lib/supabase/database.types";
 import { persistMt5Snapshot } from "@/lib/mt5/persist-credentials";
@@ -39,50 +41,146 @@ export function mt5TradesToInserts(
   }));
 }
 
+// Columns the broker is the source of truth for. Everything else on a trade
+// (id, notes with emotions/rule scores, strategy, charts, time frames) belongs
+// to the journal and must survive a re-sync.
+const BROKER_COLUMNS =
+  "id, mt5_ticket, pair, direction, entry_price, stop_loss, take_profit, outcome, pnl_input, pnl_dollars, lot_size, created_at, account_id";
+
+type BrokerFields = Pick<
+  TradeRow,
+  | "id"
+  | "mt5_ticket"
+  | "pair"
+  | "direction"
+  | "entry_price"
+  | "stop_loss"
+  | "take_profit"
+  | "outcome"
+  | "pnl_input"
+  | "pnl_dollars"
+  | "lot_size"
+  | "created_at"
+  | "account_id"
+>;
+
+async function loadExistingMt5Trades(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+  tickets: string[]
+) {
+  const existing = new Map<string, BrokerFields>();
+  for (let index = 0; index < tickets.length; index += 100) {
+    const { data, error } = await supabase
+      .from("trades")
+      .select(BROKER_COLUMNS)
+      .eq("user_id", userId)
+      .in("mt5_ticket", tickets.slice(index, index + 100));
+    if (error) throw new Error(error.message);
+    for (const row of (data ?? []) as BrokerFields[]) {
+      if (row.mt5_ticket) existing.set(row.mt5_ticket, row);
+    }
+  }
+  return existing;
+}
+
+function brokerChanges(row: TradeInsert, current: BrokerFields): TradeUpdate {
+  const changes: TradeUpdate = {};
+  if (row.pair !== current.pair) changes.pair = row.pair;
+  if (row.direction !== current.direction) changes.direction = row.direction;
+  if (row.entry_price && row.entry_price !== current.entry_price) {
+    changes.entry_price = row.entry_price;
+  }
+  // A blank broker SL/TP means "none on the order", not "clear the journal's".
+  if (row.stop_loss && row.stop_loss !== current.stop_loss) {
+    changes.stop_loss = row.stop_loss;
+  }
+  if (row.take_profit && row.take_profit !== current.take_profit) {
+    changes.take_profit = row.take_profit;
+  }
+  if (row.lot_size && row.lot_size !== current.lot_size) {
+    changes.lot_size = row.lot_size;
+  }
+  // pnl_dollars is numeric(18,2); the broker sum is an unrounded float.
+  if (
+    Math.round(Number(row.pnl_dollars) * 100) !==
+    Math.round(Number(current.pnl_dollars) * 100)
+  ) {
+    changes.pnl_mode = "dollar";
+    changes.pnl_input = row.pnl_input;
+    changes.pnl_dollars = row.pnl_dollars;
+  }
+  if (row.outcome !== current.outcome) changes.outcome = row.outcome;
+  if (
+    row.created_at &&
+    Date.parse(row.created_at) !== Date.parse(current.created_at)
+  ) {
+    changes.created_at = row.created_at;
+  }
+  if (row.account_id && row.account_id !== current.account_id) {
+    changes.account_id = row.account_id;
+  }
+  return changes;
+}
+
 export async function upsertMt5Trades(
   supabase: SupabaseClient<Database>,
   rows: TradeInsert[]
 ) {
+  const userId = rows[0]?.user_id;
+  if (!userId) return 0;
+
+  const existing = await loadExistingMt5Trades(
+    supabase,
+    userId,
+    rows.map((row) => row.mt5_ticket ?? "").filter(Boolean)
+  );
+
+  const inserts: TradeInsert[] = [];
+  const updates: { id: string; changes: TradeUpdate }[] = [];
+  for (const row of rows) {
+    const current = row.mt5_ticket ? existing.get(row.mt5_ticket) : undefined;
+    if (!current) {
+      inserts.push(row);
+      continue;
+    }
+    const changes = brokerChanges(row, current);
+    if (Object.keys(changes).length > 0) {
+      updates.push({ id: current.id, changes });
+    }
+  }
+
   let ingested = 0;
-  for (let index = 0; index < rows.length; index += CHUNK) {
-    const chunk = rows.slice(index, index + CHUNK);
+  for (let index = 0; index < inserts.length; index += CHUNK) {
+    const chunk = inserts.slice(index, index + CHUNK);
+    // DO NOTHING on conflict: a concurrent sync may have inserted the ticket.
     const upserted = await supabase.from("trades").upsert(chunk, {
       onConflict: "user_id,mt5_ticket",
+      ignoreDuplicates: true,
     });
     if (!upserted.error) {
       ingested += chunk.length;
       continue;
     }
-
     for (const row of chunk) {
       const inserted = await supabase.from("trades").insert(row);
-      if (!inserted.error) {
-        ingested += 1;
-        continue;
-      }
-
-      const updated = await supabase
-        .from("trades")
-        .update({
-          pair: row.pair,
-          direction: row.direction,
-          entry_price: row.entry_price,
-          stop_loss: row.stop_loss,
-          take_profit: row.take_profit,
-          outcome: row.outcome,
-          pnl_input: row.pnl_input,
-          pnl_dollars: row.pnl_dollars,
-          lot_size: row.lot_size,
-          account_balance_at_entry: row.account_balance_at_entry,
-          notes: row.notes,
-          created_at: row.created_at,
-          account_id: row.account_id,
-          strategy: row.strategy,
-        })
-        .eq("user_id", row.user_id)
-        .eq("mt5_ticket", row.mt5_ticket ?? "");
-      if (!updated.error) ingested += 1;
+      if (!inserted.error) ingested += 1;
     }
+  }
+
+  // Closed deals rarely change, so this is usually empty. Run a few at a time
+  // so a one-off bulk correction (e.g. trade times) stays inside the timeout.
+  for (let index = 0; index < updates.length; index += 10) {
+    const results = await Promise.all(
+      updates.slice(index, index + 10).map(({ id, changes }) =>
+        supabase
+          .from("trades")
+          .update(changes)
+          .eq("id", id)
+          .eq("user_id", userId)
+      )
+    );
+    ingested += results.filter((result) => !result.error).length;
   }
   return ingested;
 }

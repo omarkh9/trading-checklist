@@ -438,18 +438,26 @@ begin
       v_ticket
     )
     on conflict (user_id, mt5_ticket)
+    -- Only broker-owned columns. Notes (which carry emotions and rule scores),
+    -- strategy, charts and the id belong to the journal and must survive.
     do update set
       pair = excluded.pair,
       direction = excluded.direction,
-      entry_price = excluded.entry_price,
-      stop_loss = excluded.stop_loss,
-      take_profit = excluded.take_profit,
+      entry_price = coalesce(nullif(excluded.entry_price, ''), trades.entry_price),
+      -- A blank broker SL/TP means "none on the order", not "clear the journal's".
+      stop_loss = coalesce(nullif(excluded.stop_loss, ''), trades.stop_loss),
+      take_profit = coalesce(nullif(excluded.take_profit, ''), trades.take_profit),
       outcome = excluded.outcome,
-      pnl_input = excluded.pnl_input,
+      pnl_mode = case
+        when trades.pnl_dollars = excluded.pnl_dollars then trades.pnl_mode
+        else excluded.pnl_mode
+      end,
+      pnl_input = case
+        when trades.pnl_dollars = excluded.pnl_dollars then trades.pnl_input
+        else excluded.pnl_input
+      end,
       pnl_dollars = excluded.pnl_dollars,
-      lot_size = excluded.lot_size,
-      account_balance_at_entry = excluded.account_balance_at_entry,
-      notes = excluded.notes,
+      lot_size = coalesce(nullif(excluded.lot_size, ''), trades.lot_size),
       created_at = excluded.created_at;
 
     v_ingested := v_ingested + 1;
