@@ -159,17 +159,21 @@ export async function upsertMt5Trades(
   });
 
   let ingested = 0;
+  const dropped = new Set<string>();
   for (let index = 0; index < inserts.length; index += CHUNK) {
-    const chunk = inserts.slice(index, index + CHUNK);
-    // DO NOTHING on conflict: a concurrent sync may have inserted the ticket.
-    let { error } = await supabase.from("trades").upsert(chunk, {
-      onConflict: "user_id,mt5_ticket",
-      ignoreDuplicates: true,
-    });
-    if (error && isMissingConflictTarget(error)) {
-      // Without trades_user_mt5_ticket_uidx the database can't do ON CONFLICT.
-      // These tickets were already checked against existing rows above.
-      ({ error } = await supabase.from("trades").insert(chunk));
+    let chunk = withoutColumns(inserts.slice(index, index + CHUNK), dropped);
+    let error = await writeNewTrades(supabase, chunk);
+    // Older databases lack optional columns (edgelog.org has no `strategy`),
+    // and PostgREST rejects the whole insert if the payload names one.
+    for (
+      let column = error ? unknownColumn(error) : "";
+      error && column && column in chunk[0] && !REQUIRED_TRADE_COLUMNS.has(column);
+      column = error ? unknownColumn(error) : ""
+    ) {
+      console.warn("MT5 trade insert: dropping column the database lacks", { column });
+      dropped.add(column);
+      chunk = withoutColumns(chunk, dropped);
+      error = await writeNewTrades(supabase, chunk);
     }
     if (error) {
       // Retrying row by row used to swallow this and run out the 60s limit.
@@ -210,6 +214,50 @@ export async function upsertMt5Trades(
     ingested += results.filter((result) => !result.error).length;
   }
   return ingested;
+}
+
+const REQUIRED_TRADE_COLUMNS = new Set([
+  "id",
+  "user_id",
+  "account_id",
+  "mt5_ticket",
+  "pair",
+  "direction",
+  "outcome",
+  "pnl_dollars",
+  "created_at",
+]);
+
+async function writeNewTrades(
+  supabase: SupabaseClient<Database>,
+  rows: TradeInsert[]
+) {
+  // DO NOTHING on conflict: a concurrent sync may have inserted the ticket.
+  const upserted = await supabase.from("trades").upsert(rows, {
+    onConflict: "user_id,mt5_ticket",
+    ignoreDuplicates: true,
+  });
+  if (upserted.error && isMissingConflictTarget(upserted.error)) {
+    // Without trades_user_mt5_ticket_uidx the database can't do ON CONFLICT.
+    // These tickets were already checked against existing rows.
+    return (await supabase.from("trades").insert(rows)).error;
+  }
+  return upserted.error;
+}
+
+function withoutColumns(rows: TradeInsert[], columns: Set<string>) {
+  if (columns.size === 0) return rows;
+  return rows.map((row) => {
+    const next: Record<string, unknown> = { ...row };
+    for (const column of columns) delete next[column];
+    return next as TradeInsert;
+  });
+}
+
+function unknownColumn(error: { message: string }) {
+  return (
+    error.message.match(/could not find the '([a-z0-9_]+)' column/i)?.[1] ?? ""
+  );
 }
 
 function isMissingConflictTarget(error: { code?: string; message: string }) {
