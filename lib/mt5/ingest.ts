@@ -6,6 +6,7 @@ import type {
   TradeUpdate,
   TradingAccountUpdate,
 } from "@/lib/supabase/database.types";
+import { Mt5GatewayError } from "@/lib/mt5/errors";
 import { persistMt5Snapshot } from "@/lib/mt5/persist-credentials";
 import type { Mt5IngestTrade } from "@/lib/mt5/trades";
 
@@ -161,18 +162,29 @@ export async function upsertMt5Trades(
   for (let index = 0; index < inserts.length; index += CHUNK) {
     const chunk = inserts.slice(index, index + CHUNK);
     // DO NOTHING on conflict: a concurrent sync may have inserted the ticket.
-    const upserted = await supabase.from("trades").upsert(chunk, {
+    let { error } = await supabase.from("trades").upsert(chunk, {
       onConflict: "user_id,mt5_ticket",
       ignoreDuplicates: true,
     });
-    if (!upserted.error) {
-      ingested += chunk.length;
-      continue;
+    if (error && isMissingConflictTarget(error)) {
+      // Without trades_user_mt5_ticket_uidx the database can't do ON CONFLICT.
+      // These tickets were already checked against existing rows above.
+      ({ error } = await supabase.from("trades").insert(chunk));
     }
-    for (const row of chunk) {
-      const inserted = await supabase.from("trades").insert(row);
-      if (!inserted.error) ingested += 1;
+    if (error) {
+      // Retrying row by row used to swallow this and run out the 60s limit.
+      console.error("MT5 trade insert failed", {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+      });
+      throw new Mt5GatewayError(
+        `The journal database rejected the MT5 trades: ${error.message}`,
+        "rejected"
+      );
     }
+    ingested += chunk.length;
   }
 
   // Closed deals rarely change, so this is usually empty. Run a few at a time
@@ -187,9 +199,24 @@ export async function upsertMt5Trades(
           .eq("user_id", userId)
       )
     );
+    const failed = results.find((result) => result.error)?.error;
+    if (failed) {
+      console.error("MT5 trade update failed", {
+        code: failed.code,
+        message: failed.message,
+        details: failed.details,
+      });
+    }
     ingested += results.filter((result) => !result.error).length;
   }
   return ingested;
+}
+
+function isMissingConflictTarget(error: { code?: string; message: string }) {
+  return (
+    error.code === "42P10" ||
+    error.message.toLowerCase().includes("no unique or exclusion constraint")
+  );
 }
 
 const ACCOUNT_SCOPE_ID =
