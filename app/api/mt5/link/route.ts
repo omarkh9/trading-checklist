@@ -277,6 +277,10 @@ export async function POST(request: Request) {
   const provisionedBalance = positiveMt5Money(provisioned.balance);
   const provisionedEquity =
     positiveMt5Money(provisioned.equity) ?? provisionedBalance;
+  // MetaAPI provisioning returns no balance. Reconnecting the same login keeps
+  // the last synced balance until the backfill below replaces it; a different
+  // login must not show the previous account's money.
+  const sameLogin = asText((byId ?? byLogin)?.mt5_login) === parsed.login;
 
   await persistMt5ConnectionMeta(supabase, {
     userId: user.id,
@@ -284,10 +288,15 @@ export async function POST(request: Request) {
     fields: {
       mt5_webhook_token_hash: tokenHash,
       mt5_connection_id: provisioned.connectionId,
-      mt5_balance: provisionedBalance,
-      mt5_equity: provisionedEquity,
-      mt5_synced_at:
-        provisionedBalance != null ? new Date().toISOString() : null,
+      ...(provisionedBalance != null
+        ? {
+            mt5_balance: provisionedBalance,
+            mt5_equity: provisionedEquity,
+            mt5_synced_at: new Date().toISOString(),
+          }
+        : sameLogin
+          ? {}
+          : { mt5_balance: null, mt5_equity: null, mt5_synced_at: null }),
     },
   });
 

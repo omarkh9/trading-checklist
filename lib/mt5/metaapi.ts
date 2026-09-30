@@ -6,6 +6,8 @@ const PROVISIONING_API =
 // Accounts this app adds carry this name prefix. The app only deploys or
 // removes accounts it created, never other MetaAPI accounts on the same token.
 const ACCOUNT_NAME_PREFIX = "Edge Log ";
+const REQUEST_TIMEOUT_MS = 10000;
+const REQUEST_ATTEMPTS = 2;
 const DEALS_PAGE_SIZE = 1000;
 const MAX_DEAL_PAGES = 20;
 const TRADE_TYPES = new Set(["DEAL_TYPE_BUY", "DEAL_TYPE_SELL"]);
@@ -55,6 +57,13 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+type MetaApiResponse = { status: number; ok: boolean; body: unknown };
+
+// On Netlify a pooled connection can go dead while the function is frozen
+// between requests, and a request sent on it hangs with no reply. Abort after
+// a short timeout (which discards that connection) and retry on a fresh one.
+// Every MetaAPI call here is safe to repeat; account creation is keyed by its
+// transaction-id.
 async function metaApiFetch(
   url: string | URL,
   token: string,
@@ -64,16 +73,39 @@ async function metaApiFetch(
     body?: string;
     timeoutMs?: number;
   } = {}
-) {
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      method: init.method ?? "GET",
-      headers: { ...init.headers, "auth-token": token },
-      body: init.body,
-      signal: AbortSignal.timeout(init.timeoutMs ?? 15000),
-    });
-  } catch {
+): Promise<MetaApiResponse> {
+  let result: MetaApiResponse | null = null;
+  for (let attempt = 1; attempt <= REQUEST_ATTEMPTS && !result; attempt += 1) {
+    const started = Date.now();
+    try {
+      const response = await fetch(url, {
+        method: init.method ?? "GET",
+        headers: { ...init.headers, "auth-token": token },
+        body: init.body,
+        signal: AbortSignal.timeout(init.timeoutMs ?? REQUEST_TIMEOUT_MS),
+      });
+      result = {
+        status: response.status,
+        ok: response.ok,
+        body: await readJson(response),
+      };
+      if (attempt > 1) {
+        console.info("MetaAPI request recovered on retry", {
+          path: new URL(String(url)).pathname,
+          attempt,
+          ms: Date.now() - started,
+        });
+      }
+    } catch (cause) {
+      console.warn("MetaAPI request failed", {
+        path: new URL(String(url)).pathname,
+        attempt,
+        ms: Date.now() - started,
+        error: cause instanceof Error ? `${cause.name}: ${cause.message}` : String(cause),
+      });
+    }
+  }
+  if (!result) {
     throw new Mt5GatewayError(
       "Could not reach MetaAPI. Try again in a moment.",
       "unavailable"
@@ -81,17 +113,17 @@ async function metaApiFetch(
   }
   // 401 is the server's token; 403 is also used for account problems such as
   // "please top up your account", so that one keeps MetaAPI's own message.
-  if (response.status === 401) {
+  if (result.status === 401) {
     throw new Mt5GatewayError(
       "MetaAPI rejected the server's METAAPI_TOKEN. Update it in the Netlify environment variables.",
       "unavailable"
     );
   }
-  return response;
+  return result;
 }
 
-async function failure(response: Response, fallback: string) {
-  const body = asRecord(await readJson(response));
+function failure(response: MetaApiResponse, fallback: string) {
+  const body = asRecord(response.body);
   const message = asText(body.message).replace(/\s*\([0-9a-f]{32}\)$/i, "");
   return new Mt5GatewayError(
     message || fallback,
@@ -111,9 +143,9 @@ async function readAccount(token: string, id: string) {
   const response = await metaApiFetch(accountUrl(id), token);
   if (response.status === 404 || response.status === 400) return null;
   if (!response.ok) {
-    throw await failure(response, "Could not read the MetaAPI account.");
+    throw failure(response, "Could not read the MetaAPI account.");
   }
-  const record = asRecord(await readJson(response));
+  const record = asRecord(response.body);
   return accountIdOf(record) ? record : null;
 }
 
@@ -122,9 +154,9 @@ async function findAccount(token: string, login: string, server: string) {
   url.searchParams.set("query", login);
   const response = await metaApiFetch(url, token);
   if (!response.ok) {
-    throw await failure(response, "Could not read MetaAPI accounts.");
+    throw failure(response, "Could not read MetaAPI accounts.");
   }
-  const body = await readJson(response);
+  const body = response.body;
   const list = Array.isArray(body) ? body : asRecord(body).items;
   if (!Array.isArray(list)) return null;
   return (
@@ -182,17 +214,17 @@ async function createAccount(
         platform: "mt5",
         magic: 0,
       }),
-      timeoutMs: 20000,
+      timeoutMs: 15000,
     }
   );
   if (response.status === 202) return "";
   if (!response.ok) {
-    throw await failure(
+    throw failure(
       response,
       "MetaAPI could not add this MT5 account. Check the account number, investor password, and server."
     );
   }
-  const id = accountIdOf(asRecord(await readJson(response)));
+  const id = accountIdOf(asRecord(response.body));
   if (!id) {
     throw new Mt5GatewayError(
       "MetaAPI did not return an account id.",
@@ -254,7 +286,7 @@ async function deployAccount(token: string, id: string, account: JsonRecord) {
     method: "POST",
   });
   if (!response.ok) {
-    throw await failure(response, "MetaAPI could not start this MT5 account.");
+    throw failure(response, "MetaAPI could not start this MT5 account.");
   }
 }
 
@@ -300,7 +332,7 @@ async function readDeals(
     url.searchParams.set("offset", String(page * DEALS_PAGE_SIZE));
     url.searchParams.set("limit", String(DEALS_PAGE_SIZE));
     const pageStarted = Date.now();
-    const response = await metaApiFetch(url, token, { timeoutMs: 25000 });
+    const response = await metaApiFetch(url, token);
     if (response.status === 404) {
       throw new Mt5GatewayError(
         "MetaAPI is still connecting this account to the broker. It will sync automatically in a few minutes.",
@@ -308,12 +340,12 @@ async function readDeals(
       );
     }
     if (!response.ok) {
-      throw await failure(
+      throw failure(
         response,
         "Could not load MT5 deal history from MetaAPI. Try again in a moment."
       );
     }
-    const body = await readJson(response);
+    const body = response.body;
     const batch = Array.isArray(body) ? body : [];
     deals.push(...batch);
     console.info("MetaAPI deals page", {
@@ -332,7 +364,7 @@ async function readAccountInformation(token: string, host: string, id: string) {
     `${host}/users/current/accounts/${encodeURIComponent(id)}/account-information`,
     token
   );
-  return response.ok ? asRecord(await readJson(response)) : {};
+  return response.ok ? asRecord(response.body) : {};
 }
 
 // Turns MetaAPI deals into the MT5 bridge's closed-trade rows, so
