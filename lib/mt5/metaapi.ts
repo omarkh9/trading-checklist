@@ -299,6 +299,7 @@ async function readDeals(
     const url = new URL(base);
     url.searchParams.set("offset", String(page * DEALS_PAGE_SIZE));
     url.searchParams.set("limit", String(DEALS_PAGE_SIZE));
+    const pageStarted = Date.now();
     const response = await metaApiFetch(url, token, { timeoutMs: 25000 });
     if (response.status === 404) {
       throw new Mt5GatewayError(
@@ -315,6 +316,12 @@ async function readDeals(
     const body = await readJson(response);
     const batch = Array.isArray(body) ? body : [];
     deals.push(...batch);
+    console.info("MetaAPI deals page", {
+      page,
+      received: batch.length,
+      firstId: asText(asRecord(batch[0]).id),
+      ms: Date.now() - pageStarted,
+    });
     if (batch.length < DEALS_PAGE_SIZE) break;
   }
   return deals;
@@ -381,6 +388,7 @@ export async function fetchMetaApiHistory(
   token: string,
   input: MetaApiAccountInput & { from: Date; to: Date }
 ) {
+  const started = Date.now();
   const ensured = await ensureMetaApiAccount(token, input);
   if (!ensured.id) {
     throw new Mt5GatewayError(
@@ -390,6 +398,12 @@ export async function fetchMetaApiHistory(
   }
 
   const account = await waitForConnection(token, ensured.id, ensured.account);
+  console.info("MetaAPI account ready", {
+    state: asText(account.state),
+    connection: asText(account.connectionStatus),
+    region: asText(account.region),
+    ms: Date.now() - started,
+  });
   const host = clientApiHost(asText(account.region));
   const [deals, info] = await Promise.all([
     readDeals(token, host, ensured.id, input.from, input.to),

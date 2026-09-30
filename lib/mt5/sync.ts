@@ -34,6 +34,7 @@ export async function syncMt5Journal(options: {
   days?: number;
 }) {
   const window = resolveHistoryWindow(options.days);
+  const started = Date.now();
   const snapshot = await fetchMt5History({
     login: options.login,
     investorPassword: options.investorPassword,
@@ -59,10 +60,23 @@ export async function syncMt5Journal(options: {
     },
     snapshotMetrics.balance
   );
+  const fetchedAt = Date.now();
+  console.info("MT5 sync fetched", {
+    accountId: options.accountId,
+    days: window.days,
+    deals: snapshot.deals.length,
+    trades: trades.length,
+    fetchMs: fetchedAt - started,
+  });
   const ingested = await upsertMt5Trades(
     options.supabase,
     mt5TradesToInserts(trades, options.userId, options.accountId)
   );
+  console.info("MT5 sync saved trades", {
+    accountId: options.accountId,
+    ingested,
+    upsertMs: Date.now() - fetchedAt,
+  });
 
   const rawMoney = readMt5GatewayMoney(snapshot.raw);
   const rawMetrics = readMt5AccountMetrics(snapshot.raw);

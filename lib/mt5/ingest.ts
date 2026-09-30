@@ -150,6 +150,13 @@ export async function upsertMt5Trades(
     }
   }
 
+  console.info("MT5 trades to write", {
+    total: rows.length,
+    existing: existing.size,
+    inserts: inserts.length,
+    updates: updates.length,
+  });
+
   let ingested = 0;
   for (let index = 0; index < inserts.length; index += CHUNK) {
     const chunk = inserts.slice(index, index + CHUNK);
