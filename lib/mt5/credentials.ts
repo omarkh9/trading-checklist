@@ -2,8 +2,10 @@ export function normalizeMt5Login(value: string) {
   return value.trim().replace(/\s+/g, "");
 }
 
+// Broker server names can contain spaces ("VantageInternational-Live 3"), so
+// only tidy them: removing the space names a server that doesn't exist.
 export function normalizeMt5Server(value: string) {
-  return value.trim().replace(/\s+/g, "");
+  return value.trim().replace(/\s+/g, " ");
 }
 
 export function hasMt5InvestorCredentials(input?: {
@@ -34,7 +36,11 @@ export function validateMt5LinkInput(input: {
     };
   }
 
-  if (!/^[A-Za-z0-9._:-]{3,64}$/.test(server)) {
+  if (
+    server.length < 3 ||
+    server.length > 64 ||
+    !/^[A-Za-z0-9._:-]+( [A-Za-z0-9._:-]+)*$/.test(server)
+  ) {
     return {
       ok: false as const,
       error: "Enter the broker server name exactly as it appears in MT5.",
