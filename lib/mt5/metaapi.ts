@@ -122,9 +122,15 @@ async function metaApiFetch(
   return result;
 }
 
+const STILL_CONNECTING =
+  "MetaAPI is still connecting this account to your broker. Trades will sync automatically in a few minutes.";
+
 function failure(response: MetaApiResponse, fallback: string) {
   const body = asRecord(response.body);
   const message = asText(body.message).replace(/\s*\([0-9a-f]{32}\)$/i, "");
+  if (/not connected to broker yet/i.test(message)) {
+    return new Mt5GatewayError(STILL_CONNECTING, "unavailable");
+  }
   return new Mt5GatewayError(
     message || fallback,
     response.status >= 500 || response.status === 403 ? "unavailable" : "rejected"
@@ -334,10 +340,7 @@ async function readDeals(
     const pageStarted = Date.now();
     const response = await metaApiFetch(url, token);
     if (response.status === 404) {
-      throw new Mt5GatewayError(
-        "MetaAPI is still connecting this account to the broker. It will sync automatically in a few minutes.",
-        "unavailable"
-      );
+      throw new Mt5GatewayError(STILL_CONNECTING, "unavailable");
     }
     if (!response.ok) {
       throw failure(
@@ -436,6 +439,17 @@ export async function fetchMetaApiHistory(
     region: asText(account.region),
     ms: Date.now() - started,
   });
+  // A new account needs a minute or two to log in to the broker; until then
+  // MetaAPI answers history requests with a confusing region/URL error.
+  const connection = asText(account.connectionStatus).toUpperCase();
+  if (connection && connection !== "CONNECTED") {
+    throw new Mt5GatewayError(
+      connection === "DISCONNECTED_FROM_BROKER"
+        ? "MetaAPI can't log in to your broker yet. If this keeps happening, check the investor password and server, then reconnect."
+        : STILL_CONNECTING,
+      "unavailable"
+    );
+  }
   const host = clientApiHost(asText(account.region));
   const [deals, info] = await Promise.all([
     readDeals(token, host, ensured.id, input.from, input.to),
