@@ -114,6 +114,7 @@ export type Database = {
           mt5_balance: number | null;
           mt5_equity: number | null;
           mt5_synced_at: string | null;
+          mt5_active_at?: string | null;
           mt5_investor_password_cipher?: string | null;
           mt5_credentials_set?: boolean;
         };
@@ -131,6 +132,7 @@ export type Database = {
           mt5_balance?: number | null;
           mt5_equity?: number | null;
           mt5_synced_at?: string | null;
+          mt5_active_at?: string | null;
           mt5_investor_password_cipher?: string | null;
           mt5_credentials_set?: boolean;
         };
@@ -148,6 +150,7 @@ export type Database = {
           mt5_balance?: number | null;
           mt5_equity?: number | null;
           mt5_synced_at?: string | null;
+          mt5_active_at?: string | null;
           mt5_investor_password_cipher?: string | null;
           mt5_credentials_set?: boolean;
         };

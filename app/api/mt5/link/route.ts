@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { markMt5Active } from "@/lib/mt5/activity";
 import { validateMt5LinkInput } from "@/lib/mt5/credentials";
 import {
   disconnectMt5Connection,
@@ -299,6 +300,7 @@ export async function POST(request: Request) {
           : { mt5_balance: null, mt5_equity: null, mt5_synced_at: null }),
     },
   });
+  await markMt5Active(supabase, target.id, user.id);
 
   let ingested = 0;
   let balance = provisionedBalance;

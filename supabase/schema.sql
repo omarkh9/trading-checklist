@@ -32,6 +32,7 @@ create table public.trading_accounts (
   mt5_balance numeric(18, 2),
   mt5_equity numeric(18, 2),
   mt5_synced_at timestamptz,
+  mt5_active_at timestamptz,
   mt5_investor_password_cipher text,
   mt5_credentials_set boolean not null default false,
   constraint trading_accounts_name_len check (

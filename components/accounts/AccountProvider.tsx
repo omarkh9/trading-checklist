@@ -68,6 +68,7 @@ function errorMessage(error: unknown) {
 // Pull fresh broker data in the background while the app is open. A short
 // window keeps it light; "Sync history" still backfills the full year.
 const AUTO_SYNC_INTERVAL_MS = 5 * 60_000;
+const AUTO_SYNC_RETRY_MS = 60_000;
 const AUTO_SYNC_DAYS = 7;
 
 export function AccountProvider({ children }: { children: React.ReactNode }) {
@@ -156,8 +157,10 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
         })
         .catch((cause) => {
           // Stay quiet in the background; "Last sync" shows staleness and the
-          // manual "Sync history" button reports the error.
+          // manual "Sync history" button reports the error. A paused MetaAPI
+          // account takes a minute or two to wake up, so retry sooner.
           console.warn("MT5 auto-sync failed:", errorMessage(cause));
+          state.lastAttempt = Date.now() - AUTO_SYNC_INTERVAL_MS + AUTO_SYNC_RETRY_MS;
         })
         .finally(() => {
           state.running = false;

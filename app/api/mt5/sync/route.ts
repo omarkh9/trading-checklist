@@ -1,14 +1,13 @@
-import { createClient as createSupabaseJs } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { markMt5Active } from "@/lib/mt5/activity";
 import { validateMt5LinkInput } from "@/lib/mt5/credentials";
 import { Mt5GatewayError } from "@/lib/mt5/gateway";
-import { canFetchMt5History, getMt5SyncSecret, getSupabaseServiceRoleKey } from "@/lib/mt5/env";
+import { canFetchMt5History, getMt5SyncSecret } from "@/lib/mt5/env";
 import { loadMt5StoredCredentials } from "@/lib/mt5/stored-credentials";
 import { syncMt5Journal } from "@/lib/mt5/sync";
 import { readMt5AccountMetrics } from "@/lib/mt5/trades";
-import type { Database } from "@/lib/supabase/database.types";
-import { getSupabaseUrl } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceRoleClient } from "@/lib/supabase/service";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,14 +38,6 @@ function isWorkerRequest(request: Request) {
   return Boolean(secret && token && token === secret);
 }
 
-function createServiceClient() {
-  const key = getSupabaseServiceRoleKey();
-  if (!key) return null;
-  return createSupabaseJs<Database>(getSupabaseUrl(), key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-}
-
 export function GET() {
   return json({
     ok: true,
@@ -66,7 +57,7 @@ export async function POST(request: Request) {
   }
 
   const worker = isWorkerRequest(request);
-  const supabase = worker ? createServiceClient() : await createClient();
+  const supabase = worker ? createServiceRoleClient() : await createClient();
   if (!supabase) {
     return json(
       {
@@ -128,7 +119,7 @@ export async function POST(request: Request) {
     requestCredentials = parsed;
   }
 
-  const reader = createServiceClient() ?? supabase;
+  const reader = createServiceRoleClient() ?? supabase;
   let targets;
   try {
     targets = await loadMt5StoredCredentials(reader, {
@@ -185,6 +176,9 @@ export async function POST(request: Request) {
       results.push({ ok: false, accountId: account.id, error: message });
       continue;
     }
+
+    // Keeps the MetaAPI account running while the user has the app open.
+    if (!worker) await markMt5Active(supabase, account.id, userId);
 
     try {
       const result = await syncMt5Journal({

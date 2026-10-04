@@ -466,6 +466,26 @@ export async function fetchMetaApiHistory(
   };
 }
 
+// Stops billing for an idle account the app created. The next sync deploys it
+// again (another 6-hour minimum), so only the idle job calls this.
+export async function undeployMetaApiAccount(token: string, id: string) {
+  const account = await readAccount(token, id);
+  if (
+    !account ||
+    !asText(account.name).startsWith(ACCOUNT_NAME_PREFIX) ||
+    asText(account.state).toUpperCase() !== "DEPLOYED"
+  ) {
+    return false;
+  }
+  const response = await metaApiFetch(accountUrl(id, "/undeploy"), token, {
+    method: "POST",
+  });
+  if (!response.ok) {
+    throw failure(response, "MetaAPI could not pause this MT5 account.");
+  }
+  return true;
+}
+
 export async function removeMetaApiAccount(token: string, id: string) {
   const account = await readAccount(token, id);
   if (!account || !asText(account.name).startsWith(ACCOUNT_NAME_PREFIX)) return;

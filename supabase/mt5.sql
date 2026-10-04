@@ -25,6 +25,7 @@ alter table public.trading_accounts
   add column if not exists mt5_balance numeric(18, 2),
   add column if not exists mt5_equity numeric(18, 2),
   add column if not exists mt5_synced_at timestamptz,
+  add column if not exists mt5_active_at timestamptz,
   add column if not exists mt5_investor_password_cipher text,
   add column if not exists mt5_credentials_set boolean not null default false;
 
