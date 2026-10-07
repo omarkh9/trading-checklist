@@ -37,6 +37,7 @@ import {
   resolveTradeResult,
 } from "@/lib/trades/pnl";
 import { computeRuleScore, resolveTradeRuleScore } from "@/lib/trades/rule-score";
+import { formStateFromInitial, reconcileTradeForm } from "@/lib/trades/trade-form";
 import {
   emptyTradeForm,
   type PnlMode,
@@ -216,36 +217,53 @@ export const TradeForm = memo(function TradeForm({
     isLoaded: checklistLoaded,
   } = useCachedChecklist();
   const { trades: allTrades } = useCachedTrades();
-  const [form, setForm] = useState<TradeFormData>(() => ({
-    ...(initialData ?? emptyTradeForm()),
-    accountId: initialData?.accountId || defaultAccountId,
-    riskPercent:
-      initialData?.riskPercent || String(settings.defaultRiskPercent),
-  }));
+  const [form, setForm] = useState<TradeFormData>(() =>
+    initialData
+      ? formStateFromInitial(
+          initialData,
+          defaultAccountId,
+          String(settings.defaultRiskPercent)
+        )
+      : {
+          ...emptyTradeForm(),
+          accountId: defaultAccountId,
+          riskPercent: String(settings.defaultRiskPercent),
+        }
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [manualPnl, setManualPnl] = useState(
     () => Boolean(initialData?.pnlInput?.trim()) && !initialData?.exitPrice
   );
   const [quoteToUsd, setQuoteToUsd] = useState<number | null>(null);
+  const formRef = useRef(form);
+  formRef.current = form;
+  const appliedInitialRef = useRef<TradeFormData | null>(
+    initialData ? form : null
+  );
 
   useEffect(() => {
     if (initialData) {
-      setForm({
-        ...initialData,
-        accountId: initialData.accountId || defaultAccountId,
-        checkedRuleIds: initialData.checkedRuleIds ?? [],
-        ruleScore: initialData.ruleScore ?? null,
-      });
-      setManualPnl(
-        Boolean(initialData.pnlInput?.trim()) && !initialData.exitPrice
+      // Background refreshes re-send the same trade; never let one wipe what
+      // the user is editing (e.g. a chart just picked from the photo library).
+      const incoming = formStateFromInitial(
+        initialData,
+        defaultAccountId,
+        String(settings.defaultRiskPercent)
       );
+      const applied = appliedInitialRef.current ?? incoming;
+      appliedInitialRef.current = incoming;
+      const next = reconcileTradeForm(formRef.current, applied, incoming);
+      if (next !== formRef.current) {
+        setForm(next);
+        setManualPnl(Boolean(next.pnlInput?.trim()) && !next.exitPrice);
+      }
       return;
     }
     setForm((prev) => ({
       ...prev,
       accountId: defaultAccountId || prev.accountId,
     }));
-  }, [initialData, defaultAccountId]);
+  }, [initialData, defaultAccountId, settings.defaultRiskPercent]);
 
   useEffect(() => {
     if (initialData || !checklistLoaded) return;

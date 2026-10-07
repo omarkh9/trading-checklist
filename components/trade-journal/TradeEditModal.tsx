@@ -5,7 +5,7 @@ import { tradeToFormData } from "@/lib/trades/trade-form";
 import type { TradingAccount } from "@/lib/types/account";
 import type { Trade, TradeFormData } from "@/lib/types/trade";
 import { X } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type TradeEditModalProps = {
   trade: Trade;
@@ -24,6 +24,10 @@ export function TradeEditModal({
   onSave,
   onClose,
 }: TradeEditModalProps) {
+  const initialData = useMemo(() => tradeToFormData(trade), [trade]);
+  // The page's error banner sits behind this modal, so show save errors here.
+  const [saveError, setSaveError] = useState<string | null>(null);
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
@@ -65,17 +69,33 @@ export function TradeEditModal({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5">
+          {saveError && (
+            <div
+              role="alert"
+              className="mb-4 rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200"
+            >
+              Could not save: {saveError}
+            </div>
+          )}
           <TradeForm
             key={trade.id}
             embedded
             accounts={accounts}
             accountBalances={accountBalances}
             defaultAccountId={trade.accountId || defaultAccountId}
-            initialData={tradeToFormData(trade)}
+            initialData={initialData}
             submitLabel="Save Changes"
             onCancel={onClose}
             onSubmit={async (data) => {
-              await onSave(data);
+              setSaveError(null);
+              try {
+                await onSave(data);
+              } catch (cause) {
+                setSaveError(
+                  cause instanceof Error ? cause.message : "Something went wrong."
+                );
+                throw cause;
+              }
               onClose();
             }}
           />

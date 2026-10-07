@@ -38,6 +38,54 @@ export function formDataToTrade(
   };
 }
 
+// Form state for editing an existing trade, with the defaults the form needs.
+export function formStateFromInitial(
+  initialData: TradeFormData,
+  defaultAccountId: string,
+  defaultRiskPercent: string
+): TradeFormData {
+  return {
+    ...initialData,
+    accountId: initialData.accountId || defaultAccountId,
+    riskPercent: initialData.riskPercent || defaultRiskPercent,
+    checkedRuleIds: initialData.checkedRuleIds ?? [],
+    ruleScore: initialData.ruleScore ?? null,
+  };
+}
+
+export function sameTradeFormData(a: TradeFormData, b: TradeFormData) {
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  for (const key of keys) {
+    const left = a[key as keyof TradeFormData];
+    const right = b[key as keyof TradeFormData];
+    if (Array.isArray(left) || Array.isArray(right)) {
+      if (
+        !Array.isArray(left) ||
+        !Array.isArray(right) ||
+        left.length !== right.length ||
+        left.some((value, index) => value !== right[index])
+      ) {
+        return false;
+      }
+    } else if (left !== right) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// The trade behind an open edit form gets re-read in the background (MT5
+// auto-sync, the periodic refresh, regaining focus after the photo picker).
+// Take fresh data only while the form is untouched; never overwrite edits.
+export function reconcileTradeForm(
+  current: TradeFormData,
+  applied: TradeFormData,
+  incoming: TradeFormData
+) {
+  if (sameTradeFormData(applied, incoming)) return current;
+  return sameTradeFormData(current, applied) ? incoming : current;
+}
+
 export function tradeToFormData(trade: Trade): TradeFormData {
   const defaults = emptyTradeForm();
   const { id: _id, createdAt: _createdAt, ...formData } = trade;
